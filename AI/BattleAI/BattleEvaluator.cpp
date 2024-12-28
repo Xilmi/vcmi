@@ -772,6 +772,8 @@ bool BattleEvaluator::attemptCastingSpell(const CStack * activeStack)
 				for(const auto & unitId : allStacks)
 				{
 					const CStack* unit = cb->getBattle(battleID)->battleGetStackByID(unitId);
+					if (!unit)
+						continue;
 					bool stillExist = false;
 					for (const auto& remainingUnit : allUnits)
 					{
