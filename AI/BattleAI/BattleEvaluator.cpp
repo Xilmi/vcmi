@@ -758,12 +758,29 @@ bool BattleEvaluator::attemptCastingSpell(const CStack * activeStack)
 
 					ps.value = scoreEvaluator.evaluateExchange(updatedAttack, cachedAttack.turn, *targets, innerCache, state);
 				}
-				for(const auto & unit : allUnits)
+				std::vector<uint64_t> allStacks;
+				for(const auto & unit : all)
 				{
-					if(!unit->isValidTarget(true))
-						continue;
-
-					auto newHealth = unit->getAvailableHealth();
+					if (unit->isValidTarget())
+						allStacks.push_back(unit->unitId());
+				}
+				for (const auto & unit : allUnits)
+				{
+					if (unit->isValidTarget())
+						allStacks.push_back(unit->unitId());
+				}
+				for(const auto & unitId : allStacks)
+				{
+					const CStack* unit = cb->getBattle(battleID)->battleGetStackByID(unitId);
+					bool stillExist = false;
+					for (const auto& remainingUnit : allUnits)
+					{
+						if (remainingUnit->unitId() == unitId)
+							stillExist = true;
+					}
+					int64_t newHealth = 0;
+					if (stillExist)
+						newHealth = unit->getAvailableHealth();
 					auto oldHealth = vstd::find_or(healthOfStack, unit->unitId(), 0); // old health value may not exist for newly summoned units
 
 					if(oldHealth != newHealth)
@@ -841,7 +858,7 @@ bool BattleEvaluator::attemptCastingSpell(const CStack * activeStack)
 			return ps.value;
 		});
 
-	if(castToPerform.value > cachedAttack.score && !vstd::isAlmostEqual(castToPerform.value, cachedAttack.score))
+	if(castToPerform.value > cachedAttack.score)
 	{
 		LOGFL("Best spell is %s (value %d). Will cast.", castToPerform.spell->getNameTranslated() % castToPerform.value);
 		BattleAction spellcast;
