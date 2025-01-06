@@ -1134,6 +1134,7 @@ void CGTownInstance::serializeJsonOptions(JsonSerializeFormat & handler)
 		eventsHandler.syncSize(events, JsonNode::JsonType::DATA_VECTOR);
 		eventsHandler.serializeStruct(events);
 	}
+	handler.serializeId("alignmentToPlayer", alignmentToPlayer, PlayerColor::NEUTRAL);
 }
 
 const CFaction * CGTownInstance::getFaction() const
@@ -1247,6 +1248,14 @@ void CGTownInstance::postDeserialize()
 	setNodeType(CBonusSystemNode::TOWN);
 	for(auto & building : rewardableBuildings)
 		building.second->town = this;
+
+	if (getFactionID().hasValue())
+	{
+		vstd::erase_if(builtBuildings, [this](const BuildingID & buildID)
+		{
+			return getTown()->buildings.count(buildID) == 0;
+		});
+	}
 }
 
 std::map<BuildingID, TownRewardableBuildingInstance*> CGTownInstance::convertOldBuildings(std::vector<TownRewardableBuildingInstance*> oldVector)
