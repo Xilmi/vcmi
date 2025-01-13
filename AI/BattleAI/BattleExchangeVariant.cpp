@@ -835,7 +835,7 @@ BattleScore BattleExchangeEvaluator::calculateExchange(
 			{
 				for(int i = 0; i < totalAttacks; i++)
 				{
-					v.trackAttack(attacker, defender, shooting, isOur, damageCache, exchangeBattle);
+					v.trackAttack(attacker, defender, attacker->canShoot(), isOur, damageCache, exchangeBattle);
 
 					if(!attacker->alive() || !defender->alive())
 						break;
