@@ -1458,7 +1458,8 @@ battle::Units CBattleInfoCallback::getAttackedBattleUnits(
 		if (unit->isGhost() || !unit->alive())
 			return false;
 
-		for (const BattleHex & hex : battle::Unit::getHexes(unit->getPosition(), unit->doubleWide(), unit->unitSide()))
+		const auto & hexes = battle::Unit::getHexes(unit->getPosition(), unit->doubleWide(), unit->unitSide());
+		for (const BattleHex & hex : hexes)
 		{
 			if (at.hostileCreaturePositions.contains(hex))
 				return true;
