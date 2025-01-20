@@ -24,12 +24,8 @@ namespace GameConstants
 
 class BattleHexArray;
 
-/**
- * @brief Represents a battlefield hexagonal tile.
- *
- * Valid hexes are within the range 0 to 186, excluding some invalid values, ex. castle towers (-2, -3, -4).
- * Available hexes are those valid ones but NOT in the first or last column.
- */
+// for battle stacks' positions; valid hexes are from 0 to 186; available are only those not in first and last column
+// castle towers are -2, -3 and -4
 class DLL_LINKAGE BattleHex
 {
 public:
@@ -96,11 +92,6 @@ public:
 	[[nodiscard]] bool isAvailable() const noexcept //valid position not in first or last column
 	{
 		return isValid() && getX() > 0 && getX() < GameConstants::BFIELD_WIDTH - 1;
-	}
-
-	[[nodiscard]] inline bool isTower() const noexcept
-	{
-		return hex == BattleHex::CASTLE_CENTRAL_TOWER || hex == BattleHex::CASTLE_UPPER_TOWER || hex == BattleHex::CASTLE_BOTTOM_TOWER;
 	}
 
 	void setX(si16 x)
@@ -184,7 +175,7 @@ public:
 		return result;
 	}
 
-	[[nodiscard]] static uint8_t getDistance(const BattleHex & hex1, const BattleHex & hex2) noexcept
+	[[nodiscard]] static uint8_t getDistance(BattleHex hex1, BattleHex hex2) noexcept
 	{
 		int y1 = hex1.getY();
 		int y2 = hex2.getY();
@@ -201,7 +192,7 @@ public:
 		return std::abs(xDst) + std::abs(yDst);
 	}
 
-	[[nodiscard]] static BattleHex getClosestTile(BattleSide side, const BattleHex & initialPos, const BattleHexArray & hexes);
+	[[nodiscard]] static BattleHex getClosestTile(BattleSide side, BattleHex initialPos, const BattleHexArray & hexes);
 
 	//Constexpr defined array with all directions used in battle
 	[[nodiscard]] static constexpr auto hexagonalDirections() noexcept
@@ -209,7 +200,7 @@ public:
 		return std::array<EDir,6>{TOP_LEFT, TOP_RIGHT, RIGHT, BOTTOM_RIGHT, BOTTOM_LEFT, LEFT};
 	}
 
-	[[nodiscard]] static EDir mutualPosition(const BattleHex & hex1, const BattleHex & hex2)
+	[[nodiscard]] static EDir mutualPosition(BattleHex hex1, BattleHex hex2)
 	{
 		for(auto dir : hexagonalDirections())
 			if(hex2 == hex1.cloneInDirection(dir, false))
@@ -249,20 +240,25 @@ public:
 		return *this;
 	}
 
-	// Postfix increment is deleted; use prefix increment as it has better performance
-	BattleHex operator++(int) = delete;
+	// Postfix increment
+	BattleHex operator++(int) noexcept
+	{
+		BattleHex temp = *this;
+		++hex;
+		return temp;
+	}
 
-	[[nodiscard]] bool operator ==(const BattleHex & other) const noexcept
+	[[nodiscard]] bool operator ==(BattleHex other) const noexcept
 	{
 		return hex == other.hex;
 	}
 
-	[[nodiscard]] bool operator !=(const BattleHex & other) const noexcept
+	[[nodiscard]] bool operator !=(BattleHex other) const noexcept
 	{
 		return hex != other.hex;
 	}
 
-	[[nodiscard]] bool operator <(const BattleHex & other) const noexcept
+	[[nodiscard]] bool operator <(BattleHex other) const noexcept
 	{
 		return hex < other.hex;
 	}

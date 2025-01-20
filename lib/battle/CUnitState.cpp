@@ -577,7 +577,7 @@ BattleHex CUnitState::getPosition() const
 	return position;
 }
 
-void CUnitState::setPosition(const BattleHex & hex)
+void CUnitState::setPosition(BattleHex hex)
 {
 	position = hex;
 }

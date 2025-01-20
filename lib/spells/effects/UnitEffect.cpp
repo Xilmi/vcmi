@@ -202,7 +202,8 @@ EffectTarget UnitEffect::transformTargetByChain(const Mechanics * m, const Targe
 
 	for(const auto *unit : possibleTargets)
 	{
-		possibleHexes.insert(battle::Unit::getHexes(unit->getPosition(), unit->doubleWide(), unit->unitSide()));
+		for(auto hex : battle::Unit::getHexes(unit->getPosition(), unit->doubleWide(), unit->unitSide()))
+			possibleHexes.insert(hex);
 	}
 
 	BattleHex destHex = mainDestination.hexValue;
@@ -221,8 +222,7 @@ EffectTarget UnitEffect::transformTargetByChain(const Mechanics * m, const Targe
 		else
 			effectTarget.emplace_back();
 
-		const auto & hexes = battle::Unit::getHexes(unit->getPosition(), unit->doubleWide(), unit->unitSide());
-		for(const auto & hex : hexes)
+		for(auto hex : battle::Unit::getHexes(unit->getPosition(), unit->doubleWide(), unit->unitSide()))
 			if (possibleHexes.contains(hex))
 				possibleHexes.erase(hex);
 

@@ -48,7 +48,7 @@ PotentialTargets::PotentialTargets(
 		if(!forceTarget && !state->battleMatchOwner(attackerInfo, defender))
 			continue;
 
-		auto GenerateAttackInfo = [&](bool shooting, const BattleHex & hex) -> AttackPossibility
+		auto GenerateAttackInfo = [&](bool shooting, BattleHex hex) -> AttackPossibility
 		{
 			int distance = hex.isValid() ? reachability.distances[hex.toInt()] : 0;
 			auto bai = BattleAttackInfo(attackerInfo, defender, distance, shooting);
@@ -69,7 +69,7 @@ PotentialTargets::PotentialTargets(
 		}
 		else
 		{
-			for(const BattleHex & hex : avHexes)
+			for(BattleHex hex : avHexes)
 			{
 				if(!CStack::isMeleeAttackPossible(attackerInfo, defender, hex))
 					continue;

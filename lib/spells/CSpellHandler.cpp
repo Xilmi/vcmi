@@ -758,7 +758,7 @@ std::vector<int> CSpellHandler::spellRangeInHexes(std::string input) const
 	result.reserve(ret.size());
 
 	std::transform(ret.begin(), ret.end(), std::back_inserter(result),
-		[](const BattleHex & hex) { return hex.toInt(); }
+		[](BattleHex hex) { return hex.toInt(); }
 	);
 
 	return result;

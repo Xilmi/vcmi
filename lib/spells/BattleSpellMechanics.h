@@ -61,7 +61,7 @@ public:
 	bool isReceptive(const battle::Unit * target) const override;
 
 	/// Returns list of hexes that are affected by spell assuming cast at centralHex
-	BattleHexArray rangeInHexes(const BattleHex & centralHex) const override;
+	BattleHexArray rangeInHexes(BattleHex centralHex) const override;
 
 	const Spell * getSpell() const override;
 
@@ -80,7 +80,7 @@ private:
 
 	void doRemoveEffects(ServerCallback * server, const battle::Units & targets, const CSelector & selector);
 
-	BattleHexArray spellRangeInHexes(const BattleHex & centralHex) const;
+	BattleHexArray spellRangeInHexes(BattleHex centralHex) const;
 
 	Target transformSpellTarget(const Target & aimPoint) const;
 };
