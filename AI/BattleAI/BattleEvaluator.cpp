@@ -772,25 +772,18 @@ bool BattleEvaluator::attemptCastingSpell(const CStack * activeStack)
 				for(const auto & unitId : allStacks)
 				{
 					const battle::Unit* unit = cb->getBattle(battleID)->battleGetUnitByID(unitId);
-					if (!unit)
+					bool stillExist = false;
+					for (const auto& afterSim : allUnits)
 					{
-						for (const auto& afterSim : allUnits)
+						if (afterSim->isValidTarget() && afterSim->unitId() == unitId)
 						{
-							if (afterSim->isValidTarget() && afterSim->unitId() == unitId)
-							{
-								unit = afterSim;
-								break;
-							}
+							unit = afterSim;
+							stillExist = true;
+							break;
 						}
 					}
 					if (!unit)
 						continue;
-					bool stillExist = false;
-					for (const auto& remainingUnit : allUnits)
-					{
-						if (remainingUnit->unitId() == unitId)
-							stillExist = true;
-					}
 					int64_t newHealth = 0;
 					if (stillExist)
 						newHealth = unit->getAvailableHealth();
