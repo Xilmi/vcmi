@@ -13,8 +13,6 @@
 #include "MiscWidgets.h"
 
 #include "../gui/CGuiHandler.h"
-#include "../renderSDL/SDL_Extensions.h"
-#include "../render/AssetGenerator.h"
 #include "../render/IImage.h"
 #include "../render/IRenderHandler.h"
 #include "../render/CAnimation.h"
@@ -53,8 +51,8 @@ CPicture::CPicture( const ImagePath & bmpname )
 	: CPicture(bmpname, Point(0,0))
 {}
 
-CPicture::CPicture( const ImagePath & bmpname, const Point & position )
-	: bg(GH.renderHandler().loadImage(bmpname, EImageBlitMode::COLORKEY))
+CPicture::CPicture( const ImagePath & bmpname, const Point & position, EImageBlitMode mode )
+	: bg(GH.renderHandler().loadImage(bmpname, mode))
 	, needRefresh(false)
 {
 	pos.x += position.x;
@@ -73,6 +71,10 @@ CPicture::CPicture( const ImagePath & bmpname, const Point & position )
 
 	addUsedEvents(SHOW_POPUP);
 }
+
+CPicture::CPicture( const ImagePath & bmpname, const Point & position )
+	:CPicture(bmpname, position, EImageBlitMode::COLORKEY)
+{}
 
 CPicture::CPicture(const ImagePath & bmpname, const Rect &SrcRect, int x, int y)
 	: CPicture(bmpname, Point(x,y))
@@ -118,7 +120,7 @@ void CPicture::setAlpha(uint8_t value)
 
 void CPicture::scaleTo(Point size)
 {
-	bg->scaleTo(size);
+	bg->scaleTo(size, EScalingAlgorithm::BILINEAR);
 
 	pos.w = bg->width();
 	pos.h = bg->height();
@@ -160,7 +162,7 @@ CFilledTexture::CFilledTexture(const ImagePath & imageName, Rect position, Rect 
 
 void CFilledTexture::showAll(Canvas & to)
 {
-	CSDL_Ext::CClipRectGuard guard(to.getInternalSurface(), pos);
+	CanvasClipRectGuard guard(to, pos);
 
 	for (int y=pos.top(); y < pos.bottom(); y+= imageArea.h)
 	{
@@ -181,8 +183,6 @@ FilledTexturePlayerColored::FilledTexturePlayerColored(Rect position)
 
 void FilledTexturePlayerColored::setPlayerColor(PlayerColor player)
 {
-	AssetGenerator::createPlayerColoredBackground(player);
-
 	ImagePath imagePath = ImagePath::builtin("DialogBoxBackground_" + player.toString() + ".bmp");
 
 	texture = GH.renderHandler().loadImage(imagePath, EImageBlitMode::COLORKEY);
@@ -195,12 +195,12 @@ CAnimImage::CAnimImage(const AnimationPath & name, size_t Frame, size_t Group, i
 {
 	pos.x += x;
 	pos.y += y;
-	anim = GH.renderHandler().loadAnimation(name, (Flags & CCreatureAnim::CREATURE_MODE) ? EImageBlitMode::WITH_SHADOW_AND_OVERLAY : EImageBlitMode::COLORKEY);
+	anim = GH.renderHandler().loadAnimation(name, (Flags & CCreatureAnim::CREATURE_MODE) ? EImageBlitMode::WITH_SHADOW_AND_SELECTION: EImageBlitMode::COLORKEY);
 	init();
 }
 
 CAnimImage::CAnimImage(const AnimationPath & name, size_t Frame, Rect targetPos, size_t Group, ui8 Flags):
-	anim(GH.renderHandler().loadAnimation(name, (Flags & CCreatureAnim::CREATURE_MODE) ? EImageBlitMode::WITH_SHADOW_AND_OVERLAY : EImageBlitMode::COLORKEY)),
+	anim(GH.renderHandler().loadAnimation(name, (Flags & CCreatureAnim::CREATURE_MODE) ? EImageBlitMode::WITH_SHADOW_AND_SELECTION : EImageBlitMode::COLORKEY)),
 	frame(Frame),
 	group(Group),
 	flags(Flags),
@@ -266,7 +266,7 @@ void CAnimImage::showAll(Canvas & to)
 		if(auto img = anim->getImage(targetFrame, group))
 		{
 			if(isScaled())
-				img->scaleTo(scaledSize);
+				img->scaleTo(scaledSize, EScalingAlgorithm::BILINEAR);
 
 			to.draw(img, pos.topLeft());
 		}
@@ -318,7 +318,7 @@ bool CAnimImage::isPlayerColored() const
 }
 
 CShowableAnim::CShowableAnim(int x, int y, const AnimationPath & name, ui8 Flags, ui32 frameTime, size_t Group, uint8_t alpha):
-	anim(GH.renderHandler().loadAnimation(name, (Flags & CREATURE_MODE) ? EImageBlitMode::WITH_SHADOW_AND_OVERLAY : EImageBlitMode::COLORKEY)),
+	anim(GH.renderHandler().loadAnimation(name, (Flags & CREATURE_MODE) ? EImageBlitMode::WITH_SHADOW_AND_SELECTION : EImageBlitMode::COLORKEY)),
 	group(Group),
 	frame(0),
 	first(0),

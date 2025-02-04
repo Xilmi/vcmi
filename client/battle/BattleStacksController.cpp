@@ -27,7 +27,6 @@
 #include "../gui/CGuiHandler.h"
 #include "../gui/WindowHandler.h"
 #include "../media/ISoundPlayer.h"
-#include "../render/AssetGenerator.h"
 #include "../render/Colors.h"
 #include "../render/Canvas.h"
 #include "../render/IRenderHandler.h"
@@ -80,7 +79,6 @@ BattleStacksController::BattleStacksController(BattleInterface & owner):
 	stackToActivate(nullptr),
 	animIDhelper(0)
 {
-	AssetGenerator::createCombatUnitNumberWindow();
 	//preparing graphics for displaying amounts of creatures
 	amountNormal     = GH.renderHandler().loadImage(ImagePath::builtin("combatUnitNumberWindowDefault"), EImageBlitMode::COLORKEY);
 	amountPositive   = GH.renderHandler().loadImage(ImagePath::builtin("combatUnitNumberWindowPositive"), EImageBlitMode::COLORKEY);
@@ -733,7 +731,7 @@ bool BattleStacksController::facingRight(const CStack * stack) const
 	return stackFacingRight.at(stack->unitId());
 }
 
-Point BattleStacksController::getStackPositionAtHex(BattleHex hexNum, const CStack * stack) const
+Point BattleStacksController::getStackPositionAtHex(const BattleHex & hexNum, const CStack * stack) const
 {
 	Point ret(-500, -500); //returned value
 	if(stack && stack->initialPosition < 0) //creatures in turrets

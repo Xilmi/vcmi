@@ -12,10 +12,22 @@
 
 #include "BattleHex.h"
 #include <boost/container/small_vector.hpp>
+#include <vstd/RNG.h>
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-/// Class representing an array of unique BattleHex objects
+/**
+* @brief Class representing a collection of unique, valid BattleHex objects.
+
+* The BattleHexArray is a specialized container designed for storing instances
+* of BattleHex. Key notes:
+* - Each BattleHex in the array is unique.
+* - Invalid BattleHex objects (e.g., those with an out-of-bounds or special
+*   value) cannot be inserted into the array.
+* - Maintains an efficient storage mechanism for fast access and presence tracking system using bitset for quick existence checks.
+* - Attempting to insert invalid BattleHex objects will have no effect.
+*
+*/
 class DLL_LINKAGE BattleHexArray
 {
 public:
@@ -30,9 +42,7 @@ public:
 	using pointer = value_type *;
 	using const_pointer = const value_type *;
 	using difference_type = typename StorageType::difference_type;
-	using iterator = typename StorageType::iterator;
 	using const_iterator = typename StorageType::const_iterator;
-	using reverse_iterator = typename StorageType::reverse_iterator;
 	using const_reverse_iterator = typename StorageType::const_reverse_iterator;
 
 	BattleHexArray() = default;
@@ -56,25 +66,25 @@ public:
 	
 	BattleHexArray(std::initializer_list<BattleHex> initList) noexcept;
 
-	void checkAndPush(BattleHex tile)
+	void checkAndPush(const BattleHex & tile)
 	{
 		if(tile.isAvailable() && !contains(tile))
 		{
-			presenceFlags[tile.toInt()] = true;
+			presenceFlags.set(tile.toInt());
 			internalStorage.emplace_back(tile);
 		}
 	}
 
-	void insert(BattleHex hex) noexcept
+	void insert(const BattleHex & hex) noexcept
 	{
 		if(contains(hex))
 			return;
 
-		presenceFlags[hex.toInt()] = true;
+		presenceFlags.set(hex.toInt());
 		internalStorage.emplace_back(hex);
 	}
 
-	void set(size_type index, BattleHex hex)
+	void set(size_type index, const BattleHex & hex)
 	{
 		if(index >= internalStorage.size())
 		{
@@ -87,17 +97,8 @@ public:
 		if(contains(hex))
 			return;
 
-		presenceFlags[hex.toInt()] = true;
+		presenceFlags.set(hex.toInt());
 		internalStorage[index] = hex;
-	}
-
-	iterator insert(iterator pos, BattleHex hex) noexcept
-	{
-		if(contains(hex))
-			return pos;
-
-		presenceFlags[hex.toInt()] = true;
-		return internalStorage.insert(pos, hex);
 	}
 
 	void insert(const BattleHexArray & other) noexcept;
@@ -112,17 +113,44 @@ public:
 		}
 	}
 
+	template<typename Predicate>
+	void sort(Predicate pred)
+	{
+		std::sort(internalStorage.begin(), internalStorage.end(), pred);
+	}
+
+	template<typename Predicate>
+	void eraseIf(Predicate pred)
+	{
+		vstd::erase_if(internalStorage, pred);
+		// reinit presence flags
+		presenceFlags = {};
+		for(const auto & hex : internalStorage)
+			presenceFlags.set(hex.toInt());
+	}
+
+	void shuffle(vstd::RNG & rand)
+	{
+		int64_t n = internalStorage.size();
+
+		for(int64_t i = n - 1; i > 0; --i)
+		{
+			auto randIndex = rand.nextInt64(0, i);
+			std::swap(internalStorage[i], internalStorage[randIndex]);
+		}
+	}
+
 	void clear() noexcept;
-	inline void erase(BattleHex target) noexcept
+	inline void erase(const BattleHex & target) noexcept
 	{
 		assert(contains(target));
 		vstd::erase(internalStorage, target);
-		presenceFlags[target.toInt()] = 0;
+		presenceFlags.reset(target.toInt());
 	}
-	void erase(iterator first, iterator last) noexcept;
+
 	inline void pop_back() noexcept
 	{
-		presenceFlags[internalStorage.back().toInt()] = false;
+		presenceFlags.reset(internalStorage.back().toInt());
 		internalStorage.pop_back();
 	}
 
@@ -131,10 +159,18 @@ public:
 		return std::vector<BattleHex>(internalStorage.begin(), internalStorage.end());
 	}
 
-	template <typename Predicate>
-	iterator findIf(Predicate predicate) noexcept
+	[[nodiscard]] std::string toString(std::string delimiter = ", ") const noexcept
 	{
-		return std::find_if(begin(), end(), predicate);
+		std::string result = "[";
+		for(auto it = internalStorage.begin(); it != internalStorage.end(); ++it)
+		{
+			if(it != internalStorage.begin())
+				result += delimiter;
+			result += std::to_string(it->toInt());
+		}
+		result += "]";
+
+		return result;
 	}
 
 	template <typename Predicate>
@@ -147,7 +183,7 @@ public:
 	BattleHexArray filterBy(Predicate predicate) const noexcept
 	{
 		BattleHexArray filtered;
-		for(auto hex : internalStorage)
+		for(const auto & hex : internalStorage)
 		{
 			if(predicate(hex))
 			{
@@ -158,7 +194,7 @@ public:
 	}
 
 	/// get (precomputed) all possible surrounding tiles
-	static const BattleHexArray & getAllNeighbouringTiles(BattleHex hex) noexcept
+	static const BattleHexArray & getAllNeighbouringTiles(const BattleHex & hex) noexcept
 	{
 		static const BattleHexArray invalid;
 
@@ -169,7 +205,7 @@ public:
 	}
 
 	/// get (precomputed) only valid and available surrounding tiles
-	static const BattleHexArray & getNeighbouringTiles(BattleHex hex) noexcept
+	static const BattleHexArray & getNeighbouringTiles(const BattleHex & hex) noexcept
 	{
 		static const BattleHexArray invalid;
 
@@ -180,23 +216,19 @@ public:
 	}
 
 	/// get (precomputed) only valid and available surrounding tiles for double wide creatures
-	static const BattleHexArray & getNeighbouringTilesDoubleWide(BattleHex hex, BattleSide side) noexcept
+	static const BattleHexArray & getNeighbouringTilesDoubleWide(const BattleHex & hex, BattleSide side) noexcept
 	{
 		assert(hex.isValid() && (side == BattleSide::ATTACKER || side == BattleSide::DEFENDER));
 
 		return neighbouringTilesDoubleWide.at(side)[hex.toInt()];
 	}
 
-	[[nodiscard]] inline bool contains(BattleHex hex) const noexcept
+	/// note: returns true when param is ivalid BattleHex
+	[[nodiscard]] inline bool contains(const BattleHex & hex) const noexcept
 	{
 		if(hex.isValid())
-			return presenceFlags[hex.toInt()];
-		/*
-		if(!isTower(hex))
-			logGlobal->warn("BattleHexArray::contains( %d ) - invalid BattleHex!", hex);
-		*/
+			return presenceFlags.test(hex.toInt());
 		
-		// returns true also for invalid hexes
 		return true;
 	}
 
@@ -206,8 +238,8 @@ public:
 		s & internalStorage;
 		if(!s.saving)
 		{
-			for(auto hex : internalStorage)
-				presenceFlags[hex.toInt()] = true;
+			for(const auto & hex : internalStorage)
+				presenceFlags.set(hex.toInt());
 		}
 	}
 
@@ -236,11 +268,6 @@ public:
 		return internalStorage.size();
 	}
 
-	[[nodiscard]] inline iterator begin() noexcept
-	{
-		return internalStorage.begin();
-	}
-
 	[[nodiscard]] inline const_iterator begin() const noexcept
 	{
 		return internalStorage.begin();
@@ -251,29 +278,14 @@ public:
 		return internalStorage.empty();
 	}
 
-	[[nodiscard]] inline iterator end() noexcept
-	{
-		return internalStorage.end();
-	}
-
 	[[nodiscard]] inline const_iterator end() const noexcept
 	{
 		return internalStorage.end();
 	}
 
-	[[nodiscard]] inline reverse_iterator rbegin() noexcept
-	{
-		return reverse_iterator(end());
-	}
-
 	[[nodiscard]] inline const_reverse_iterator rbegin() const noexcept
 	{
 		return const_reverse_iterator(end());
-	}
-
-	[[nodiscard]] inline reverse_iterator rend() noexcept
-	{
-		return reverse_iterator(begin());
 	}
 
 	[[nodiscard]] inline const_reverse_iterator rend() const noexcept
@@ -292,24 +304,6 @@ public:
 private:
 	StorageType internalStorage;
 	std::bitset<totalSize> presenceFlags;
-
-	[[nodiscard]] inline bool isNotValidForInsertion(BattleHex hex) const
-	{
-		if(isTower(hex))
-			return true;
-		if(!hex.isValid())
-		{
-			//logGlobal->warn("BattleHexArray::insert( %d ) - invalid BattleHex!", hex);
-			return true;
-		}
-
-		return contains(hex) || internalStorage.size() >= totalSize;
-	}
-
-	[[nodiscard]] inline bool isTower(BattleHex hex) const
-	{
-		return hex == BattleHex::CASTLE_CENTRAL_TOWER || hex == BattleHex::CASTLE_UPPER_TOWER || hex == BattleHex::CASTLE_BOTTOM_TOWER;
-	}
 
 	static const ArrayOfBattleHexArrays neighbouringTiles;
 	static const ArrayOfBattleHexArrays allNeighbouringTiles;

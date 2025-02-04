@@ -27,7 +27,6 @@
 #include "../client/media/CMusicHandler.h"
 #include "../client/media/CSoundHandler.h"
 #include "../client/media/CVideoHandler.h"
-#include "../client/render/AssetGenerator.h"
 #include "../client/render/Graphics.h"
 #include "../client/render/IRenderHandler.h"
 #include "../client/render/IScreenHandler.h"
@@ -158,6 +157,7 @@ int main(int argc, char * argv[])
 		("version,v", "display version information and exit")
 		("testmap", po::value<std::string>(), "")
 		("testsave", po::value<std::string>(), "")
+		("logLocation", po::value<std::string>(), "new location for log files")
 		("spectate,s", "enable spectator interface for AI-only games")
 		("spectate-ignore-hero", "wont follow heroes on adventure map")
 		("spectate-hero-speed", po::value<int>(), "hero movement speed on adventure map")
@@ -225,14 +225,14 @@ int main(int argc, char * argv[])
 #endif
 
 	setThreadNameLoggingOnly("MainGUI");
-	const boost::filesystem::path logPath = VCMIDirs::get().userLogsPath() / "VCMI_Client_log.txt";
+	boost::filesystem::path logPath = VCMIDirs::get().userLogsPath() / "VCMI_Client_log.txt";
+	if(vm.count("logLocation"))
+		logPath = vm["logLocation"].as<std::string>() + "/VCMI_Client_log.txt";
 	logConfig = new CBasicLogConfigurator(logPath, console);
 	logConfig->configureDefault();
 	logGlobal->info("Starting client of '%s'", GameConstants::VCMI_VERSION);
 	logGlobal->info("Creating console and configuring logger: %d ms", pomtime.getDiff());
 	logGlobal->info("The log file will be saved to %s", logPath);
-
-	AssetGenerator::clear();
 
 	// Init filesystem and settings
 	try
@@ -311,7 +311,7 @@ int main(int argc, char * argv[])
 	CSH = new CServerHandler();
 	
 	// Initialize video
-#ifdef DISABLE_VIDEO
+#ifndef ENABLE_VIDEO
 	CCS->videoh = new CEmptyVideoPlayer();
 #else
 	if (!settings["session"]["headless"].Bool() && !vm.count("disable-video"))

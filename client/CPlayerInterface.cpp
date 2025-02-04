@@ -62,6 +62,7 @@
 #include "windows/CTutorialWindow.h"
 #include "windows/GUIClasses.h"
 #include "windows/InfoWindows.h"
+#include "windows/settings/SettingsMainWindow.h"
 
 #include "../CCallback.h"
 
@@ -97,6 +98,8 @@
 #include "../lib/networkPacks/PacksForServer.h"
 
 #include "../lib/pathfinder/CGPathNode.h"
+#include "../lib/pathfinder/PathfinderCache.h"
+#include "../lib/pathfinder/PathfinderOptions.h"
 
 #include "../lib/serializer/CTypeList.h"
 #include "../lib/serializer/ESerializationVersion.h"
@@ -156,15 +159,27 @@ CPlayerInterface::~CPlayerInterface()
 	if (LOCPLINT == this)
 		LOCPLINT = nullptr;
 }
+
 void CPlayerInterface::initGameInterface(std::shared_ptr<Environment> ENV, std::shared_ptr<CCallback> CB)
 {
 	cb = CB;
 	env = ENV;
 
+	pathfinderCache = std::make_unique<PathfinderCache>(cb.get(), PathfinderOptions(cb.get()));
 	CCS->musich->loadTerrainMusicThemes();
 	initializeHeroTownList();
 
 	adventureInt.reset(new AdventureMapInterface());
+}
+
+std::shared_ptr<const CPathsInfo> CPlayerInterface::getPathsInfo(const CGHeroInstance * h)
+{
+	return pathfinderCache->getPathsInfo(h);
+}
+
+void CPlayerInterface::invalidatePaths()
+{
+	pathfinderCache->invalidatePaths();
 }
 
 void CPlayerInterface::closeAllDialogs()
@@ -173,6 +188,7 @@ void CPlayerInterface::closeAllDialogs()
 	while(true)
 	{
 		auto adventureWindow = GH.windows().topWindow<AdventureMapInterface>();
+		auto settingsWindow = GH.windows().topWindow<SettingsMainWindow>();
 		auto infoWindow = GH.windows().topWindow<CInfoWindow>();
 		auto topWindow = GH.windows().topWindow<WindowBase>();
 
@@ -182,10 +198,16 @@ void CPlayerInterface::closeAllDialogs()
 		if(infoWindow && infoWindow->ID != QueryID::NONE)
 			break;
 
-		if (topWindow == nullptr)
-			throw std::runtime_error("Invalid or non-existing top window! Total windows: " + std::to_string(GH.windows().count()));
+		if (settingsWindow)
+		{
+			settingsWindow->close();
+			continue;
+		}
 
-		topWindow->close();
+		if (topWindow)
+			topWindow->close();
+		else
+			GH.windows().popWindows(1); // does not inherits from WindowBase, e.g. settings dialog
 	}
 }
 
@@ -467,6 +489,8 @@ void CPlayerInterface::heroSecondarySkillChanged(const CGHeroInstance * hero, in
 	EVENT_HANDLER_CALLED_BY_CLIENT;
 	for (auto cuw : GH.windows().findWindows<IMarketHolder>())
 		cuw->updateSecondarySkills();
+
+	localState->verifyPath(hero);
 }
 
 void CPlayerInterface::heroManaPointsChanged(const CGHeroInstance * hero)
@@ -583,6 +607,8 @@ void CPlayerInterface::garrisonsChanged(std::vector<const CArmedInstance *> objs
 
 		if (hero)
 		{
+			localState->verifyPath(hero);
+
 			adventureInt->onHeroChanged(hero);
 			if(hero->inTownGarrison && hero->visitedTown != town)
 				adventureInt->onTownChanged(hero->visitedTown);
@@ -610,7 +636,6 @@ void CPlayerInterface::buildChanged(const CGTownInstance *town, BuildingID build
 			switch(what)
 			{
 			case 1:
-				CCS->soundh->playSound(soundBase::newBuilding);
 				castleInt->addBuilding(buildingID);
 				break;
 			case 2:
@@ -1153,7 +1178,7 @@ void CPlayerInterface::showMapObjectSelectDialog(QueryID askID, const Component 
 		if(t)
 		{
 			auto image = GH.renderHandler().loadImage(AnimationPath::builtin("ITPA"), t->getTown()->clientInfo.icons[t->hasFort()][false] + 2, 0, EImageBlitMode::OPAQUE);
-			image->scaleTo(Point(35, 23));
+			image->scaleTo(Point(35, 23), EScalingAlgorithm::NEAREST);
 			images.push_back(image);
 		}
 	}
@@ -1397,7 +1422,6 @@ void CPlayerInterface::newObject( const CGObjectInstance * obj )
 		&& LOCPLINT->castleInt
 		&&  obj->visitablePos() == LOCPLINT->castleInt->town->bestLocation())
 	{
-		CCS->soundh->playSound(soundBase::newBuilding);
 		LOCPLINT->castleInt->addBuilding(BuildingID::SHIP);
 	}
 }
