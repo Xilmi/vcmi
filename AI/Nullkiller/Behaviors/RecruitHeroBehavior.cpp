@@ -63,6 +63,7 @@ Goals::TGoalVec RecruitHeroBehavior::decompose(const Nullkiller * ai) const
 	for(auto town : towns)
 	{
 		uint8_t closestThreat = UINT8_MAX;
+		int localTreasureSourcesCount = 0;
 		for (auto threat : ai->dangerHitMap->getTownThreats(town))
 		{
 			closestThreat = std::min(closestThreat, threat.turn);
@@ -86,13 +87,17 @@ Goals::TGoalVec RecruitHeroBehavior::decompose(const Nullkiller * ai) const
 					|| obj->ID == Obj::TREASURE_CHEST
 					|| obj->ID == Obj::CAMPFIRE
 					|| isWeeklyRevisitable(ai, obj)
-					|| obj->ID == Obj::ARTIFACT)
+					|| obj->ID == Obj::ARTIFACT
+					|| obj->ID == Obj::MINE)
 				{
 					auto tile = obj->visitablePos();
 					auto closestTown = ai->dangerHitMap->getClosestTown(tile);
 
 					if (town == closestTown)
+					{
 						treasureSourcesCount++;
+						localTreasureSourcesCount++;
+					}
 				}
 			}
 
@@ -114,6 +119,7 @@ Goals::TGoalVec RecruitHeroBehavior::decompose(const Nullkiller * ai) const
 					score *= 30 * town->getTownLevel();
 				else
 					score *= town->getTownLevel() / visitability;
+				score *= (1 + localTreasureSourcesCount);
 				if (score > bestScore)
 				{
 					bestScore = score;
@@ -128,11 +134,19 @@ Goals::TGoalVec RecruitHeroBehavior::decompose(const Nullkiller * ai) const
 	}
 	if (bestHeroToHire && bestTownToHireFrom)
 	{
+		int artifactValue = 0;
+		for (auto artifact : bestHeroToHire->artifactsWorn)
+		{
+			if (artifact.second.getArt()->getType()->isTradable())
+				artifactValue += artifact.second.getArt()->getType()->getPrice();
+		}
 		if (ai->cb->getHeroesInfo().size() == 0
 			|| treasureSourcesCount > ai->cb->getHeroesInfo().size() * 5
 			|| (bestHeroToHire->getArmyCost() > GameConstants::HERO_GOLD_COST / 2.0 && (bestClosestThreat < 1 || !ai->buildAnalyzer->isGoldPressureHigh()))
 			|| (ai->getFreeResources()[EGameResID::GOLD] > 10000 && !ai->buildAnalyzer->isGoldPressureHigh() && haveCapitol)
-			|| (ai->getFreeResources()[EGameResID::GOLD] > 30000 && !ai->buildAnalyzer->isGoldPressureHigh()))
+			|| (ai->getFreeResources()[EGameResID::GOLD] > 30000 && !ai->buildAnalyzer->isGoldPressureHigh())
+			|| artifactValue > GameConstants::HERO_GOLD_COST
+			|| bestHeroToHire->level > 1)
 		{
 			tasks.push_back(Goals::sptr(Goals::RecruitHero(bestTownToHireFrom, bestHeroToHire).setpriority((float)3 / (ourHeroes.size() + 1))));
 		}
