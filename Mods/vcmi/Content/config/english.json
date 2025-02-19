@@ -32,7 +32,7 @@
 	"vcmi.bonusSource.creature" : "Ability",
 	"vcmi.bonusSource.spell" : "Spell",
 	"vcmi.bonusSource.hero" : "Hero",
-	"vcmi.bonusSource.commander" : "Commander",
+	"vcmi.bonusSource.commander" : "Command.",
 	"vcmi.bonusSource.other" : "Other",
 
 	"vcmi.capitalColors.0" : "Red",
@@ -68,6 +68,7 @@
 	"vcmi.radialWheel.heroGetArtifacts" : "Get artifacts from other hero",
 	"vcmi.radialWheel.heroSwapArtifacts" : "Swap artifacts with other hero",
 	"vcmi.radialWheel.heroDismiss" : "Dismiss hero",
+	"vcmi.radialWheel.upgradeCreatures" : "Upgrade all creatures",
 
 	"vcmi.radialWheel.moveTop" : "Move to top",
 	"vcmi.radialWheel.moveUp" : "Move up",
@@ -363,6 +364,8 @@
 	"vcmi.battleOptions.endWithAutocombat.help": "{Ends battle}\n\nAuto-Combat plays battle to end instant",
 	"vcmi.battleOptions.showQuickSpell.hover": "Show Quickspell panel",
 	"vcmi.battleOptions.showQuickSpell.help": "{Show Quickspell panel}\n\nShow panel for quick selecting spells",
+	"vcmi.battleOptions.showHealthBar.hover": "Show health bar",
+	"vcmi.battleOptions.showHealthBar.help": "{Show health bar}\n\nShow health bar indicating remaining health before one unit dies.",	
 
 	"vcmi.adventureMap.revisitObject.hover" : "Revisit Object",
 	"vcmi.adventureMap.revisitObject.help" : "{Revisit Object}\n\nIf a hero currently stands on a Map Object, he can revisit the location.",
@@ -414,6 +417,9 @@
 
 	"vcmi.townStructure.bank.borrow" : "You enter the bank. A banker sees you and says: \"We have made a special offer for you. You can take a loan of 2500 gold from us for 5 days. You will have to repay 500 gold every day.\"",
 	"vcmi.townStructure.bank.payBack" : "You enter the bank. A banker sees you and says: \"You have already got your loan. Pay it back before taking a new one.\"",
+
+	"vcmi.townWindow.upgradeAll.notAllUpgradable" : "Not enough resources to upgrade all creatures. Do you want to upgrade following creatures?",
+	"vcmi.townWindow.upgradeAll.notUpgradable" : "Not enough resources to upgrade any creature.",
 
 	"vcmi.logicalExpressions.anyOf"  : "Any of the following:",
 	"vcmi.logicalExpressions.allOf"  : "All of the following:",
