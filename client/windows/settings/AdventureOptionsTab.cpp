@@ -11,13 +11,15 @@
 
 #include "AdventureOptionsTab.h"
 
+#include "../../GameEngine.h"
 #include "../../eventsSDL/InputHandler.h"
-#include "../../../lib/filesystem/ResourcePath.h"
-#include "../../gui/CGuiHandler.h"
+#include "../../gui/WindowHandler.h"
 #include "../../widgets/Buttons.h"
-#include "../../widgets/TextControls.h"
 #include "../../widgets/Images.h"
-#include "CConfigHandler.h"
+#include "../../widgets/TextControls.h"
+
+#include "../../../lib/CConfigHandler.h"
+#include "../../../lib/filesystem/ResourcePath.h"
 
 static void setBoolSetting(std::string group, std::string field, bool value)
 {
@@ -37,9 +39,9 @@ AdventureOptionsTab::AdventureOptionsTab()
 	OBJECT_CONSTRUCTION;
 	setRedrawParent(true);
 
-	addConditional("touchscreen", GH.input().getCurrentInputMode() == InputMode::TOUCH);
-	addConditional("keyboardMouse", GH.input().getCurrentInputMode() == InputMode::KEYBOARD_AND_MOUSE);
-	addConditional("controller", GH.input().getCurrentInputMode() == InputMode::CONTROLLER);
+	addConditional("touchscreen", ENGINE->input().getCurrentInputMode() == InputMode::TOUCH);
+	addConditional("keyboardMouse", ENGINE->input().getCurrentInputMode() == InputMode::KEYBOARD_AND_MOUSE);
+	addConditional("controller", ENGINE->input().getCurrentInputMode() == InputMode::CONTROLLER);
 #ifdef VCMI_MOBILE
 	addConditional("mobile", true);
 	addConditional("desktop", false);
@@ -146,6 +148,11 @@ AdventureOptionsTab::AdventureOptionsTab()
 	{
 		return setBoolSetting("adventure", "hideBackground", value);
 	});
+	addCallback("minimapShowHeroesChanged", [](bool value)
+	{
+		setBoolSetting("adventure", "minimapShowHeroes", value);
+		ENGINE->windows().totalRedraw();
+	});
 	build(config);
 
 	std::shared_ptr<CToggleGroup> playerHeroSpeedToggle = widget<CToggleGroup>("heroMovementSpeedPicker");
@@ -198,4 +205,7 @@ AdventureOptionsTab::AdventureOptionsTab()
 
 	std::shared_ptr<CToggleButton> hideBackgroundCheckbox = widget<CToggleButton>("hideBackgroundCheckbox");
 	hideBackgroundCheckbox->setSelected(settings["adventure"]["hideBackground"].Bool());
+
+	std::shared_ptr<CToggleButton> minimapShowHeroesCheckbox = widget<CToggleButton>("minimapShowHeroesCheckbox");
+	minimapShowHeroesCheckbox->setSelected(settings["adventure"]["minimapShowHeroes"].Bool());
 }

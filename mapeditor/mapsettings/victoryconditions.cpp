@@ -13,6 +13,7 @@
 #include "../mapcontroller.h"
 
 #include "../../lib/constants/StringConstants.h"
+#include "../../lib/entities/artifact/CArtHandler.h"
 #include "../../lib/entities/faction/CTownHandler.h"
 #include "../../lib/mapObjects/CGCreature.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
@@ -385,15 +386,15 @@ void VictoryConditions::on_victoryComboBox_currentIndexChanged(int index)
 			victoryTypeWidget = new QComboBox;
 			ui->victoryParamsLayout->addWidget(victoryTypeWidget);
 			for(int i = 0; i < controller->map()->allowedArtifact.size(); ++i)
-				victoryTypeWidget->addItem(QString::fromStdString(VLC->arth->objects[i]->getNameTranslated()), QVariant::fromValue(i));
+				victoryTypeWidget->addItem(QString::fromStdString(LIBRARY->arth->objects[i]->getNameTranslated()), QVariant::fromValue(i));
 			break;
 		}
 
 		case 1: { //EventCondition::HAVE_CREATURES
 			victoryTypeWidget = new QComboBox;
 			ui->victoryParamsLayout->addWidget(victoryTypeWidget);
-			for(int i = 0; i < VLC->creh->objects.size(); ++i)
-				victoryTypeWidget->addItem(QString::fromStdString(VLC->creh->objects[i]->getNamePluralTranslated()), QVariant::fromValue(i));
+			for(int i = 0; i < LIBRARY->creh->objects.size(); ++i)
+				victoryTypeWidget->addItem(QString::fromStdString(LIBRARY->creh->objects[i]->getNamePluralTranslated()), QVariant::fromValue(i));
 
 			victoryValueWidget = new QLineEdit;
 			ui->victoryParamsLayout->addWidget(victoryValueWidget);
@@ -423,7 +424,7 @@ void VictoryConditions::on_victoryComboBox_currentIndexChanged(int index)
 		case 3: { //EventCondition::HAVE_BUILDING
 			victoryTypeWidget = new QComboBox;
 			ui->victoryParamsLayout->addWidget(victoryTypeWidget);
-			auto * ctown = VLC->townh->randomTown;
+			auto * ctown = LIBRARY->townh->randomFaction->town.get();
 			for(int bId : ctown->getAllBuildings())
 				victoryTypeWidget->addItem(QString::fromStdString(defaultBuildingIdConversion(BuildingID(bId))), QVariant::fromValue(bId));
 
@@ -465,7 +466,7 @@ void VictoryConditions::on_victoryComboBox_currentIndexChanged(int index)
 			victoryTypeWidget = new QComboBox;
 			ui->victoryParamsLayout->addWidget(victoryTypeWidget);
 			for(int i = 0; i < controller->map()->allowedArtifact.size(); ++i)
-				victoryTypeWidget->addItem(QString::fromStdString(VLC->arth->objects[i]->getNameTranslated()), QVariant::fromValue(i));
+				victoryTypeWidget->addItem(QString::fromStdString(LIBRARY->arth->objects[i]->getNameTranslated()), QVariant::fromValue(i));
 			
 			victorySelectWidget = new QComboBox;
 			ui->victoryParamsLayout->addWidget(victorySelectWidget);
@@ -559,7 +560,7 @@ void VictoryConditions::onObjectPicked(const CGObjectInstance * obj)
 			continue;
 		
 		auto data = controller->map()->objects.at(w->itemData(i).toInt());
-		if(data == obj)
+		if(data.get() == obj)
 		{
 			w->setCurrentIndex(i);
 			break;

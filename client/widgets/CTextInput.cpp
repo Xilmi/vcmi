@@ -13,13 +13,16 @@
 #include "Images.h"
 #include "TextControls.h"
 
-#include "../gui/CGuiHandler.h"
+#include "../GameEngine.h"
+#include "../eventsSDL/InputHandler.h"
 #include "../gui/Shortcut.h"
 #include "../render/Graphics.h"
 #include "../render/IFont.h"
 #include "../render/IRenderHandler.h"
 
 #include "../../lib/texts/TextOperations.h"
+
+#include <boost/lexical_cast.hpp>
 
 std::list<CFocusable *> CFocusable::focusables;
 CFocusable * CFocusable::inputWithFocus;
@@ -191,7 +194,7 @@ void CTextInput::updateLabel()
 	std::string visibleText = getVisibleText();
 
 	label->alignment = originalAlignment;
-	const auto & font = GH.renderHandler().loadFont(label->font);
+	const auto & font = ENGINE->renderHandler().loadFont(label->font);
 
 	while (font->getStringWidth(visibleText) > pos.w)
 	{
@@ -283,7 +286,7 @@ void CTextInput::activate()
 #if defined(VCMI_MOBILE)
 		//giveFocus();
 #else
-		GH.startTextInput(pos);
+		ENGINE->input().startTextInput(pos);
 #endif
 	}
 }
@@ -296,7 +299,7 @@ void CTextInput::deactivate()
 #if defined(VCMI_MOBILE)
 		removeFocus();
 #else
-		GH.stopTextInput();
+		ENGINE->input().stopTextInput();
 #endif
 	}
 }
@@ -314,14 +317,14 @@ void CTextInput::onFocusLost()
 void CFocusable::focusGot()
 {
 	if (isActive())
-		GH.startTextInput(pos);
+		ENGINE->input().startTextInput(pos);
 	onFocusGot();
 }
 
 void CFocusable::focusLost()
 {
 	if (isActive())
-		GH.stopTextInput();
+		ENGINE->input().stopTextInput();
 	onFocusLost();
 }
 

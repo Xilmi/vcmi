@@ -12,7 +12,7 @@
 
 #include "MapFormat.h"
 
-#include "../VCMI_Lib.h"
+#include "../GameLibrary.h"
 #include "../entities/faction/CTownHandler.h"
 #include "../entities/hero/CHeroHandler.h"
 #include "../json/JsonUtils.h"
@@ -30,7 +30,7 @@ PlayerInfo::PlayerInfo(): canHumanPlay(false), canComputerPlay(false),
 	aiTactic(EAiTactic::RANDOM), isFactionRandom(false), hasRandomHero(false), mainCustomHeroPortrait(-1), mainCustomHeroId(-1), hasMainTown(false),
 	generateHeroAtMainTown(false), posOfMainTown(-1), team(TeamID::NO_TEAM)
 {
-	allowedFactions = VLC->townh->getAllowedFactions();
+	allowedFactions = LIBRARY->townh->getAllowedFactions();
 }
 
 FactionID PlayerInfo::defaultCastle() const
@@ -39,6 +39,7 @@ FactionID PlayerInfo::defaultCastle() const
 	if(isFactionRandom)
 		return FactionID::RANDOM;
 
+	assert(!allowedFactions.empty());
 	if(!allowedFactions.empty())
 		return *allowedFactions.begin();
 
@@ -124,13 +125,13 @@ CMapHeader::CMapHeader()
 	, twoLevel(true)
 	, difficulty(EMapDifficulty::NORMAL)
 	, levelLimit(0)
-	, howManyTeams(0)
-	, areAnyPlayers(false)
 	, victoryIconIndex(0)
 	, defeatIconIndex(0)
+	, howManyTeams(0)
+	, areAnyPlayers(false)
 {
 	setupEvents();
-	allowedHeroes = VLC->heroh->getDefaultAllowed();
+	allowedHeroes = LIBRARY->heroh->getDefaultAllowed();
 	players.resize(PlayerColor::PLAYER_LIMIT_I);
 }
 
@@ -203,7 +204,7 @@ void CMapHeader::registerMapStrings()
 
 std::string mapRegisterLocalizedString(const std::string & modContext, CMapHeader & mapHeader, const TextIdentifier & UID, const std::string & localized)
 {
-	return mapRegisterLocalizedString(modContext, mapHeader, UID, localized, VLC->modh->getModLanguage(modContext));
+	return mapRegisterLocalizedString(modContext, mapHeader, UID, localized, LIBRARY->modh->getModLanguage(modContext));
 }
 
 std::string mapRegisterLocalizedString(const std::string & modContext, CMapHeader & mapHeader, const TextIdentifier & UID, const std::string & localized, const std::string & language)

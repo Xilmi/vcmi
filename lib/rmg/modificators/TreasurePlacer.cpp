@@ -21,7 +21,6 @@
 #include "../CZonePlacer.h"
 #include "PrisonHeroPlacer.h"
 #include "QuestArtifactPlacer.h"
-#include "../../ArtifactUtils.h"
 #include "../../mapObjectConstructors/AObjectTypeHandler.h"
 #include "../../mapObjectConstructors/CObjectClassesHandler.h"
 #include "../../mapObjectConstructors/DwellingInstanceConstructor.h"
@@ -49,7 +48,7 @@ void TreasurePlacer::process()
 
 	tierValues = generator.getConfig().pandoraCreatureValues;
 	// Add all native creatures
-	for(auto const & cre : VLC->creh->objects)
+	for(auto const & cre : LIBRARY->creh->objects)
 	{
 		if(!cre->special && cre->getFactionID() == zone.getTownType())
 		{
@@ -109,11 +108,11 @@ void TreasurePlacer::addAllPossibleObjects()
 
 void TreasurePlacer::addCommonObjects()
 {
-	for(auto primaryID : VLC->objtypeh->knownObjects())
+	for(auto primaryID : LIBRARY->objtypeh->knownObjects())
 	{
-		for(auto secondaryID : VLC->objtypeh->knownSubObjects(primaryID))
+		for(auto secondaryID : LIBRARY->objtypeh->knownSubObjects(primaryID))
 		{
-			auto handler = VLC->objtypeh->getHandlerFor(primaryID, secondaryID);
+			auto handler = LIBRARY->objtypeh->getHandlerFor(primaryID, secondaryID);
 			if(!handler->isStaticObject() && handler->getRMGInfo().value)
 			{
 				auto rmgInfo = handler->getRMGInfo();
@@ -138,9 +137,9 @@ void TreasurePlacer::addCommonObjects()
 
 void TreasurePlacer::setBasicProperties(ObjectInfo & oi, CompoundMapObjectID objid) const
 {
-	oi.generateObject = [this, objid]() -> CGObjectInstance *
+	oi.generateObject = [this, objid]() -> std::shared_ptr<CGObjectInstance>
 	{
-		return VLC->objtypeh->getHandlerFor(objid)->create(map.mapInstance->cb, nullptr);
+		return LIBRARY->objtypeh->getHandlerFor(objid)->create(map.mapInstance->cb, nullptr);
 	};
 	oi.setTemplates(objid.primaryID, objid.secondaryID, zone.getTerrainType());
 }
@@ -148,7 +147,7 @@ void TreasurePlacer::setBasicProperties(ObjectInfo & oi, CompoundMapObjectID obj
 void TreasurePlacer::addPrisons()
 {
 	//Generate Prison on water only if it has a template
-	auto prisonTemplates = VLC->objtypeh->getHandlerFor(Obj::PRISON, 0)->getTemplates(zone.getTerrainType());
+	auto prisonTemplates = LIBRARY->objtypeh->getHandlerFor(Obj::PRISON, 0)->getTemplates(zone.getTerrainType());
 	if (!prisonTemplates.empty())
 	{
 		PrisonHeroPlacer * prisonHeroPlacer = nullptr;
@@ -176,11 +175,11 @@ void TreasurePlacer::addPrisons()
 				continue;
 			}
 
-			oi.generateObject = [i, this, prisonHeroPlacer]() -> CGObjectInstance*
+			oi.generateObject = [i, this, prisonHeroPlacer]() -> std::shared_ptr<CGObjectInstance>
 			{
 				HeroTypeID hid = prisonHeroPlacer->drawRandomHero();
-				auto factory = VLC->objtypeh->getHandlerFor(Obj::PRISON, 0);
-				auto* obj = dynamic_cast<CGHeroInstance*>(factory->create(map.mapInstance->cb, nullptr));
+				auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::PRISON, 0);
+				auto obj = std::dynamic_pointer_cast<CGHeroInstance>(factory->create(map.mapInstance->cb, nullptr));
 
 				obj->setHeroType(hid); //will be initialized later
 				obj->exp = generator.getConfig().prisonExperience[i];
@@ -188,11 +187,11 @@ void TreasurePlacer::addPrisons()
 
 				return obj;
 			};
-			oi.destroyObject = [prisonHeroPlacer](CGObjectInstance* obj)
+			oi.destroyObject = [prisonHeroPlacer](CGObjectInstance& obj)
 			{
 				// Hero can be used again
-				auto* hero = dynamic_cast<CGHeroInstance*>(obj);
-				prisonHeroPlacer->restoreDrawnHero(hero->getHeroTypeID());
+				auto & hero = dynamic_cast<CGHeroInstance&>(obj);
+				prisonHeroPlacer->restoreDrawnHero(hero.getHeroTypeID());
 			};
 
 			oi.setTemplates(Obj::PRISON, 0, zone.getTerrainType());
@@ -218,7 +217,7 @@ void TreasurePlacer::addDwellings()
 	
 	for(auto dwellingType : dwellingTypes)
 	{
-		auto subObjects = VLC->objtypeh->knownSubObjects(dwellingType);
+		auto subObjects = LIBRARY->objtypeh->knownSubObjects(dwellingType);
 		
 		if(dwellingType == Obj::CREATURE_GENERATOR1)
 		{
@@ -230,7 +229,7 @@ void TreasurePlacer::addDwellings()
 		
 		for(auto secondaryID : subObjects)
 		{
-			const auto * dwellingHandler = dynamic_cast<const DwellingInstanceConstructor *>(VLC->objtypeh->getHandlerFor(dwellingType, secondaryID).get());
+			const auto * dwellingHandler = dynamic_cast<const DwellingInstanceConstructor *>(LIBRARY->objtypeh->getHandlerFor(dwellingType, secondaryID).get());
 			auto creatures = dwellingHandler->getProducedCreatures();
 			if(creatures.empty())
 				continue;
@@ -245,9 +244,9 @@ void TreasurePlacer::addDwellings()
 				oi.value = static_cast<ui32>(cre->getAIValue() * cre->getGrowth() * (1 + (nativeZonesCount / map.getTotalZoneCount()) + (nativeZonesCount / 2)));
 				oi.probability = 40;
 				
-				oi.generateObject = [this, secondaryID, dwellingType]() -> CGObjectInstance *
+				oi.generateObject = [this, secondaryID, dwellingType]() -> std::shared_ptr<CGObjectInstance>
 				{
-					auto * obj = VLC->objtypeh->getHandlerFor(dwellingType, secondaryID)->create(map.mapInstance->cb, nullptr);
+					auto obj = LIBRARY->objtypeh->getHandlerFor(dwellingType, secondaryID)->create(map.mapInstance->cb, nullptr);
 					obj->tempOwner = PlayerColor::NEUTRAL;
 					return obj;
 				};
@@ -267,19 +266,19 @@ void TreasurePlacer::addScrolls()
 
 	for(int i = 0; i < generator.getConfig().scrollValues.size(); i++)
 	{
-		oi.generateObject = [i, this]() -> CGObjectInstance *
+		oi.generateObject = [i, this]() -> std::shared_ptr<CGObjectInstance>
 		{
-			auto factory = VLC->objtypeh->getHandlerFor(Obj::SPELL_SCROLL, 0);
-			auto * obj = dynamic_cast<CGArtifact *>(factory->create(map.mapInstance->cb, nullptr));
+			auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::SPELL_SCROLL, 0);
+			auto obj = std::dynamic_pointer_cast<CGArtifact>(factory->create(map.mapInstance->cb, nullptr));
 			std::vector<SpellID> out;
 			
-			for(auto spellID : VLC->spellh->getDefaultAllowed())
+			for(auto spellID : LIBRARY->spellh->getDefaultAllowed())
 			{
 				if(map.isAllowedSpell(spellID) && spellID.toSpell()->getLevel() == i + 1)
 					out.push_back(spellID);
 			}
-			auto * a = ArtifactUtils::createScroll(*RandomGeneratorUtil::nextItem(out, zone.getRand()));
-			obj->storedArtifact = a;
+			auto * a = map.mapInstance->createScroll(*RandomGeneratorUtil::nextItem(out, zone.getRand()));
+			obj->setArtifactInstance(a);
 			return obj;
 		};
 		oi.setTemplates(Obj::SPELL_SCROLL, 0, zone.getTerrainType());
@@ -307,10 +306,10 @@ void TreasurePlacer::addPandoraBoxesWithGold()
 	ObjectInfo oi(Obj::PANDORAS_BOX, 0);
 	for(int i = 1; i < 5; i++)
 	{
-		oi.generateObject = [this, i]() -> CGObjectInstance *
+		oi.generateObject = [this, i]() -> std::shared_ptr<CGObjectInstance>
 		{
-			auto factory = VLC->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
-			auto * obj = dynamic_cast<CGPandoraBox *>(factory->create(map.mapInstance->cb, nullptr));
+			auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
+			auto obj = std::dynamic_pointer_cast<CGPandoraBox>(factory->create(map.mapInstance->cb, nullptr));
 			
 			Rewardable::VisitInfo reward;
 			reward.reward.resources[EGameResID::GOLD] = i * 5000;
@@ -332,10 +331,10 @@ void TreasurePlacer::addPandoraBoxesWithExperience()
 	ObjectInfo oi(Obj::PANDORAS_BOX, 0);
 	for(int i = 1; i < 5; i++)
 	{
-		oi.generateObject = [this, i]() -> CGObjectInstance *
+		oi.generateObject = [this, i]() -> std::shared_ptr<CGObjectInstance>
 		{
-			auto factory = VLC->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
-			auto * obj = dynamic_cast<CGPandoraBox *>(factory->create(map.mapInstance->cb, nullptr));
+			auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
+			auto obj = std::dynamic_pointer_cast<CGPandoraBox>(factory->create(map.mapInstance->cb, nullptr));
 			
 			Rewardable::VisitInfo reward;
 			reward.reward.heroExperience = i * 5000;
@@ -362,10 +361,10 @@ void TreasurePlacer::addPandoraBoxesWithCreatures()
 
 		ObjectInfo oi(Obj::PANDORAS_BOX, 0);
 		
-		oi.generateObject = [this, creature, creaturesAmount]() -> CGObjectInstance *
+		oi.generateObject = [this, creature, creaturesAmount]() -> std::shared_ptr<CGObjectInstance>
 		{
-			auto factory = VLC->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
-			auto * obj = dynamic_cast<CGPandoraBox *>(factory->create(map.mapInstance->cb, nullptr));
+			auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
+			auto obj = std::dynamic_pointer_cast<CGPandoraBox>(factory->create(map.mapInstance->cb, nullptr));
 			
 			Rewardable::VisitInfo reward;
 			reward.reward.creatures.emplace_back(creature, creaturesAmount);
@@ -388,13 +387,13 @@ void TreasurePlacer::addPandoraBoxesWithSpells()
 	//Pandora with 12 spells of certain level
 	for(int i = 1; i <= GameConstants::SPELL_LEVELS; i++)
 	{
-		oi.generateObject = [i, this]() -> CGObjectInstance *
+		oi.generateObject = [i, this]() -> std::shared_ptr<CGObjectInstance>
 		{
-			auto factory = VLC->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
-			auto * obj = dynamic_cast<CGPandoraBox *>(factory->create(map.mapInstance->cb, nullptr));
+			auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
+			auto obj = std::dynamic_pointer_cast<CGPandoraBox>(factory->create(map.mapInstance->cb, nullptr));
 
 			std::vector <const CSpell *> spells;
-			for(auto spellID : VLC->spellh->getDefaultAllowed())
+			for(auto spellID : LIBRARY->spellh->getDefaultAllowed())
 			{
 				if(map.isAllowedSpell(spellID) && spellID.toSpell()->getLevel() == i)
 					spells.push_back(spellID.toSpell());
@@ -421,13 +420,13 @@ void TreasurePlacer::addPandoraBoxesWithSpells()
 	//Pandora with 15 spells of certain school
 	for(int i = 0; i < 4; i++)
 	{
-		oi.generateObject = [i, this]() -> CGObjectInstance *
+		oi.generateObject = [i, this]() -> std::shared_ptr<CGObjectInstance>
 		{
-			auto factory = VLC->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
-			auto * obj = dynamic_cast<CGPandoraBox *>(factory->create(map.mapInstance->cb, nullptr));
+			auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
+			auto obj = std::dynamic_pointer_cast<CGPandoraBox>(factory->create(map.mapInstance->cb, nullptr));
 
 			std::vector <const CSpell *> spells;
-			for(auto spellID : VLC->spellh->getDefaultAllowed())
+			for(auto spellID : LIBRARY->spellh->getDefaultAllowed())
 			{
 				if(map.isAllowedSpell(spellID) && spellID.toSpell()->hasSchool(SpellSchool(i)))
 					spells.push_back(spellID.toSpell());
@@ -453,13 +452,13 @@ void TreasurePlacer::addPandoraBoxesWithSpells()
 	
 	// Pandora box with 60 random spells
 	
-	oi.generateObject = [this]() -> CGObjectInstance *
+	oi.generateObject = [this]() -> std::shared_ptr<CGObjectInstance>
 	{
-		auto factory = VLC->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
-		auto * obj = dynamic_cast<CGPandoraBox *>(factory->create(map.mapInstance->cb, nullptr));
+		auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::PANDORAS_BOX, 0);
+		auto obj = std::dynamic_pointer_cast<CGPandoraBox>(factory->create(map.mapInstance->cb, nullptr));
 
 		std::vector <const CSpell *> spells;
-		for(auto spellID : VLC->spellh->getDefaultAllowed())
+		for(auto spellID : LIBRARY->spellh->getDefaultAllowed())
 		{
 			if(map.isAllowedSpell(spellID))
 				spells.push_back(spellID.toSpell());
@@ -515,14 +514,14 @@ void TreasurePlacer::addSeerHuts()
 		auto setRandomArtifact = [qap](CGSeerHut * obj)
 		{
 			ArtifactID artid = qap->drawRandomArtifact();
-			obj->quest->mission.artifacts.push_back(artid);
+			obj->getQuest().mission.artifacts.push_back(artid);
 			qap->addQuestArtifact(artid);
 		};
-		auto destroyObject = [qap](CGObjectInstance * obj)
+		auto destroyObject = [qap](CGObjectInstance & obj)
 		{
-			auto * seer = dynamic_cast<CGSeerHut *>(obj);
+			auto & seer = dynamic_cast<CGSeerHut &>(obj);
 			// Artifact can be used again
-			ArtifactID artid = seer->quest->mission.artifacts.front();
+			ArtifactID artid = seer.getQuest().mission.artifacts.front();
 			qap->addRandomArtifact(artid);
 			qap->removeQuestArtifact(artid);
 		};
@@ -538,17 +537,16 @@ void TreasurePlacer::addSeerHuts()
 			int randomAppearance = chooseRandomAppearance(zone.getRand(), Obj::SEER_HUT, zone.getTerrainType());
 			
 			// FIXME: Remove duplicated code for gold, exp and creaure reward
-			oi.generateObject = [cb=map.mapInstance->cb, creature, creaturesAmount, randomAppearance, setRandomArtifact]() -> CGObjectInstance *
+			oi.generateObject = [cb=map.mapInstance->cb, creature, creaturesAmount, randomAppearance, setRandomArtifact]() -> std::shared_ptr<CGObjectInstance>
 			{
-				auto factory = VLC->objtypeh->getHandlerFor(Obj::SEER_HUT, randomAppearance);
-				auto * obj = dynamic_cast<CGSeerHut *>(factory->create(cb, nullptr));
+				auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::SEER_HUT, randomAppearance);
+				auto obj = std::dynamic_pointer_cast<CGSeerHut>(factory->create(cb, nullptr));
 				
 				Rewardable::VisitInfo reward;
 				reward.reward.creatures.emplace_back(creature->getId(), creaturesAmount);
 				reward.visitType = Rewardable::EEventType::EVENT_FIRST_VISIT;
 				obj->configuration.info.push_back(reward);
-								
-				setRandomArtifact(obj);
+				setRandomArtifact(obj.get());
 				
 				return obj;
 			};
@@ -583,17 +581,16 @@ void TreasurePlacer::addSeerHuts()
 			oi.probability = 10;
 			oi.maxPerZone = 1;
 			
-			oi.generateObject = [i, randomAppearance, this, setRandomArtifact]() -> CGObjectInstance *
+			oi.generateObject = [i, randomAppearance, this, setRandomArtifact]() -> std::shared_ptr<CGObjectInstance>
 			{
-				auto factory = VLC->objtypeh->getHandlerFor(Obj::SEER_HUT, randomAppearance);
-				auto * obj = dynamic_cast<CGSeerHut *>(factory->create(map.mapInstance->cb, nullptr));
+				auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::SEER_HUT, randomAppearance);
+				auto obj = std::dynamic_pointer_cast<CGSeerHut>(factory->create(map.mapInstance->cb, nullptr));
 				
 				Rewardable::VisitInfo reward;
 				reward.reward.heroExperience = generator.getConfig().questRewardValues[i];
 				reward.visitType = Rewardable::EEventType::EVENT_FIRST_VISIT;
 				obj->configuration.info.push_back(reward);
-
-				setRandomArtifact(obj);
+				setRandomArtifact(obj.get());
 
 				return obj;
 			};
@@ -602,17 +599,17 @@ void TreasurePlacer::addSeerHuts()
 			if(!oi.templates.empty())
 				possibleSeerHuts.push_back(oi);
 			
-			oi.generateObject = [i, randomAppearance, this, setRandomArtifact]() -> CGObjectInstance *
+			oi.generateObject = [i, randomAppearance, this, setRandomArtifact]() -> std::shared_ptr<CGObjectInstance>
 			{
-				auto factory = VLC->objtypeh->getHandlerFor(Obj::SEER_HUT, randomAppearance);
-				auto * obj = dynamic_cast<CGSeerHut *>(factory->create(map.mapInstance->cb, nullptr));
+				auto factory = LIBRARY->objtypeh->getHandlerFor(Obj::SEER_HUT, randomAppearance);
+				auto obj = std::dynamic_pointer_cast<CGSeerHut>(factory->create(map.mapInstance->cb, nullptr));
 				
 				Rewardable::VisitInfo reward;
 				reward.reward.resources[EGameResID::GOLD] = generator.getConfig().questRewardValues[i];
 				reward.visitType = Rewardable::EEventType::EVENT_FIRST_VISIT;
 				obj->configuration.info.push_back(reward);
 				
-				setRandomArtifact(obj);
+				setRandomArtifact(obj.get());
 				
 				return obj;
 			};
@@ -748,15 +745,14 @@ rmg::Object TreasurePlacer::constructTreasurePile(const std::vector<ObjectInfo*>
 			accessibleArea.add(int3());
 		}
 		
-		CGObjectInstance * object = nullptr;
+		std::shared_ptr<CGObjectInstance> object = nullptr;
 		if (oi->generateObject)
 		{
 			object = oi->generateObject();
 			if(oi->templates.empty())
 			{
 				logGlobal->warn("Deleting randomized object with no templates: %s", object->getObjectName());
-				oi->destroyObject(object);
-				delete object;
+				oi->destroyObject(*object);
 				continue;
 			}
 		}
@@ -770,7 +766,7 @@ rmg::Object TreasurePlacer::constructTreasurePile(const std::vector<ObjectInfo*>
 
 		if (templates.empty())
 		{
-			throw rmgException(boost::str(boost::format("Did not find template for object (%d,%d) at %s") % object->ID % object->subID % zone.getTerrainType().encode(zone.getTerrainType())));
+			throw rmgException(boost::str(boost::format("Did not find template for object (%d,%d) at %s") % object->ID.getNum() % object->subID.getNum() % zone.getTerrainType().encode(zone.getTerrainType().getNum())));
 		}
 
 		object->appearance = *RandomGeneratorUtil::nextItem(templates, zone.getRand());
@@ -785,7 +781,7 @@ rmg::Object TreasurePlacer::constructTreasurePile(const std::vector<ObjectInfo*>
 			});
 		}
 
-		auto & instance = rmgObject.addInstance(*object);
+		auto & instance = rmgObject.addInstance(object);
 		rmgObject.setValue(rmgObject.getValue() + oi->value);
 		instance.onCleared = oi->destroyObject;
 
@@ -1218,11 +1214,11 @@ void TreasurePlacer::ObjectPool::discardObjectsAboveValue(ui32 value)
 
 ObjectConfig::EObjectCategory TreasurePlacer::ObjectPool::getObjectCategory(CompoundMapObjectID id)
 {
-	auto name = VLC->objtypeh->getObjectHandlerName(id.primaryID);
+	auto name = LIBRARY->objtypeh->getObjectHandlerName(id.primaryID);
 
 	if (name == "configurable")
 	{
-		auto handler = VLC->objtypeh->getHandlerFor(id.primaryID, id.secondaryID);
+		auto handler = LIBRARY->objtypeh->getHandlerFor(id.primaryID, id.secondaryID);
 		if (!handler)
 		{
 			return ObjectConfig::EObjectCategory::NONE;

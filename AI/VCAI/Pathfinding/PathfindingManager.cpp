@@ -12,7 +12,8 @@
 #include "AIPathfinder.h"
 #include "AIPathfinderConfig.h"
 #include "../Goals/Goals.h"
-#include "../../../lib/CGameInfoCallback.h"
+#include "../Goals/CompleteQuest.h"
+#include "../../../lib/gameState/QuestInfo.h"
 #include "../../../lib/mapping/CMapDefines.h"
 #include "../../../lib/mapObjects/CQuest.h"
 
@@ -130,7 +131,7 @@ Goals::TGoalVec PathfindingManager::findPath(
 #ifdef VCMI_TRACE_PATHFINDER
 		logAi->trace("Path found size=%i, first tile=%s", path.nodes.size(), firstTileToGet.toString());
 #endif
-		if(firstTileToGet.valid() && ai->isTileNotReserved(hero.get(), firstTileToGet))
+		if(firstTileToGet.isValid() && ai->isTileNotReserved(hero.get(), firstTileToGet))
 		{
 			danger = path.getTotalDanger(hero);
 
@@ -190,7 +191,7 @@ Goals::TSubgoal PathfindingManager::clearWayTo(HeroPtr hero, int3 firstTileToGet
 	if(isBlockedBorderGate(firstTileToGet))
 	{
 		//FIXME: this way we'll not visit gate and activate quest :?
-		return sptr(Goals::FindObj(Obj::KEYMASTER, cb->getTile(firstTileToGet)->visitableObjects.back()->getObjTypeIndex()));
+		return sptr(Goals::FindObj(Obj::KEYMASTER, cb->getTopObj(firstTileToGet)->getObjTypeIndex()));
 	}
 
 	auto topObj = cb->getTopObj(firstTileToGet);
@@ -224,7 +225,7 @@ Goals::TSubgoal PathfindingManager::clearWayTo(HeroPtr hero, int3 firstTileToGet
 
 			if(questObj)
 			{
-				auto questInfo = QuestInfo(questObj->quest, topObj, topObj->visitablePos());
+				auto questInfo = QuestInfo(topObj->id);
 
 				return sptr(Goals::CompleteQuest(questInfo));
 			}

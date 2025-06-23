@@ -9,14 +9,13 @@
 */
 #pragma once
 
-#include "../../../lib/VCMI_Lib.h"
+#include "../../../lib/GameLibrary.h"
 #include "../../../lib/CCreatureHandler.h"
 #include "../AIUtility.h"
 
 struct HeroPtr;
 class VCAI;
 class FuzzyHelper;
-class CCallback;
 
 namespace Goals
 {

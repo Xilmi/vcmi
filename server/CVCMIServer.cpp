@@ -15,12 +15,11 @@
 #include "LobbyNetPackVisitors.h"
 #include "processors/PlayerMessageProcessor.h"
 
-#include "../lib/CPlayerState.h"
+#include "../lib/CThreadHelper.h"
 #include "../lib/campaign/CampaignState.h"
 #include "../lib/entities/hero/CHeroHandler.h"
 #include "../lib/entities/hero/CHeroClass.h"
 #include "../lib/gameState/CGameState.h"
-#include "../lib/mapping/CMapDefines.h"
 #include "../lib/mapping/CMapInfo.h"
 #include "../lib/mapping/CMapHeader.h"
 #include "../lib/rmg/CMapGenOptions.h"
@@ -39,10 +38,13 @@ class CVCMIServerPackVisitor : public VCMI_LIB_WRAP_NAMESPACE(ICPackVisitor)
 private:
 	CVCMIServer & handler;
 	std::shared_ptr<CGameHandler> gh;
+	std::shared_ptr<CConnection> connection;
 
 public:
-	CVCMIServerPackVisitor(CVCMIServer & handler, std::shared_ptr<CGameHandler> gh)
-			:handler(handler), gh(gh)
+	CVCMIServerPackVisitor(CVCMIServer & handler, const std::shared_ptr<CGameHandler> & gh, const std::shared_ptr<CConnection> & connection)
+		: handler(handler)
+		, gh(gh)
+		, connection(connection)
 	{
 	}
 
@@ -50,13 +52,13 @@ public:
 
 	void visitForLobby(CPackForLobby & packForLobby) override
 	{
-		handler.handleReceivedPack(packForLobby);
+		handler.handleReceivedPack(connection, packForLobby);
 	}
 
 	void visitForServer(CPackForServer & serverPack) override
 	{
 		if (gh)
-			gh->handleReceivedPack(serverPack);
+			gh->handleReceivedPack(connection, serverPack);
 		else
 			logNetwork->error("Received pack for game server while in lobby!");
 	}
@@ -130,8 +132,7 @@ void CVCMIServer::onPacketReceived(const std::shared_ptr<INetworkConnection> & c
 		throw std::out_of_range("Unknown connection received in CVCMIServer::findConnection");
 
 	auto pack = c->retrievePack(message);
-	pack->c = c;
-	CVCMIServerPackVisitor visitor(*this, this->gh);
+	CVCMIServerPackVisitor visitor(*this, this->gh, c);
 	pack->visit(visitor);
 }
 
@@ -205,7 +206,7 @@ void CVCMIServer::prepareToRestart()
 		return;
 	}
 
-	* si = * gh->gs->initialOpts;
+	* si = * gh->gs->getInitialStartInfo();
 	setState(EServerState::LOBBY);
 	if (si->campState)
 	{
@@ -229,8 +230,9 @@ bool CVCMIServer::prepareToStartGame()
 	if (lobbyProcessor)
 		lobbyProcessor->sendGameStarted();
 
-	auto progressTrackingThread = boost::thread([this, &progressTracking]()
+	auto progressTrackingThread = std::thread([this, &progressTracking]()
 	{
+		setThreadName("progressTrackingThread");
 		auto currentProgress = std::numeric_limits<Load::Type>::max();
 
 		while(!progressTracking.finished())
@@ -243,7 +245,7 @@ bool CVCMIServer::prepareToStartGame()
 				loadProgress.progress = currentProgress;
 				announcePack(loadProgress);
 			}
-			boost::this_thread::sleep(boost::posix_time::milliseconds(50));
+			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
 	});
 
@@ -290,7 +292,7 @@ bool CVCMIServer::prepareToStartGame()
 void CVCMIServer::startGameImmediately()
 {
 	for(auto activeConnection : activeConnections)
-		activeConnection->enterGameplayConnectionMode(gh->gs);
+		activeConnection->setCallback(gh->gameInfo());
 
 	gh->start(si->mode == EStartMode::LOAD_GAME);
 	setState(EServerState::GAMEPLAY);
@@ -310,20 +312,19 @@ void CVCMIServer::onDisconnected(const std::shared_ptr<INetworkConnection> & con
 	if (c)
 	{
 		LobbyClientDisconnected lcd;
-		lcd.c = c;
 		lcd.clientId = c->connectionID;
-		handleReceivedPack(lcd);
+		handleReceivedPack(c, lcd);
 	}
 }
 
-void CVCMIServer::handleReceivedPack(CPackForLobby & pack)
+void CVCMIServer::handleReceivedPack(std::shared_ptr<CConnection> connection, CPackForLobby & pack)
 {
-	ClientPermissionsCheckerNetPackVisitor checker(*this);
+	ClientPermissionsCheckerNetPackVisitor checker(*this, connection);
 	pack.visit(checker);
 
 	if(checker.getResult())
 	{
-		ApplyOnServerNetPackVisitor applier(*this);
+		ApplyOnServerNetPackVisitor applier(*this, connection);
 		pack.visit(applier);
 		if (applier.getResult())
 			announcePack(pack);
@@ -397,6 +398,7 @@ void CVCMIServer::clientConnected(std::shared_ptr<CConnection> c, std::vector<st
 	assert(getState() == EServerState::LOBBY);
 
 	c->connectionID = currentClientId++;
+	c->uuid = uuid;
 
 	if(hostClientId == -1)
 	{
@@ -414,7 +416,7 @@ void CVCMIServer::clientConnected(std::shared_ptr<CConnection> c, std::vector<st
 		ClientPlayer cp;
 		cp.connection = c->connectionID;
 		cp.name = name;
-		playerNames.insert(std::make_pair(id, cp));
+		playerNames.try_emplace(id, cp);
 		announceTxt(boost::str(boost::format("%s (pid %d cid %d) joins the game") % name % id % c->connectionID));
 
 		//put new player in first slot with AI
@@ -445,41 +447,6 @@ void CVCMIServer::clientDisconnected(std::shared_ptr<CConnection> connection)
 	{
 		gh->handleClientDisconnection(connection);
 	}
-
-//	PlayerReinitInterface startAiPack;
-//	startAiPack.playerConnectionId = PlayerSettings::PLAYER_AI;
-//
-//	for(auto it = playerNames.begin(); it != playerNames.end();)
-//	{
-//		if(it->second.connection != c->connectionID)
-//		{
-//			++it;
-//			continue;
-//		}
-//
-//		int id = it->first;
-//		std::string playerLeftMsgText = boost::str(boost::format("%s (pid %d cid %d) left the game") % id % playerNames[id].name % c->connectionID);
-//		announceTxt(playerLeftMsgText); //send lobby text, it will be ignored for non-lobby clients
-//		auto * playerSettings = si->getPlayersSettings(id);
-//		if(!playerSettings)
-//		{
-//			++it;
-//			continue;
-//		}
-//
-//		it = playerNames.erase(it);
-//		setPlayerConnectedId(*playerSettings, PlayerSettings::PLAYER_AI);
-//
-//		if(gh && si && state == EServerState::GAMEPLAY)
-//		{
-//			gh->playerMessages->broadcastMessage(playerSettings->color, playerLeftMsgText);
-//	//		gh->connections[playerSettings->color].insert(hostClient);
-//			startAiPack.players.push_back(playerSettings->color);
-//		}
-//	}
-//
-//	if(!startAiPack.players.empty())
-//		gh->sendAndApply(startAiPack);
 }
 
 void CVCMIServer::reconnectPlayer(int connId)
@@ -515,7 +482,7 @@ void CVCMIServer::setPlayerConnectedId(PlayerSettings & pset, ui8 player) const
 	if(vstd::contains(playerNames, player))
 		pset.name = playerNames.find(player)->second.name;
 	else
-		pset.name = VLC->generaltexth->allTexts[468]; //Computer
+		pset.name = LIBRARY->generaltexth->allTexts[468]; //Computer
 
 	pset.connectedPlayerIDs.clear();
 	if(player != PlayerSettings::PLAYER_AI)
@@ -637,7 +604,7 @@ void CVCMIServer::updateAndPropagateLobbyState()
 	}
 
 	LobbyUpdateState lus;
-	lus.state = *this;
+	lus.state = *static_cast<LobbyState*>(this);
 	announcePack(lus);
 }
 
@@ -649,9 +616,9 @@ void CVCMIServer::setPlayer(PlayerColor clickedColor)
 		int id;
 		void reset() { id = -1; color = PlayerColor::CANNOT_DETERMINE; }
 		PlayerToRestore(){ reset(); }
-	} playerToRestore;
+	};
 
-
+	PlayerToRestore playerToRestore;
 	PlayerSettings & clicked = si->playerInfos[clickedColor];
 
 	//identify clicked player
@@ -706,7 +673,7 @@ void CVCMIServer::setPlayer(PlayerColor clickedColor)
 	}
 }
 
-void CVCMIServer::setPlayerName(PlayerColor color, std::string name)
+void CVCMIServer::setPlayerName(PlayerColor color, const std::string & name)
 {
 	if(color == PlayerColor::CANNOT_DETERMINE)
 		return;
@@ -865,12 +832,16 @@ void CVCMIServer::setCampaignBonus(int bonusId)
 	campaignBonus = bonusId;
 
 	const CampaignScenario & scenario = si->campState->scenario(campaignMap);
-	const std::vector<CampaignBonus> & bonDescs = scenario.travelOptions.bonusesToChoose;
-	if(bonDescs[bonusId].type == CampaignBonusType::HERO)
+	const CampaignBonus & bonus = scenario.travelOptions.bonusesToChoose.at(bonusId);
+	if(bonus.getType() == CampaignBonusType::HERO || bonus.getType() == CampaignBonusType::HEROES_FROM_PREVIOUS_SCENARIO)
 	{
+		PlayerColor startingPlayer = bonus.getType() == CampaignBonusType::HERO ?
+			bonus.getValue<CampaignBonusStartingHero>().startingPlayer :
+			bonus.getValue<CampaignBonusHeroesFromScenario>().startingPlayer;
+
 		for(auto & elem : si->playerInfos)
 		{
-			if(elem.first == PlayerColor(bonDescs[bonusId].info1))
+			if(elem.first == startingPlayer)
 				setPlayerConnectedId(elem.second, 1);
 			else
 				setPlayerConnectedId(elem.second, PlayerSettings::PLAYER_AI);
@@ -889,7 +860,7 @@ void CVCMIServer::optionNextHero(PlayerColor player, int dir)
 		if (dir > 0)
 			s.hero = nextAllowedHero(player, HeroTypeID(-1), dir);
 		else
-			s.hero = nextAllowedHero(player, HeroTypeID(VLC->heroh->size()), dir);
+			s.hero = nextAllowedHero(player, HeroTypeID(LIBRARY->heroh->size()), dir);
 	}
 	else
 	{
@@ -917,7 +888,7 @@ HeroTypeID CVCMIServer::nextAllowedHero(PlayerColor player, HeroTypeID initial, 
 
 	if(direction > 0)
 	{
-		for (auto i = first; i.getNum() < VLC->heroh->size(); ++i)
+		for (auto i = first; i.getNum() < LIBRARY->heroh->size(); ++i)
 			if(canUseThisHero(player, i))
 				return i;
 	}
@@ -933,29 +904,29 @@ HeroTypeID CVCMIServer::nextAllowedHero(PlayerColor player, HeroTypeID initial, 
 void CVCMIServer::optionNextBonus(PlayerColor player, int dir)
 {
 	PlayerSettings & s = si->playerInfos[player];
-	PlayerStartingBonus & ret = s.bonus = static_cast<PlayerStartingBonus>(static_cast<int>(s.bonus) + dir);
+	s.bonus = static_cast<PlayerStartingBonus>(static_cast<int>(s.bonus) + dir);
 
 	if(s.hero == HeroTypeID::NONE &&
-		!getPlayerInfo(player).heroesNames.size() &&
-		ret == PlayerStartingBonus::ARTIFACT) //no hero - can't be artifact
+		getPlayerInfo(player).heroesNames.empty() &&
+		s.bonus == PlayerStartingBonus::ARTIFACT) //no hero - can't be artifact
 	{
 		if(dir < 0)
-			ret = PlayerStartingBonus::RANDOM;
+			s.bonus = PlayerStartingBonus::RANDOM;
 		else
-			ret = PlayerStartingBonus::GOLD;
+			s.bonus = PlayerStartingBonus::GOLD;
 	}
 
-	if(ret > PlayerStartingBonus::RESOURCE)
-		ret = PlayerStartingBonus::RANDOM;
-	if(ret < PlayerStartingBonus::RANDOM)
-		ret = PlayerStartingBonus::RESOURCE;
+	if(s.bonus > PlayerStartingBonus::RESOURCE)
+		s.bonus = PlayerStartingBonus::RANDOM;
+	if(s.bonus < PlayerStartingBonus::RANDOM)
+		s.bonus = PlayerStartingBonus::RESOURCE;
 
-	if(s.castle == FactionID::RANDOM && ret == PlayerStartingBonus::RESOURCE) //random castle - can't be resource
+	if(s.castle == FactionID::RANDOM && s.bonus == PlayerStartingBonus::RESOURCE) //random castle - can't be resource
 	{
 		if(dir < 0)
-			ret = PlayerStartingBonus::GOLD;
+			s.bonus = PlayerStartingBonus::GOLD;
 		else
-			ret = PlayerStartingBonus::RANDOM;
+			s.bonus = PlayerStartingBonus::RANDOM;
 	}
 }
 
@@ -981,20 +952,36 @@ void CVCMIServer::optionSetBonus(PlayerColor player, PlayerStartingBonus id)
 
 bool CVCMIServer::canUseThisHero(PlayerColor player, HeroTypeID ID)
 {
-	return VLC->heroh->size() > ID
-		&& si->playerInfos[player].castle == VLC->heroh->objects[ID]->heroClass->faction
-		&& !vstd::contains(getUsedHeroes(), ID)
-		&& mi->mapHeader->allowedHeroes.count(ID);
+	if (!ID.hasValue())
+		return false;
+
+	if (ID.getNum() >= LIBRARY->heroh->size())
+		return false;
+
+	if (si->playerInfos[player].castle != ID.toHeroType()->heroClass->faction)
+		return false;
+
+	if (vstd::contains(getUsedHeroes(), ID))
+		return false;
+
+	if (!mi->mapHeader->allowedHeroes.count(ID))
+		return false;
+
+	for (const auto & disposedHero : mi->mapHeader->disposedHeroes)
+		if (disposedHero.heroId == ID && !disposedHero.players.count(player))
+			return false;
+
+	return true;
 }
 
 std::vector<HeroTypeID> CVCMIServer::getUsedHeroes()
 {
 	std::vector<HeroTypeID> heroIds;
-	for(auto & p : si->playerInfos)
+	for(const auto & p : si->playerInfos)
 	{
 		const auto & heroes = getPlayerInfo(p.first).heroesNames;
-		for(auto & hero : heroes)
-			if(hero.heroId >= 0) //in VCMI map format heroId = -1 means random hero
+		for(const auto & hero : heroes)
+			if(hero.heroId.hasValue())
 				heroIds.push_back(hero.heroId);
 
 		if(p.second.hero != HeroTypeID::RANDOM)

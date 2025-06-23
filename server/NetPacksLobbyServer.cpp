@@ -14,21 +14,20 @@
 #include "CGameHandler.h"
 
 #include "../lib/StartInfo.h"
-#include "../lib/CRandomGenerator.h"
 
+#include "../lib/CRandomGenerator.h"
 #include "../lib/campaign/CampaignState.h"
 #include "../lib/entities/faction/CTownHandler.h"
-#include "../lib/entities/faction/CFaction.h"
-#include "../lib/serializer/Connection.h"
-#include "../lib/mapping/CMapInfo.h"
-#include "../lib/mapping/CMapHeader.h"
 #include "../lib/filesystem/Filesystem.h"
+#include "../lib/gameState/CGameState.h"
+#include "../lib/mapping/CMapInfo.h"
+#include "../lib/serializer/Connection.h"
 
 void ClientPermissionsCheckerNetPackVisitor::visitForLobby(CPackForLobby & pack)
 {
 	if(pack.isForServer())
 	{
-		result = srv.isClientHost(pack.c->connectionID);
+		result = srv.isClientHost(connection->connectionID);
 	}
 }
 
@@ -49,12 +48,12 @@ void ClientPermissionsCheckerNetPackVisitor::visitLobbyClientConnected(LobbyClie
 void ApplyOnServerNetPackVisitor::visitLobbyClientConnected(LobbyClientConnected & pack)
 {
 	auto compatibleVersion = std::min(pack.version, ESerializationVersion::CURRENT);
-	pack.c->setSerializationVersion(compatibleVersion);
+	connection->setSerializationVersion(compatibleVersion);
 
-	srv.clientConnected(pack.c, pack.names, pack.uuid, pack.mode);
+	srv.clientConnected(connection, pack.names, pack.uuid, pack.mode);
 
 	// Server need to pass some data to newly connected client
-	pack.clientId = pack.c->connectionID;
+	pack.clientId = connection->connectionID;
 	pack.mode = srv.si->mode;
 	pack.hostClientId = srv.hostClientId;
 	pack.version = compatibleVersion;
@@ -64,26 +63,12 @@ void ApplyOnServerNetPackVisitor::visitLobbyClientConnected(LobbyClientConnected
 
 void ApplyOnServerAfterAnnounceNetPackVisitor::visitLobbyClientConnected(LobbyClientConnected & pack)
 {
-	// FIXME: we need to avoid senting something to client that not yet get answer for LobbyClientConnected
-	// Until UUID set we only pass LobbyClientConnected to this client
-	pack.c->uuid = pack.uuid;
 	srv.updateAndPropagateLobbyState();
-
-// FIXME: what is this??? We do NOT support reconnection into ongoing game - at the very least queries and battles are NOT serialized
-//	if(srv.getState() == EServerState::GAMEPLAY)
-//	{
-//		//immediately start game
-//		std::unique_ptr<LobbyStartGame> startGameForReconnectedPlayer(new LobbyStartGame);
-//		startGameForReconnectedPlayer->initializedStartInfo = srv.si;
-//		startGameForReconnectedPlayer->initializedGameState = srv.gh->gameState();
-//		startGameForReconnectedPlayer->clientId = pack.c->connectionID;
-//		srv.announcePack(std::move(startGameForReconnectedPlayer));
-//	}
 }
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyClientDisconnected(LobbyClientDisconnected & pack)
 {
-	if(pack.clientId != pack.c->connectionID)
+	if(pack.clientId != connection->connectionID)
 	{
 		result = false;
 		return;
@@ -97,7 +82,7 @@ void ClientPermissionsCheckerNetPackVisitor::visitLobbyClientDisconnected(LobbyC
 			return;
 		}
 
-		if(pack.c->connectionID != srv.hostClientId)
+		if(connection->connectionID != srv.hostClientId)
 		{
 			result = false;
 			return;
@@ -109,38 +94,14 @@ void ClientPermissionsCheckerNetPackVisitor::visitLobbyClientDisconnected(LobbyC
 
 void ApplyOnServerNetPackVisitor::visitLobbyClientDisconnected(LobbyClientDisconnected & pack)
 {
-	pack.c->getConnection()->close();
-	srv.clientDisconnected(pack.c);
+	connection->getConnection()->close();
+	srv.clientDisconnected(connection);
 	result = true;
 }
 
 void ApplyOnServerAfterAnnounceNetPackVisitor::visitLobbyClientDisconnected(LobbyClientDisconnected & pack)
 {
-	if(pack.shutdownServer)
-	{
-		logNetwork->info("Client requested shutdown, server will close itself...");
-		srv.setState(EServerState::SHUTDOWN);
-		return;
-	}
-	else if(srv.activeConnections.empty())
-	{
-		logNetwork->error("Last connection lost, server will close itself...");
-		srv.setState(EServerState::SHUTDOWN);
-	}
-	else if(pack.c->connectionID == srv.hostClientId)
-	{
-		LobbyChangeHost ph;
-		auto newHost = srv.activeConnections.front();
-		ph.newHostConnectionId = newHost->connectionID;
-		srv.announcePack(ph);
-	}
 	srv.updateAndPropagateLobbyState();
-	
-//	if(srv.getState() != EServerState::SHUTDOWN && srv.remoteConnections.count(pack.c))
-//	{
-//		srv.remoteConnections -= pack.c;
-//		srv.connectToRemote();
-//	}
 }
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyChatMessage(LobbyChatMessage & pack)
@@ -171,9 +132,8 @@ void ApplyOnServerNetPackVisitor::visitLobbySetCampaign(LobbySetCampaign & pack)
 	bool isCurrentMapConquerable = pack.ourCampaign->currentScenario() && pack.ourCampaign->isAvailable(*pack.ourCampaign->currentScenario());
 
 	auto scenarios = pack.ourCampaign->allScenarios();
-	for(std::set<CampaignScenarioID>::reverse_iterator itr = scenarios.rbegin(); itr != scenarios.rend(); itr++) // reverse -> on multiple scenario selection set lowest id at the end
+	for(auto scenarioID : boost::adaptors::reverse(scenarios)) // reverse -> on multiple scenario selection set lowest id at the end
 	{
-		auto scenarioID = *itr;
 		if(pack.ourCampaign->isAvailable(scenarioID))
 		{
 			if(!isCurrentMapConquerable || (isCurrentMapConquerable && scenarioID == *pack.ourCampaign->currentScenario()))
@@ -202,12 +162,12 @@ void ApplyOnServerNetPackVisitor::visitLobbySetCampaignBonus(LobbySetCampaignBon
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyGuiAction(LobbyGuiAction & pack)
 {
-	result = srv.isClientHost(pack.c->connectionID);
+	result = srv.isClientHost(connection->connectionID);
 }
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyRestartGame(LobbyRestartGame & pack)
 {
-	result = srv.isClientHost(pack.c->connectionID);
+	result = srv.isClientHost(connection->connectionID);
 }
 
 void ApplyOnServerNetPackVisitor::visitLobbyRestartGame(LobbyRestartGame & pack)
@@ -225,12 +185,12 @@ void ApplyOnServerAfterAnnounceNetPackVisitor::visitLobbyRestartGame(LobbyRestar
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyPrepareStartGame(LobbyPrepareStartGame & pack)
 {
-	result = srv.isClientHost(pack.c->connectionID);
+	result = srv.isClientHost(connection->connectionID);
 }
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyStartGame(LobbyStartGame & pack)
 {
-	result = srv.isClientHost(pack.c->connectionID);
+	result = srv.isClientHost(connection->connectionID);
 }
 
 void ApplyOnServerNetPackVisitor::visitLobbyStartGame(LobbyStartGame & pack)
@@ -239,7 +199,7 @@ void ApplyOnServerNetPackVisitor::visitLobbyStartGame(LobbyStartGame & pack)
 	{
 		srv.verifyStateBeforeStart(true);
 	}
-	catch(...)
+	catch(const std::exception &)
 	{
 		result = false;
 		return;
@@ -252,8 +212,8 @@ void ApplyOnServerNetPackVisitor::visitLobbyStartGame(LobbyStartGame & pack)
 		return;
 	}
 	
-	pack.initializedStartInfo = std::make_shared<StartInfo>(*srv.gh->getStartInfo(true));
-	pack.initializedGameState = srv.gh->gameState();
+	pack.initializedStartInfo = std::make_shared<StartInfo>(*srv.gh->gameState().getInitialStartInfo());
+	pack.initializedGameState = srv.gh->gs;
 	result = true;
 }
 
@@ -267,7 +227,7 @@ void ApplyOnServerAfterAnnounceNetPackVisitor::visitLobbyStartGame(LobbyStartGam
 		{
 			if(connection->connectionID == pack.clientId)
 			{
-				connection->enterGameplayConnectionMode(srv.gh->gameState());
+				connection->setCallback(srv.gh->gameInfo());
 				srv.reconnectPlayer(pack.clientId);
 			}
 		}
@@ -276,7 +236,7 @@ void ApplyOnServerAfterAnnounceNetPackVisitor::visitLobbyStartGame(LobbyStartGam
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyChangeHost(LobbyChangeHost & pack)
 {
-	result = srv.isClientHost(pack.c->connectionID);
+	result = srv.isClientHost(connection->connectionID);
 }
 
 void ApplyOnServerNetPackVisitor::visitLobbyChangeHost(LobbyChangeHost & pack)
@@ -296,13 +256,13 @@ void ApplyOnServerAfterAnnounceNetPackVisitor::visitLobbyChangeHost(LobbyChangeH
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyChangePlayerOption(LobbyChangePlayerOption & pack)
 {
-	if(srv.isClientHost(pack.c->connectionID))
+	if(srv.isClientHost(connection->connectionID))
 	{
 		result = true;
 		return;
 	}
 
-	if(vstd::contains(srv.getAllClientPlayers(pack.c->connectionID), pack.color))
+	if(vstd::contains(srv.getAllClientPlayers(connection->connectionID), pack.color))
 	{
 		result = true;
 		return;
@@ -328,7 +288,7 @@ void ApplyOnServerNetPackVisitor::visitLobbyChangePlayerOption(LobbyChangePlayer
 		srv.optionNextHero(pack.color, pack.value);
 		break;
 	case LobbyChangePlayerOption::BONUS_ID:
-		srv.optionSetBonus(pack.color, PlayerStartingBonus(pack.value));
+		srv.optionSetBonus(pack.color, static_cast<PlayerStartingBonus>(pack.value));
 		break;
 	case LobbyChangePlayerOption::BONUS:
 		srv.optionNextBonus(pack.color, pack.value);
@@ -395,7 +355,7 @@ void ApplyOnServerNetPackVisitor::visitLobbyPvPAction(LobbyPvPAction & pack)
 {
 	std::vector<FactionID> allowedTowns;
 
-	for (auto const & factionID : VLC->townh->getDefaultAllowed())
+	for (auto const & factionID : LIBRARY->townh->getDefaultAllowed())
 		if(std::find(pack.bannedTowns.begin(), pack.bannedTowns.end(), factionID) == pack.bannedTowns.end())
 			allowedTowns.push_back(factionID);
 
@@ -409,7 +369,7 @@ void ApplyOnServerNetPackVisitor::visitLobbyPvPAction(LobbyPvPAction & pack)
 	switch(pack.action) {
 		case LobbyPvPAction::COIN:
 			txt.appendTextID("vcmi.lobby.pvp.coin.hover");
-			txt.appendRawString(" - " + std::to_string(std::rand()%2));
+			txt.appendRawString(" - " + std::to_string(CRandomGenerator::getDefault().nextInt(1)));
 			srv.announceTxt(txt);
 			break;
 		case LobbyPvPAction::RANDOM_TOWN:
@@ -417,7 +377,7 @@ void ApplyOnServerNetPackVisitor::visitLobbyPvPAction(LobbyPvPAction & pack)
 				break;
 			txt.appendTextID("core.overview.3");
 			txt.appendRawString(" - ");
-			txt.appendTextID(VLC->townh->getById(randomFaction1[0])->getNameTextID());
+			txt.appendTextID(LIBRARY->townh->getById(randomFaction1[0])->getNameTextID());
 			srv.announceTxt(txt);
 			break;
 		case LobbyPvPAction::RANDOM_TOWN_VS:
@@ -425,11 +385,11 @@ void ApplyOnServerNetPackVisitor::visitLobbyPvPAction(LobbyPvPAction & pack)
 				break;
 			txt.appendTextID("core.overview.3");
 			txt.appendRawString(" - ");
-			txt.appendTextID(VLC->townh->getById(randomFaction1[0])->getNameTextID());
+			txt.appendTextID(LIBRARY->townh->getById(randomFaction1[0])->getNameTextID());
 			txt.appendRawString(" ");
 			txt.appendTextID("vcmi.lobby.pvp.versus");
 			txt.appendRawString(" ");
-			txt.appendTextID(VLC->townh->getById(randomFaction2[0])->getNameTextID());
+			txt.appendTextID(LIBRARY->townh->getById(randomFaction2[0])->getNameTextID());
 			srv.announceTxt(txt);
 			break;
 	}
@@ -439,7 +399,7 @@ void ApplyOnServerNetPackVisitor::visitLobbyPvPAction(LobbyPvPAction & pack)
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyDelete(LobbyDelete & pack)
 {
-	result = srv.isClientHost(pack.c->connectionID);
+	result = srv.isClientHost(connection->connectionID);
 }
 
 void ApplyOnServerNetPackVisitor::visitLobbyDelete(LobbyDelete & pack)

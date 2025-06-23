@@ -30,12 +30,12 @@ template<typename Type>
 class SerializerReflection final : public ISerializerReflection
 {
 public:
-	Serializeable * createPtr(BinaryDeserializer &ar, IGameCallback * cb) const override
+	Serializeable * createPtr(BinaryDeserializer &ar, IGameInfoCallback * cb) const override
 	{
 		return ClassObjectCreator<Type>::invoke(cb);
 	}
 
-	void loadPtr(BinaryDeserializer &ar, IGameCallback * cb, Serializeable * data) const override
+	void loadPtr(BinaryDeserializer &ar, IGameInfoCallback * cb, Serializeable * data) const override
 	{
 		auto * realPtr = dynamic_cast<Type *>(data);
 		realPtr->serialize(ar);
@@ -52,7 +52,7 @@ template<typename Type, ESerializationVersion maxVersion>
 class SerializerCompatibility : public ISerializerReflection
 {
 public:
-	Serializeable * createPtr(BinaryDeserializer &ar, IGameCallback * cb) const override
+	Serializeable * createPtr(BinaryDeserializer &ar, IGameInfoCallback * cb) const override
 	{
 		return ClassObjectCreator<Type>::invoke(cb);
 	}
@@ -60,24 +60,6 @@ public:
 	void savePtr(BinarySerializer &s, const Serializeable *data) const override
 	{
 		throw std::runtime_error("Illegal call to savePtr - this type should not be used for serialization!");
-	}
-};
-
-class SerializerCompatibilityBonusingBuilding final : public SerializerCompatibility<TownRewardableBuildingInstance, ESerializationVersion::NEW_TOWN_BUILDINGS>
-{
-	void loadPtr(BinaryDeserializer &ar, IGameCallback * cb, Serializeable * data) const override
-	{
-		auto * realPtr = dynamic_cast<TownRewardableBuildingInstance *>(data);
-		realPtr->serialize(ar);
-	}
-};
-
-class SerializerCompatibilityArtifactsAltar final : public SerializerCompatibility<CGMarket, ESerializationVersion::NEW_MARKETS>
-{
-	void loadPtr(BinaryDeserializer &ar, IGameCallback * cb, Serializeable * data) const override
-	{
-		auto * realPtr = dynamic_cast<CGMarket *>(data);
-		realPtr->serializeArtifactsAltar(ar);
 	}
 };
 
@@ -91,10 +73,6 @@ void CSerializationApplier::registerType(uint16_t ID)
 CSerializationApplier::CSerializationApplier()
 {
 	registerTypes(*this);
-
-	apps[54].reset(new SerializerCompatibilityBonusingBuilding);
-	apps[55].reset(new SerializerCompatibilityBonusingBuilding);
-	apps[81].reset(new SerializerCompatibilityArtifactsAltar);
 }
 
 CSerializationApplier & CSerializationApplier::getInstance()

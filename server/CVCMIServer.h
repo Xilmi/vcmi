@@ -102,7 +102,7 @@ public:
 	void announceMessage(const MetaString & txt);
 	void announceMessage(const std::string & txt);
 
-	void handleReceivedPack(CPackForLobby & pack);
+	void handleReceivedPack(std::shared_ptr<CConnection> connection, CPackForLobby & pack);
 
 	void updateAndPropagateLobbyState();
 
@@ -114,7 +114,7 @@ public:
 
 	// Work with LobbyInfo
 	void setPlayer(PlayerColor clickedColor);
-	void setPlayerName(PlayerColor player, std::string name);
+	void setPlayerName(PlayerColor player, const std::string & name);
 	void setPlayerHandicap(PlayerColor player, Handicap handicap);
 	void optionNextHero(PlayerColor player, int dir); //dir == -1 or +1
 	void optionSetHero(PlayerColor player, HeroTypeID id);

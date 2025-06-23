@@ -11,8 +11,8 @@
 
 #include "ArtifactsUIController.h"
 
+#include "../lib/callback/CGameInterface.h"
 #include "../lib/FunctionList.h"
-#include "../lib/CGameInterface.h"
 #include "gui/CIntObject.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
@@ -57,7 +57,7 @@ namespace boost
 }
 
 /// Central class for managing user interface logic
-class CPlayerInterface : public CGameInterface, public IUpdateable
+class CPlayerInterface : public CGameInterface
 {
 	bool ignoreEvents;
 	int autosaveCount;
@@ -90,7 +90,6 @@ public: // TODO: make private
 
 protected: // Call-ins from server, should not be called directly, but only via GameInterface
 
-	void update() override;
 	void initGameInterface(std::shared_ptr<Environment> ENV, std::shared_ptr<CCallback> CB) override;
 
 	void garrisonsChanged(ObjectInstanceID id1, ObjectInstanceID id2) override;
@@ -110,6 +109,7 @@ protected: // Call-ins from server, should not be called directly, but only via 
 	void commanderGotLevel (const CCommanderInstance * commander, std::vector<ui32> skills, QueryID queryID) override;
 	void heroInGarrisonChange(const CGTownInstance *town) override;
 	void heroMoved(const TryMoveHero & details, bool verbose = true) override;
+	void heroExperienceChanged(const CGHeroInstance * hero, si64 val) override;
 	void heroPrimarySkillChanged(const CGHeroInstance * hero, PrimarySkill which, si64 val) override;
 	void heroSecondarySkillChanged(const CGHeroInstance * hero, int which, int val) override;
 	void heroManaPointsChanged(const CGHeroInstance * hero) override;
@@ -146,6 +146,7 @@ protected: // Call-ins from server, should not be called directly, but only via 
 	void playerStartsTurn(PlayerColor player) override; //called before yourTurn on active interface
 	void playerEndsTurn(PlayerColor player) override;
 	void showWorldViewEx(const std::vector<ObjectPosInfo> & objectPositions, bool showTerrain) override;
+	void setColorScheme(ColorScheme scheme) override;
 
 	//for battles
 	void actionFinished(const BattleID & battleID, const BattleAction& action) override;//occurs AFTER action taken by active stack or by the hero
@@ -170,9 +171,10 @@ protected: // Call-ins from server, should not be called directly, but only via 
 	void yourTacticPhase(const BattleID & battleID, int distance) override;
 	std::optional<BattleAction> makeSurrenderRetreatDecision(const BattleID & battleID, const BattleStateInfoForRetreat & battleState) override;
 
-public: // public interface for use by client via LOCPLINT access
+public: // public interface for use by client via GAME->interface() access
 
 	// part of GameInterface that is also used by client code
+	void update();
 	void showPuzzleMap() override;
 	void viewWorldMap() override;
 	void showQuestLog() override;
@@ -206,6 +208,9 @@ public: // public interface for use by client via LOCPLINT access
 	///returns true if all events are processed internally
 	bool capturedAllEvents();
 
+	void registerBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);
+	void unregisterBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);
+
 	CPlayerInterface(PlayerColor Player);
 	~CPlayerInterface();
 
@@ -231,6 +236,3 @@ private:
 	void initializeHeroTownList();
 	int getLastIndex(std::string namePrefix);
 };
-
-/// Provides global access to instance of interface of currently active player
-extern CPlayerInterface * LOCPLINT;

@@ -11,14 +11,12 @@
 
 #include "AIUtility.h"
 #include "Goals/AbstractGoal.h"
-#include "../../lib/AI_Base.h"
-#include "../../CCallback.h"
 
-#include "../../lib/CThreadHelper.h"
-
+#include "../../lib/ConditionalWait.h"
 #include "../../lib/GameConstants.h"
-#include "../../lib/VCMI_Lib.h"
+#include "../../lib/GameLibrary.h"
 #include "../../lib/CCreatureHandler.h"
+#include "../../lib/callback/CAdventureAI.h"
 #include "../../lib/mapObjects/MiscObjects.h"
 #include "../../lib/spells/CSpellHandler.h"
 #include "Pathfinding/AIPathfinder.h"
@@ -27,6 +25,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 
 struct QuestInfo;
 class PathfinderCache;
+class AsyncRunner;
 
 VCMI_LIB_NAMESPACE_END
 
@@ -34,8 +33,8 @@ class AIhelper;
 
 class AIStatus
 {
-	boost::mutex mx;
-	boost::condition_variable cv;
+	std::mutex mx;
+	std::condition_variable cv;
 
 	BattleState battle;
 	std::map<QueryID, std::string> remainingQueries;
@@ -105,9 +104,9 @@ public:
 
 	std::shared_ptr<CCallback> myCb;
 
-	std::unique_ptr<boost::thread> makingTurn;
-private:
-	boost::mutex turnInterruptionMutex;
+	std::unique_ptr<AsyncRunner> asyncTasks;
+	ThreadInterruption makingTurnInterrupption;
+
 public:
 	ObjectInstanceID selectedObject;
 
@@ -165,6 +164,7 @@ public:
 	void heroVisitsTown(const CGHeroInstance * hero, const CGTownInstance * town) override;
 	void tileRevealed(const std::unordered_set<int3> & pos) override;
 	void heroExchangeStarted(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID query) override;
+	void heroExperienceChanged(const CGHeroInstance * hero, si64 val) override;
 	void heroPrimarySkillChanged(const CGHeroInstance * hero, PrimarySkill which, si64 val) override;
 	void showRecruitmentDialog(const CGDwelling * dwelling, const CArmedInstance * dst, int level, QueryID queryID) override;
 	void heroMovePointsChanged(const CGHeroInstance * hero) override;
@@ -262,7 +262,7 @@ public:
 	void requestSent(const CPackForServer * pack, int requestID) override;
 	void answerQuery(QueryID queryID, int selection);
 	//special function that can be called ONLY from game events handling thread and will send request ASAP
-	void requestActionASAP(std::function<void()> whatToDo);
+	void executeActionAsync(const std::string & description, const std::function<void()> & whatToDo);
 };
 
 class cannotFulfillGoalException : public std::exception

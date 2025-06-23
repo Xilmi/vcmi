@@ -202,6 +202,24 @@ enum class EMapDifficulty : uint8_t
 	IMPOSSIBLE = 4
 };
 
+/// The disposed hero struct describes which hero can be hired from which player.
+struct DLL_LINKAGE DisposedHero
+{
+	HeroTypeID heroId;
+	HeroTypeID portrait; /// The portrait id of the hero, -1 is default.
+	std::string name;
+	std::set<PlayerColor> players; /// Who can hire this hero (bitfield).
+
+	template <typename Handler>
+	void serialize(Handler & h)
+	{
+		h & heroId;
+		h & portrait;
+		h & name;
+		h & players;
+	}
+};
+
 /// The map header holds information about loss/victory condition,map format, version, players, height, width,...
 class DLL_LINKAGE CMapHeader: public Serializeable
 {
@@ -248,6 +266,8 @@ public:
 	std::set<HeroTypeID> allowedHeroes;
 	std::set<HeroTypeID> reservedCampaignHeroes; /// Heroes that have placeholders in this map and are reserved for campaign
 
+	std::vector<DisposedHero> disposedHeroes;
+
 	bool areAnyPlayers; /// Unused. True if there are any playable players on the map.
 
 	/// "main quests" of the map that describe victory and loss conditions
@@ -267,25 +287,14 @@ public:
 		h & mods;
 		h & name;
 		h & description;
-		if (h.version >= Handler::Version::MAP_FORMAT_ADDITIONAL_INFOS)
-		{
-			h & author;
-			h & authorContact;
-			h & mapVersion;
-			h & creationDateTime;
-		}
+		h & author;
+		h & authorContact;
+		h & mapVersion;
+		h & creationDateTime;
 		h & width;
 		h & height;
 		h & twoLevel;
-
-		if (h.version >= Handler::Version::SAVE_COMPATIBILITY_FIXES)
-			h & difficulty;
-		else
-		{
-			uint8_t difficultyInteger = static_cast<uint8_t>(difficulty);
-			h & difficultyInteger;
-			difficulty = static_cast<EMapDifficulty>(difficultyInteger);
-		}
+		h & difficulty;
 
 		h & levelLimit;
 		h & areAnyPlayers;
@@ -298,6 +307,8 @@ public:
 		h & victoryIconIndex;
 		h & defeatMessage;
 		h & defeatIconIndex;
+		if (h.version >= Handler::Version::MAP_HEADER_DISPOSED_HEROES)
+			h & disposedHeroes;
 		h & translations;
 		if(!h.saving)
 			registerMapStrings();

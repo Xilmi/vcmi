@@ -44,7 +44,9 @@
 				"enableUiEnhancements",
 				"audioMuteFocus",
 				"enableOverlay",
-				"lastKindomInterface"
+				"lastKindomInterface",
+				"enableSubtitle",
+				"ignoreMuteSwitch"
 			],
 			"properties" : {
 				"playerName" : {
@@ -73,12 +75,12 @@
 				},
 				"language" : {
 					"type" : "string",
-					"enum" : [ "english", "czech", "chinese", "finnish", "french", "german", "hungarian", "italian", "korean", "polish", "portuguese", "russian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
+					"enum" : [ "english", "belarusian", "bulgarian", "czech", "chinese", "finnish", "french", "german", "greek", "hungarian", "italian", "japanese", "korean", "norwegian", "polish", "portuguese", "romanian", "russian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
 					"default" : "english"
 				},
 				"gameDataLanguage" : {
 					"type" : "string",
-					"enum" : [ "auto", "english", "czech", "chinese", "finnish", "french", "german", "hungarian", "italian", "korean", "polish", "portuguese", "russian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
+					"enum" : [ "auto", "english", "belarusian", "bulgarian", "czech", "chinese", "finnish", "french", "german", "greek", "hungarian", "italian", "japanese", "korean", "norwegian", "polish", "portuguese", "romanian", "russian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
 					"default" : "auto"
 				},
 				"lastSave" : {
@@ -156,6 +158,14 @@
 				"lastKindomInterface" : {
 					"type" : "number",
 					"default" : 0
+				},
+				"enableSubtitle" : {
+					"type": "boolean",
+					"default": true
+				},
+				"ignoreMuteSwitch" : {
+					"type": "boolean",
+					"default": true
 				}
 			}
 		},
@@ -377,7 +387,7 @@
 			"type" : "object",
 			"additionalProperties" : false,
 			"default" : {},
-			"required" : [ "heroMoveTime", "enemyMoveTime", "scrollSpeedPixels", "heroReminder", "quickCombat", "objectAnimation", "terrainAnimation", "forceQuickCombat", "borderScroll", "leftButtonDrag", "rightButtonDrag", "smoothDragging", "backgroundDimLevel", "hideBackground", "backgroundDimSmallWindows", "tileZoom" ],
+			"required" : [ "heroMoveTime", "enemyMoveTime", "scrollSpeedPixels", "heroReminder", "quickCombat", "objectAnimation", "terrainAnimation", "forceQuickCombat", "borderScroll", "leftButtonDrag", "rightButtonDrag", "smoothDragging", "backgroundDimLevel", "hideBackground", "backgroundDimSmallWindows", "tileZoom", "minimapShowHeroes" ],
 			"properties" : {
 				"heroMoveTime" : {
 					"type" : "number",
@@ -442,6 +452,11 @@
 					"type" : "boolean",
 					"default" : false
 				},
+				"minimapShowHeroes" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				
 				"tileZoom" : {
 					"type" : "number",
 					"default" : 32
@@ -649,14 +664,15 @@
 			"additionalProperties" : false,
 			"required" : [ 
 				"setupCompleted", 
-				"defaultRepositoryEnabled", 
-				"defaultRepositoryURL", 
-				"extraRepositoryURL", 
-				"extraRepositoryEnabled", 
-				"autoCheckRepositories", 
+				"defaultRepositoryEnabled",
+				"defaultRepositoryURL",
+				"extraRepositoryURL",
+				"extraRepositoryEnabled",
+				"autoCheckRepositories",
 				"ignoreSslErrors",
-				"updateOnStartup", 
-				"updateConfigUrl"
+				"updateOnStartup",
+				"updateConfigUrl",
+				"trackClipboardState"
 			],
 			"properties" : {
 				"defaultRepositoryEnabled" : {
@@ -665,7 +681,7 @@
 				},
 				"defaultRepositoryURL" : {
 					"type" : "string",
-					"default" : "https://raw.githubusercontent.com/vcmi/vcmi-mods-repository/develop/vcmi-1.6.json",
+					"default" : "https://raw.githubusercontent.com/vcmi/vcmi-mods-repository/develop/vcmi-1.7.json",
 				},
 				"extraRepositoryEnabled" : {
 					"type" : "boolean",
@@ -694,7 +710,15 @@
 				"updateConfigUrl" : {
 					"type" : "string",
 					"default" : "https://raw.githubusercontent.com/vcmi/vcmi-updates/master/vcmi-updates.json"
-				}
+				},
+				"trackClipboardState" : {
+					"type" : "boolean",
+					"default" : true,
+					"defaultIOS": false,
+					"defaultAndroid": false,
+					"defaultDesktop" : true
+
+				},
 			}
 		},
 		"lobby" : {

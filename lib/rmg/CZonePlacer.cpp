@@ -16,7 +16,7 @@
 #include "../entities/faction/CTownHandler.h"
 #include "../mapping/CMap.h"
 #include "../mapping/CMapEditManager.h"
-#include "../VCMI_Lib.h"
+#include "../GameLibrary.h"
 #include "CMapGenOptions.h"
 #include "RmgMap.h"
 #include "Zone.h"
@@ -464,9 +464,9 @@ void CZonePlacer::prepareZones(TZoneMap &zones, TZoneVector &zonesVector, const 
 				auto player = PlayerColor(*owner - 1);
 				auto playerSettings = map.getMapGenOptions().getPlayersSettings();
 				FactionID faction = FactionID::RANDOM;
-				if (playerSettings.size() > player)
+				if (playerSettings.size() > player.getNum())
 				{
-					faction = std::next(playerSettings.begin(), player)->second.getStartingTown();
+					faction = std::next(playerSettings.begin(), player.getNum())->second.getStartingTown();
 				}
 				else
 				{
@@ -477,7 +477,7 @@ void CZonePlacer::prepareZones(TZoneMap &zones, TZoneVector &zonesVector, const 
 					zonesToPlace.push_back(zone);
 				else
 				{
-					auto & tt = (*VLC->townh)[faction]->nativeTerrain;
+					auto & tt = (*LIBRARY->townh)[faction]->nativeTerrain;
 					if(tt == ETerrainId::NONE)
 					{
 						//any / random
@@ -485,7 +485,7 @@ void CZonePlacer::prepareZones(TZoneMap &zones, TZoneVector &zonesVector, const 
 					}
 					else
 					{
-						const auto & terrainType = VLC->terrainTypeHandler->getById(tt);
+						const auto & terrainType = LIBRARY->terrainTypeHandler->getById(tt);
 						if(terrainType->isUnderground() && !terrainType->isSurface())
 						{
 							//underground only
@@ -783,7 +783,7 @@ void CZonePlacer::moveOneZone(TZoneMap& zones, TForceVector& totalForces, TDista
 		//Move one zone towards most distant zone to reduce distance
 
 		float maxDistance = 0;
-		for (auto con : misplacedZone->getConnections())
+		for (const auto & con : misplacedZone->getConnections())
 		{
 			if (con.getConnectionType() == rmg::EConnectionType::REPULSIVE)
 			{
@@ -881,21 +881,6 @@ void CZonePlacer::assignZones(vstd::RNG * rand)
 		return lhs.second < rhs.second;
 	};
 
-	auto moveZoneToCenterOfMass = [width, height](const std::shared_ptr<Zone> & zone) -> void
-	{
-		int3 total(0, 0, 0);
-		auto tiles = zone->area()->getTiles();
-		for(const auto & tile : tiles)
-		{
-			total += tile;
-		}
-		int size = static_cast<int>(tiles.size());
-		assert(size);
-		auto newPos = int3(total.x / size, total.y / size, total.z / size);
-		zone->setPos(newPos);
-		zone->setCenter(float3(float(newPos.x) / width, float(newPos.y) / height, newPos.z));
-	};
-
 	int levels = map.levels();
 
 	// Find current center of mass for each zone. Move zone to that center to balance zones sizes
@@ -928,7 +913,7 @@ void CZonePlacer::assignZones(vstd::RNG * rand)
 		if(zone.second->area()->empty())
 			throw rmgException("Empty zone is generated, probably RMG template is inappropriate for map size");
 		
-		moveZoneToCenterOfMass(zone.second);
+		zone.second->moveToCenterOfMass();
 	}
 
 	for(const auto & zone : zones)
@@ -997,7 +982,7 @@ void CZonePlacer::assignZones(vstd::RNG * rand)
 	//set position (town position) to center of mass of irregular zone
 	for(const auto & zone : zones)
 	{
-		moveZoneToCenterOfMass(zone.second);
+		zone.second->moveToCenterOfMass();
 
 		//TODO: similar for islands
 		#define	CREATE_FULL_UNDERGROUND true //consider linking this with water amount

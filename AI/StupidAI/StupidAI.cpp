@@ -8,19 +8,18 @@
  *
  */
 #include "StdInc.h"
-#include "../../lib/AI_Base.h"
 #include "StupidAI.h"
 #include "../../lib/CStack.h"
-#include "../../CCallback.h"
 #include "../../lib/CCreatureHandler.h"
 #include "../../lib/battle/BattleAction.h"
 #include "../../lib/battle/BattleInfo.h"
+#include "../../lib/battle/CPlayerBattleCallback.h"
+#include "../../lib/callback/CBattleCallback.h"
 #include "../../lib/CRandomGenerator.h"
 
 CStupidAI::CStupidAI()
 	: side(BattleSide::NONE)
 	, wasWaitingForRealize(false)
-	, wasUnlockingGs(false)
 {
 	print("created");
 }
@@ -32,7 +31,6 @@ CStupidAI::~CStupidAI()
 	{
 		//Restore previous state of CB - it may be shared with the main AI (like VCAI)
 		cb->waitTillRealize = wasWaitingForRealize;
-		cb->unlockGsWhenWaiting = wasUnlockingGs;
 	}
 }
 
@@ -43,9 +41,7 @@ void CStupidAI::initBattleInterface(std::shared_ptr<Environment> ENV, std::share
 	cb = CB;
 
 	wasWaitingForRealize = CB->waitTillRealize;
-	wasUnlockingGs = CB->unlockGsWhenWaiting;
 	CB->waitTillRealize = false;
-	CB->unlockGsWhenWaiting = false;
 }
 
 void CStupidAI::initBattleInterface(std::shared_ptr<Environment> ENV, std::shared_ptr<CBattleCallback> CB, AutocombatPreferences autocombatPreferences)
@@ -124,7 +120,6 @@ void CStupidAI::yourTacticPhase(const BattleID & battleID, int distance)
 
 void CStupidAI::activeStack(const BattleID & battleID, const CStack * stack)
 {
-	//boost::this_thread::sleep_for(boost::chrono::seconds(2));
 	print("activeStack called for " + stack->nodeName());
 	ReachabilityInfo dists = cb->getBattle(battleID)->getReachability(stack);
 	std::vector<EnemyInfo> enemiesShootable;

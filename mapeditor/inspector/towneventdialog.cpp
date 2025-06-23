@@ -118,7 +118,7 @@ void TownEventDialog::initBuildings()
 QStandardItem * TownEventDialog::addBuilding(const CTown& ctown, BuildingID buildingId, std::set<si32>& remaining)
 {
 	auto bId = buildingId.num;
-	const CBuilding * building = ctown.buildings.at(buildingId);
+	const auto & building = ctown.buildings.at(buildingId);
 
 	QString name = QString::fromStdString(building->getNameTranslated());
 
@@ -141,7 +141,7 @@ QStandardItem * TownEventDialog::addBuilding(const CTown& ctown, BuildingID buil
 	}
 	else
 	{
-		QStandardItem * parent = getBuildingParentFromTreeModel(building, buildingsModel);
+		QStandardItem * parent = getBuildingParentFromTreeModel(building.get(), buildingsModel);
 
 		if (!parent)
 			parent = addBuilding(ctown, building->upgrade.getNum(), remaining);
@@ -174,7 +174,7 @@ void TownEventDialog::initCreatures()
 			auto creaturesOnLevel = ctown->creatures.at(i);
 			for (auto& creature : creaturesOnLevel)
 			{
-				auto cre = VLC->creatures()->getById(creature);
+				auto cre = LIBRARY->creatures()->getById(creature);
 				auto creatureName = QString::fromStdString(cre->getNameSingularTranslated());
 				creatureNames.append(creatureNames.isEmpty() ? creatureName : " / " + creatureName);
 			}

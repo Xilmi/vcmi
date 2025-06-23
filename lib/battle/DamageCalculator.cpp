@@ -18,7 +18,7 @@
 #include "../mapObjects/CGTownInstance.h"
 #include "../spells/CSpellHandler.h"
 #include "../IGameSettings.h"
-#include "../VCMI_Lib.h"
+#include "../GameLibrary.h"
 
 
 VCMI_LIB_NAMESPACE_BEGIN
@@ -33,7 +33,7 @@ DamageRange DamageCalculator::getBaseDamageSingle() const
 
     if(minDmg > maxDmg)
     {
-	const auto & creatureName = info.attacker->creatureId().toEntity(VLC)->getNamePluralTranslated();
+	const auto & creatureName = info.attacker->creatureId().toEntity(LIBRARY)->getNamePluralTranslated();
 	logGlobal->error("Creature %s: min damage %lld exceeds max damage %lld.", creatureName, minDmg, maxDmg);
         logGlobal->error("This may lead to unexpected results, please report it to the mod's creator.");
         // to avoid an RNG crash and make bless and curse spells work as expected
@@ -62,15 +62,15 @@ DamageRange DamageCalculator::getBaseDamageSingle() const
 
 	if(info.attacker->hasBonus(selectorSiedgeWeapon, cachingStrSiedgeWeapon) && info.attacker->creatureIndex() != CreatureID::ARROW_TOWERS)
 	{
-		auto retrieveHeroPrimSkill = [&](PrimarySkill skill) -> int
-		{
-			std::shared_ptr<const Bonus> b = info.attacker->getBonus(Selector::sourceTypeSel(BonusSource::HERO_BASE_SKILL).And(Selector::typeSubtype(BonusType::PRIMARY_SKILL, BonusSubtypeID(skill))));
-			return b ? b->val : 0;
-		};
+		static const auto bonusSelector =
+			Selector::sourceTypeSel(BonusSource::ARTIFACT).Or(
+			Selector::sourceTypeSel(BonusSource::HERO_BASE_SKILL)).And(
+			Selector::typeSubtype(BonusType::PRIMARY_SKILL, BonusSubtypeID(PrimarySkill::ATTACK)));
 
-		//minDmg and maxDmg are multiplied by hero attack + 1
-		minDmg *= retrieveHeroPrimSkill(PrimarySkill::ATTACK) + 1;
-		maxDmg *= retrieveHeroPrimSkill(PrimarySkill::ATTACK) + 1;
+		//minDmg and maxDmg of a Ballista are multiplied by hero attack + 1
+		int heroAttackSkill = info.attacker->valOfBonuses(bonusSelector);
+		minDmg *= heroAttackSkill + 1;
+		maxDmg *= heroAttackSkill + 1;
 	}
 	return { minDmg, maxDmg };
 }
@@ -213,8 +213,8 @@ double DamageCalculator::getAttackSkillFactor() const
 	if(attackAdvantage > 0)
 	{
 		// FIXME: use cb to acquire these settings
-		const double attackMultiplier = VLC->engineSettings()->getDouble(EGameSettings::COMBAT_ATTACK_POINT_DAMAGE_FACTOR);
-		const double attackMultiplierCap = VLC->engineSettings()->getDouble(EGameSettings::COMBAT_ATTACK_POINT_DAMAGE_FACTOR_CAP);
+		const double attackMultiplier = LIBRARY->engineSettings()->getDouble(EGameSettings::COMBAT_ATTACK_POINT_DAMAGE_FACTOR);
+		const double attackMultiplierCap = LIBRARY->engineSettings()->getDouble(EGameSettings::COMBAT_ATTACK_POINT_DAMAGE_FACTOR_CAP);
 		const double attackFactor = std::min(attackMultiplier * attackAdvantage, attackMultiplierCap);
 
 		return attackFactor;
@@ -275,6 +275,15 @@ double DamageCalculator::getAttackJoustingFactor() const
 	return 0.0;
 }
 
+double DamageCalculator::getAttackFromBackFactor() const
+{
+	int value = info.defender->valOfBonuses(BonusType::VULNERABLE_FROM_BACK);
+
+	if (value != 0 && callback.isToReverse(info.attacker, info.defender, info.attackerPos, info.defenderPos))
+		return value / 100.0;
+	return 0;
+}
+
 double DamageCalculator::getAttackHateFactor() const
 {
 	//assume that unit have only few HATE features and cache them all
@@ -304,8 +313,8 @@ double DamageCalculator::getDefenseSkillFactor() const
 	if(defenseAdvantage > 0) //decreasing dmg
 	{
 		// FIXME: use cb to acquire these settings
-		const double defenseMultiplier = VLC->engineSettings()->getDouble(EGameSettings::COMBAT_DEFENSE_POINT_DAMAGE_FACTOR);
-		const double defenseMultiplierCap = VLC->engineSettings()->getDouble(EGameSettings::COMBAT_DEFENSE_POINT_DAMAGE_FACTOR_CAP);
+		const double defenseMultiplier = LIBRARY->engineSettings()->getDouble(EGameSettings::COMBAT_DEFENSE_POINT_DAMAGE_FACTOR);
+		const double defenseMultiplierCap = LIBRARY->engineSettings()->getDouble(EGameSettings::COMBAT_DEFENSE_POINT_DAMAGE_FACTOR_CAP);
 
 		const double dec = std::min(defenseMultiplier * defenseAdvantage, defenseMultiplierCap);
 		return dec;
@@ -462,6 +471,7 @@ std::vector<double> DamageCalculator::getAttackFactors() const
 		getAttackBlessFactor(),
 		getAttackLuckFactor(),
 		getAttackJoustingFactor(),
+		getAttackFromBackFactor(),
 		getAttackDeathBlowFactor(),
 		getAttackDoubleDamageFactor(),
 		getAttackHateFactor(),

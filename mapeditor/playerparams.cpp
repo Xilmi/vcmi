@@ -47,9 +47,9 @@ PlayerParams::PlayerParams(MapController & ctrl, int playerId, QWidget *parent) 
 	ui->teamId->setCurrentIndex(playerInfo.team == TeamID::NO_TEAM ? 0 : playerInfo.team.getNum() + 1);
 	
 	//load factions
-	for(auto idx : VLC->townh->getAllowedFactions())
+	for(auto idx : LIBRARY->townh->getAllowedFactions())
 	{
-		const auto & faction = VLC->townh->objects.at(idx);
+		const auto & faction = LIBRARY->townh->objects.at(idx);
 		auto * item = new QListWidgetItem(QString::fromStdString(faction->getNameTranslated()));
 		item->setData(Qt::UserRole, QVariant::fromValue(idx.getNum()));
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
@@ -77,7 +77,7 @@ PlayerParams::PlayerParams(MapController & ctrl, int playerId, QWidget *parent) 
 	int foundMainTown = -1;
 	for(int i = 0, townIndex = 0; i < controller.map()->objects.size(); ++i)
 	{
-		if(auto town = dynamic_cast<CGTownInstance*>(controller.map()->objects[i].get()))
+		if(auto town = dynamic_cast<CGTownInstance*>(controller.map()->objects.at(i).get()))
 		{
 			auto * ctown = town->getTown();
 
@@ -223,7 +223,7 @@ void PlayerParams::onTownPicked(const CGObjectInstance * obj)
 	for(int i = 0; i < ui->mainTown->count(); ++i)
 	{
 		auto town = controller.map()->objects.at(ui->mainTown->itemData(i).toInt());
-		if(town == obj)
+		if(town.get() == obj)
 		{
 			ui->mainTown->setCurrentIndex(i);
 			break;

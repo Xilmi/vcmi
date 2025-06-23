@@ -13,7 +13,7 @@
 #include "CModHandler.h"
 #include "ModScope.h"
 
-#include "../VCMI_Lib.h"
+#include "../GameLibrary.h"
 #include "../constants/StringConstants.h"
 #include "../spells/CSpellHandler.h"
 
@@ -23,10 +23,6 @@ VCMI_LIB_NAMESPACE_BEGIN
 
 CIdentifierStorage::CIdentifierStorage()
 {
-	//TODO: moddable spell schools
-	for (auto i = 0; i < GameConstants::DEFAULT_SCHOOLS; ++i)
-		registerObject(ModScope::scopeBuiltin(), "spellSchool", SpellConfig::SCHOOL[i].jsonName, SpellConfig::SCHOOL[i].id.getNum());
-
 	registerObject(ModScope::scopeBuiltin(), "spellSchool", "any", SpellSchool::ANY.getNum());
 
 	for (int i = 0; i < GameConstants::RESOURCE_QUANTITY; ++i)
@@ -87,27 +83,13 @@ CIdentifierStorage::CIdentifierStorage()
 	registerObject(ModScope::scopeBuiltin(), "spell", "spellbook_preset", SpellID::SPELLBOOK_PRESET);
 }
 
-void CIdentifierStorage::checkIdentifier(std::string & ID)
+void CIdentifierStorage::checkIdentifier(const std::string & ID)
 {
 	if (boost::algorithm::ends_with(ID, "."))
-		logMod->warn("BIG WARNING: identifier %s seems to be broken!", ID);
-	else
-	{
-		size_t pos = 0;
-		do
-		{
-			if (std::tolower(ID[pos]) != ID[pos] ) //Not in camelCase
-			{
-				logMod->warn("Warning: identifier %s is not in camelCase!", ID);
-				ID[pos] = std::tolower(ID[pos]);// Try to fix the ID
-			}
-			pos = ID.find('.', pos);
-		}
-		while(pos++ != std::string::npos);
-	}
+		logMod->error("BIG WARNING: identifier %s seems to be broken!", ID);
 }
 
-void CIdentifierStorage::requestIdentifier(ObjectCallback callback) const
+void CIdentifierStorage::requestIdentifier(const ObjectCallback & callback) const
 {
 	checkIdentifier(callback.type);
 	checkIdentifier(callback.name);
@@ -359,14 +341,14 @@ std::vector<CIdentifierStorage::ObjectData> CIdentifierStorage::getPossibleIdent
 		// special scope that should have access to all in-game objects
 		if (request.localScope == ModScope::scopeGame())
 		{
-			for(const auto & modName : VLC->modh->getActiveMods())
+			for(const auto & modName : LIBRARY->modh->getActiveMods())
 				allowedScopes.insert(modName);
 		}
 
 		// normally ID's from all required mods, own mod and virtual built-in mod are allowed
 		else if(request.localScope != ModScope::scopeBuiltin() && !request.localScope.empty())
 		{
-			allowedScopes = VLC->modh->getModDependencies(request.localScope, isValidScope);
+			allowedScopes = LIBRARY->modh->getModDependencies(request.localScope, isValidScope);
 
 			if(!isValidScope)
 				return std::vector<ObjectData>();
@@ -398,7 +380,7 @@ std::vector<CIdentifierStorage::ObjectData> CIdentifierStorage::getPossibleIdent
 		else
 		{
 			// allow access only if mod is in our dependencies
-			auto myDeps = VLC->modh->getModDependencies(request.localScope, isValidScope);
+			auto myDeps = LIBRARY->modh->getModDependencies(request.localScope, isValidScope);
 
 			if(!isValidScope)
 				return std::vector<ObjectData>();

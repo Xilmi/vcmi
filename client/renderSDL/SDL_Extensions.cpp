@@ -12,7 +12,7 @@
 
 #include "SDL_PixelAccess.h"
 
-#include "../gui/CGuiHandler.h"
+#include "../GameEngine.h"
 #include "../render/Graphics.h"
 #include "../render/IImage.h"
 #include "../render/IScreenHandler.h"
@@ -59,61 +59,37 @@ SDL_Color CSDL_Ext::toSDL(const ColorRGBA & color)
 	return result;
 }
 
-void CSDL_Ext::setColors(SDL_Surface *surface, SDL_Color *colors, int firstcolor, int ncolors)
-{
-	SDL_SetPaletteColors(surface->format->palette,colors,firstcolor,ncolors);
-}
-
-void CSDL_Ext::setAlpha(SDL_Surface * bg, int value)
-{
-	SDL_SetSurfaceAlphaMod(bg, value);
-}
-
 SDL_Surface * CSDL_Ext::newSurface(const Point & dimensions)
 {
-	return newSurface(dimensions, screen);
+	return newSurface(dimensions, nullptr);
 }
 
 SDL_Surface * CSDL_Ext::newSurface(const Point & dimensions, SDL_Surface * mod) //creates new surface, with flags/format same as in surface given
 {
-	SDL_Surface * ret = SDL_CreateRGBSurface(0,dimensions.x,dimensions.y,mod->format->BitsPerPixel,mod->format->Rmask,mod->format->Gmask,mod->format->Bmask,mod->format->Amask);
+	SDL_Surface * ret = nullptr;
+
+	if (mod != nullptr)
+		ret = SDL_CreateRGBSurface(0,dimensions.x,dimensions.y,mod->format->BitsPerPixel,mod->format->Rmask,mod->format->Gmask,mod->format->Bmask,mod->format->Amask);
+	else
+		ret = SDL_CreateRGBSurfaceWithFormat(0,dimensions.x,dimensions.y,32,SDL_PixelFormatEnum::SDL_PIXELFORMAT_ARGB8888);
 
 	if(ret == nullptr)
 	{
 		const char * error = SDL_GetError();
 
-		std::string messagePattern = "Failed to create SDL Surface of size %d x %d, %d bpp. Reason: %s";
-		std::string message = boost::str(boost::format(messagePattern) % dimensions.x % dimensions.y % mod->format->BitsPerPixel % error);
+		std::string messagePattern = "Failed to create SDL Surface of size %d x %d. Reason: %s";
+		std::string message = boost::str(boost::format(messagePattern) % dimensions.x % dimensions.y % error);
 
-		handleFatalError(message, true);
+		throw std::runtime_error(message);
 	}
 
-	if (mod->format->palette)
+	if (mod && mod->format->palette)
 	{
 		assert(ret->format->palette);
 		assert(ret->format->palette->ncolors >= mod->format->palette->ncolors);
 		memcpy(ret->format->palette->colors, mod->format->palette->colors, mod->format->palette->ncolors * sizeof(SDL_Color));
 	}
 	return ret;
-}
-
-SDL_Surface * CSDL_Ext::copySurface(SDL_Surface * mod) //returns copy of given surface
-{
-	//return SDL_DisplayFormat(mod);
-	return SDL_ConvertSurface(mod, mod->format, mod->flags);
-}
-
-template<int bpp>
-SDL_Surface * CSDL_Ext::createSurfaceWithBpp(int width, int height)
-{
-	uint32_t rMask = 0, gMask = 0, bMask = 0, aMask = 0;
-
-	Channels::px<bpp>::r.set((uint8_t*)&rMask, 255);
-	Channels::px<bpp>::g.set((uint8_t*)&gMask, 255);
-	Channels::px<bpp>::b.set((uint8_t*)&bMask, 255);
-	Channels::px<bpp>::a.set((uint8_t*)&aMask, 255);
-
-	return SDL_CreateRGBSurface(0, width, height, bpp * 8, rMask, gMask, bMask, aMask);
 }
 
 void CSDL_Ext::blitAt(SDL_Surface * src, int x, int y, SDL_Surface * dst)
@@ -537,54 +513,23 @@ void CSDL_Ext::drawBorder( SDL_Surface * sur, const Rect &r, const SDL_Color &co
 	drawBorder(sur, r.x, r.y, r.w, r.h, color, depth);
 }
 
-CSDL_Ext::TColorPutter CSDL_Ext::getPutterFor(SDL_Surface * const &dest)
-{
-	switch(dest->format->BytesPerPixel)
-	{
-		case 3:
-			return ColorPutter<3>::PutColor;
-		case 4:
-			return ColorPutter<4>::PutColor;
-	default:
-		logGlobal->error("%d bpp is not supported!", (int)dest->format->BitsPerPixel);
-		return nullptr;
-	}
-}
-
 uint8_t * CSDL_Ext::getPxPtr(const SDL_Surface * const &srf, const int x, const int y)
 {
 	return (uint8_t *)srf->pixels + y * srf->pitch + x * srf->format->BytesPerPixel;
 }
 
-bool CSDL_Ext::isTransparent( SDL_Surface * srf, const Point & position )
-{
-	return isTransparent(srf, position.x, position.y);
-}
-
-bool CSDL_Ext::isTransparent( SDL_Surface * srf, int x, int y )
-{
-	if (x < 0 || y < 0 || x >= srf->w || y >= srf->h)
-		return true;
-
-	SDL_Color color;
-
-	SDL_GetRGBA(CSDL_Ext::getPixel(srf, x, y), srf->format, &color.r, &color.g, &color.b, &color.a);
-
-	bool pixelTransparent = color.a < 128;
-	bool pixelCyan = (color.r == 0 && color.g == 255 && color.b == 255);
-
-	return pixelTransparent || pixelCyan;
-}
-
 void CSDL_Ext::putPixelWithoutRefresh(SDL_Surface *ekran, const int & x, const int & y, const uint8_t & R, const uint8_t & G, const uint8_t & B, uint8_t A)
 {
 	uint8_t *p = getPxPtr(ekran, x, y);
-	getPutterFor(ekran)(p, R, G, B);
 
 	switch(ekran->format->BytesPerPixel)
 	{
-	case 3: Channels::px<3>::a.set(p, A); break;
-	case 4: Channels::px<4>::a.set(p, A); break;
+	case 3:
+		ColorPutter<3>::PutColor(p, R, G, B);
+		Channels::px<3>::a.set(p, A); break;
+	case 4:
+		ColorPutter<4>::PutColor(p, R, G, B);
+		Channels::px<4>::a.set(p, A); break;
 	}
 }
 
@@ -597,38 +542,59 @@ void CSDL_Ext::putPixelWithoutRefreshIfInSurf(SDL_Surface *ekran, const int & x,
 		CSDL_Ext::putPixelWithoutRefresh(ekran, x, y, R, G, B, A);
 }
 
-template<int bpp>
-void CSDL_Ext::convertToGrayscaleBpp(SDL_Surface * surf, const Rect & rect )
+template<typename Functor>
+void loopOverPixel(SDL_Surface * surf, const Rect & rect, Functor functor)
 {
 	uint8_t * pixels = static_cast<uint8_t*>(surf->pixels);
 
-	for(int yp = rect.top(); yp < rect.bottom(); ++yp)
+	tbb::parallel_for(tbb::blocked_range<size_t>(rect.top(), rect.bottom()), [&](const tbb::blocked_range<size_t>& r)
 	{
-		uint8_t * pixel_from = pixels + yp * surf->pitch + rect.left() * surf->format->BytesPerPixel;
-		uint8_t * pixel_dest = pixels + yp * surf->pitch + rect.right() * surf->format->BytesPerPixel;
-
-		for (uint8_t * pixel = pixel_from; pixel < pixel_dest; pixel += surf->format->BytesPerPixel)
+		for(int yp = r.begin(); yp != r.end(); ++yp)
 		{
-			int r = Channels::px<bpp>::r.get(pixel);
-			int g = Channels::px<bpp>::g.get(pixel);
-			int b = Channels::px<bpp>::b.get(pixel);
+			uint8_t * pixel_from = pixels + yp * surf->pitch + rect.left() * surf->format->BytesPerPixel;
+			uint8_t * pixel_dest = pixels + yp * surf->pitch + rect.right() * surf->format->BytesPerPixel;
 
-			int gray = static_cast<int>(0.299 * r + 0.587 * g + 0.114 *b);
+			for (uint8_t * pixel = pixel_from; pixel < pixel_dest; pixel += surf->format->BytesPerPixel)
+			{
+				int r = Channels::px<4>::r.get(pixel);
+				int g = Channels::px<4>::g.get(pixel);
+				int b = Channels::px<4>::b.get(pixel);
 
-			Channels::px<bpp>::r.set(pixel, gray);
-			Channels::px<bpp>::g.set(pixel, gray);
-			Channels::px<bpp>::b.set(pixel, gray);
+				functor(r, g, b);
+
+				Channels::px<4>::r.set(pixel, r);
+				Channels::px<4>::g.set(pixel, g);
+				Channels::px<4>::b.set(pixel, b);
+			}
 		}
-	}
+	});
 }
 
-void CSDL_Ext::convertToGrayscale( SDL_Surface * surf, const Rect & rect )
+void CSDL_Ext::convertToGrayscale(SDL_Surface * surf, const Rect & rect )
 {
-	switch(surf->format->BytesPerPixel)
-	{
-		case 3: convertToGrayscaleBpp<3>(surf, rect); break;
-		case 4: convertToGrayscaleBpp<4>(surf, rect); break;
-	}
+	loopOverPixel(surf, rect, [](int &r, int &g, int &b){
+		int gray = static_cast<int>(0.299 * r + 0.587 * g + 0.114 * b);
+		r = gray;
+		g = gray;
+		b = gray;
+	});
+}
+
+void CSDL_Ext::convertToH2Scheme(SDL_Surface * surf, const Rect & rect )
+{
+	loopOverPixel(surf, rect, [](int &r, int &g, int &b){
+		double gray = 0.3 * r + 0.59 * g + 0.11 * b;
+		double factor = 2.0;
+
+		//fast approximation instead of colorspace conversion
+		r = static_cast<int>(gray + (r - gray) * factor);
+		g = static_cast<int>(gray + (g - gray) * factor);
+		b = static_cast<int>(gray + (b - gray) * factor);
+
+		r = std::clamp(r, 0, 255);
+		g = std::clamp(g, 0, 255);
+		b = std::clamp(b, 0, 255);
+	});
 }
 
 void CSDL_Ext::blitSurface(SDL_Surface * src, const Rect & srcRectInput, SDL_Surface * dst, const Point & dstPoint)
@@ -719,6 +685,3 @@ void CSDL_Ext::getClipRect(SDL_Surface * src, Rect & other)
 
 	other = CSDL_Ext::fromSDL(rect);
 }
-
-template SDL_Surface * CSDL_Ext::createSurfaceWithBpp<3>(int, int);
-template SDL_Surface * CSDL_Ext::createSurfaceWithBpp<4>(int, int);

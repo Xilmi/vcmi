@@ -11,7 +11,7 @@
 
 #include "Unit.h"
 
-#include "../VCMI_Lib.h"
+#include "../GameLibrary.h"
 #include "../texts/CGeneralTextHandler.h"
 
 #include "../serializer/JsonDeserializer.h"
@@ -68,22 +68,28 @@ const BattleHexArray & Unit::getSurroundingHexes(const BattleHex & position, boo
 
 BattleHexArray Unit::getAttackableHexes(const Unit * attacker) const
 {
-	const BattleHexArray & defenderHexes = getHexes();
-	
-	BattleHexArray targetableHexes;
-
-	for(const auto & defenderHex : defenderHexes)
+	if (!attacker->doubleWide())
 	{
-		auto hexes = battle::Unit::getHexes(defenderHex);
-
-		if(hexes.size() == 2 && BattleHex::getDistance(hexes.front(), hexes.back()) != 1)
-			hexes.pop_back();
-
-		for(const auto & hex : hexes)
-			targetableHexes.insert(hex.getNeighbouringTiles());
+		return getSurroundingHexes();
 	}
+	else
+	{
+		BattleHexArray result;
 
-	return targetableHexes;
+		for (const auto & attackOrigin : getSurroundingHexes())
+		{
+			if (!coversPos(attacker->occupiedHex(attackOrigin)) && attackOrigin.isAvailable())
+				result.insert(attackOrigin);
+
+			bool isAttacker = attacker->unitSide() == BattleSide::ATTACKER;
+			BattleHex::EDir headDirection = isAttacker ? BattleHex::RIGHT : BattleHex::LEFT;
+			BattleHex headHex = attackOrigin.cloneInDirection(headDirection);
+
+			if (!coversPos(headHex) && headHex.isAvailable())
+				result.insert(headHex);
+		}
+		return result;
+	}
 }
 
 bool Unit::coversPos(const BattleHex & pos) const
@@ -176,11 +182,11 @@ BattleHex Unit::occupiedHex(const BattleHex & assumedPos, bool twoHex, BattleSid
 void Unit::addText(MetaString & text, EMetaText type, int32_t serial, const boost::logic::tribool & plural) const
 {
 	if(boost::logic::indeterminate(plural))
-		serial = VLC->generaltexth->pluralText(serial, getCount());
+		serial = LIBRARY->generaltexth->pluralText(serial, getCount());
 	else if(plural)
-		serial = VLC->generaltexth->pluralText(serial, 2);
+		serial = LIBRARY->generaltexth->pluralText(serial, 2);
 	else
-		serial = VLC->generaltexth->pluralText(serial, 1);
+		serial = LIBRARY->generaltexth->pluralText(serial, 1);
 
 	text.appendLocalString(type, serial);
 }
@@ -197,7 +203,7 @@ void Unit::addNameReplacement(MetaString & text, const boost::logic::tribool & p
 
 std::string Unit::formatGeneralMessage(const int32_t baseTextId) const
 {
-	const int32_t textId = VLC->generaltexth->pluralText(baseTextId, getCount());
+	const int32_t textId = LIBRARY->generaltexth->pluralText(baseTextId, getCount());
 
 	MetaString text;
 	text.appendLocalString(EMetaText::GENERAL_TXT, textId);

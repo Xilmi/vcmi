@@ -1,6 +1,5 @@
 set(vcmiclientcommon_SRCS
 	StdInc.cpp
-	../CCallback.cpp
 
 	adventureMap/AdventureMapInterface.cpp
 	adventureMap/AdventureMapShortcuts.cpp
@@ -16,18 +15,25 @@ set(vcmiclientcommon_SRCS
 
 	battle/BattleActionsController.cpp
 	battle/BattleAnimationClasses.cpp
+	battle/BattleConsole.cpp
 	battle/BattleEffectsController.cpp
 	battle/BattleFieldController.cpp
+	battle/BattleHero.cpp
 	battle/BattleInterface.cpp
-	battle/BattleInterfaceClasses.cpp
 	battle/BattleObstacleController.cpp
+	battle/BattleOverlayLogVisualizer.cpp
 	battle/BattleProjectileController.cpp
 	battle/BattleRenderer.cpp
+	battle/BattleResultWindow.cpp
 	battle/BattleSiegeController.cpp
 	battle/BattleStacksController.cpp
 	battle/BattleWindow.cpp
 	battle/CreatureAnimation.cpp
-	battle/BattleOverlayLogVisualizer.cpp
+	battle/HeroInfoWindow.cpp
+	battle/QuickSpellPanel.cpp
+	battle/StackInfoBasicPanel.cpp
+	battle/StackQueue.cpp
+	battle/UnitActionPanel.cpp
 
 	eventsSDL/NotificationHandler.cpp
 	eventsSDL/InputHandler.cpp
@@ -37,7 +43,6 @@ set(vcmiclientcommon_SRCS
 	eventsSDL/InputSourceTouch.cpp
 	eventsSDL/InputSourceGameController.cpp
 
-	gui/CGuiHandler.cpp
 	gui/CIntObject.cpp
 	gui/CursorHandler.cpp
 	gui/EventDispatcher.cpp
@@ -180,7 +185,8 @@ set(vcmiclientcommon_SRCS
 	xBRZ/xbrz.cpp
 
 	ArtifactsUIController.cpp
-	CGameInfo.cpp
+	GameEngine.cpp
+	GameInstance.cpp
 	CPlayerInterface.cpp
 	PlayerLocalState.cpp
 	CServerHandler.cpp
@@ -191,6 +197,7 @@ set(vcmiclientcommon_SRCS
 	NetPacksClient.cpp
 	NetPacksLobbyClient.cpp
 	ServerRunner.cpp
+	UIHelper.cpp
 )
 
 set(vcmiclientcommon_HEADERS
@@ -211,19 +218,25 @@ set(vcmiclientcommon_HEADERS
 
 	battle/BattleActionsController.h
 	battle/BattleAnimationClasses.h
-	battle/BattleConstants.h
+	battle/BattleConsole.h
 	battle/BattleEffectsController.h
 	battle/BattleFieldController.h
+	battle/BattleHero.h
 	battle/BattleInterface.h
-	battle/BattleInterfaceClasses.h
 	battle/BattleObstacleController.h
+	battle/BattleOverlayLogVisualizer.h
 	battle/BattleProjectileController.h
 	battle/BattleRenderer.h
+	battle/BattleResultWindow.h
 	battle/BattleSiegeController.h
 	battle/BattleStacksController.h
 	battle/BattleWindow.h
 	battle/CreatureAnimation.h
-	battle/BattleOverlayLogVisualizer.h
+	battle/HeroInfoWindow.h
+	battle/QuickSpellPanel.h
+	battle/StackInfoBasicPanel.h
+	battle/StackQueue.h
+	battle/UnitActionPanel.h
 
 	eventsSDL/NotificationHandler.h
 	eventsSDL/InputHandler.h
@@ -233,7 +246,6 @@ set(vcmiclientcommon_HEADERS
 	eventsSDL/InputSourceTouch.h
 	eventsSDL/InputSourceGameController.h
 
-	gui/CGuiHandler.h
 	gui/CIntObject.h
 	gui/CursorHandler.h
 	gui/EventDispatcher.h
@@ -396,20 +408,22 @@ set(vcmiclientcommon_HEADERS
 	xBRZ/xbrz_tools.h
 
 	ArtifactsUIController.h
-	CGameInfo.h
 	CMT.h
 	CPlayerInterface.h
+	GameEngine.h
+	GameEngineUser.h
+	GameInstance.h
 	PlayerLocalState.h
 	CServerHandler.h
 	Client.h
 	ClientCommandManager.h
 	ClientNetPackVisitors.h
-	ConditionalWait.h
 	HeroMovementController.h
 	GameChatHandler.h
 	LobbyClientNetPackVisitors.h
 	ServerRunner.h
 	resource.h
+	UIHelper.h
 )
 
 if(APPLE_IOS)

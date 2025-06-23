@@ -15,20 +15,13 @@
 #include "../../lib/Color.h"
 #include "../../lib/GameConstants.h"
 
-class CGuiHandler;
+class GameEngine;
 class CPicture;
 class Canvas;
 
 VCMI_LIB_NAMESPACE_BEGIN
 class CArmedInstance;
 VCMI_LIB_NAMESPACE_END
-
-class IUpdateable
-{
-public:
-	virtual void update()=0;
-	virtual ~IUpdateable() = default;
-};
 
 class IShowActivatable
 {
@@ -80,6 +73,9 @@ public:
 	void disable();
 	/// activates if needed, all activity enabled (Warning: may not be symmetric with disable if recActions was limited!)
 	void enable();
+	/// returns true if element was disabled via disable() call
+	bool isDisabled() const;
+
 	/// deactivates or activates UI element based on flag
 	void setEnabled(bool on);
 

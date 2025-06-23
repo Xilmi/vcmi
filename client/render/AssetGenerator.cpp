@@ -10,7 +10,7 @@
 #include "StdInc.h"
 #include "AssetGenerator.h"
 
-#include "../gui/CGuiHandler.h"
+#include "../GameEngine.h"
 #include "../render/IImage.h"
 #include "../render/IImageLoader.h"
 #include "../render/Canvas.h"
@@ -24,14 +24,10 @@
 #include "../lib/IGameSettings.h"
 #include "../lib/json/JsonNode.h"
 #include "../lib/VCMIDirs.h"
-#include "../lib/VCMI_Lib.h"
+#include "../lib/GameLibrary.h"
 #include "../lib/RiverHandler.h"
 #include "../lib/RoadHandler.h"
 #include "../lib/TerrainHandler.h"
-
-AssetGenerator::AssetGenerator()
-{
-}
 
 void AssetGenerator::initialize()
 {
@@ -47,7 +43,11 @@ void AssetGenerator::initialize()
 	imageFiles[ImagePath::builtin("combatUnitNumberWindowPositive.png")] = [this](){ return createCombatUnitNumberWindow(0.2f, 1.0f, 0.2f);};
 	imageFiles[ImagePath::builtin("combatUnitNumberWindowNegative.png")] = [this](){ return createCombatUnitNumberWindow(1.0f, 0.2f, 0.2f);};
 
-	imageFiles[ImagePath::builtin("CampaignBackground8.png")] = [this](){ return createCampaignBackground();};
+	imageFiles[ImagePath::builtin("CampaignBackground4.png")] = [this]() { return createCampaignBackground(4); };
+	imageFiles[ImagePath::builtin("CampaignBackground5.png")] = [this]() { return createCampaignBackground(5); };
+	imageFiles[ImagePath::builtin("CampaignBackground6.png")] = [this]() { return createCampaignBackground(6); };
+	imageFiles[ImagePath::builtin("CampaignBackground7.png")] = [this]() { return createCampaignBackground(7); };
+	imageFiles[ImagePath::builtin("CampaignBackground8.png")] = [this]() { return createCampaignBackground(8); };
 
 	for (PlayerColor color(0); color < PlayerColor::PLAYER_LIMIT; ++color)
 		imageFiles[ImagePath::builtin("DialogBoxBackground_" + color.toString())] = [this, color](){ return createPlayerColoredBackground(color);};
@@ -81,13 +81,13 @@ std::map<AnimationPath, AssetGenerator::AnimationLayoutMap> AssetGenerator::gene
 	return animationFiles;
 }
 
-AssetGenerator::CanvasPtr AssetGenerator::createAdventureOptionsCleanBackground()
+AssetGenerator::CanvasPtr AssetGenerator::createAdventureOptionsCleanBackground() const
 {
 	auto locator = ImageLocator(ImagePath::builtin("ADVOPTBK"), EImageBlitMode::OPAQUE);
 
-	std::shared_ptr<IImage> img = GH.renderHandler().loadImage(locator);
+	std::shared_ptr<IImage> img = ENGINE->renderHandler().loadImage(locator);
 
-	auto image = GH.renderHandler().createImage(Point(575, 585), CanvasScalingPolicy::IGNORE);
+	auto image = ENGINE->renderHandler().createImage(Point(575, 585), CanvasScalingPolicy::IGNORE);
 	Canvas canvas = image->getCanvas();
 
 	canvas.draw(img, Point(0, 0), Rect(0, 0, 575, 585));
@@ -101,12 +101,12 @@ AssetGenerator::CanvasPtr AssetGenerator::createAdventureOptionsCleanBackground(
 	return image;
 }
 
-AssetGenerator::CanvasPtr AssetGenerator::createBigSpellBook()
+AssetGenerator::CanvasPtr AssetGenerator::createBigSpellBook() const
 {
 	auto locator = ImageLocator(ImagePath::builtin("SpelBack"), EImageBlitMode::OPAQUE);
 
-	std::shared_ptr<IImage> img = GH.renderHandler().loadImage(locator);
-	auto image = GH.renderHandler().createImage(Point(800, 600), CanvasScalingPolicy::IGNORE);
+	std::shared_ptr<IImage> img = ENGINE->renderHandler().loadImage(locator);
+	auto image = ENGINE->renderHandler().createImage(Point(800, 600), CanvasScalingPolicy::IGNORE);
 	Canvas canvas = image->getCanvas();
 	// edges
 	canvas.draw(img, Point(0, 0), Rect(15, 38, 90, 45));
@@ -153,14 +153,14 @@ AssetGenerator::CanvasPtr AssetGenerator::createBigSpellBook()
 	return image;
 }
 
-AssetGenerator::CanvasPtr AssetGenerator::createPlayerColoredBackground(const PlayerColor & player)
+AssetGenerator::CanvasPtr AssetGenerator::createPlayerColoredBackground(const PlayerColor & player) const
 {
 	auto locator = ImageLocator(ImagePath::builtin("DiBoxBck"), EImageBlitMode::OPAQUE);
 
-	std::shared_ptr<IImage> texture = GH.renderHandler().loadImage(locator);
+	std::shared_ptr<IImage> texture = ENGINE->renderHandler().loadImage(locator);
 
 	// transform to make color of brown DIBOX.PCX texture match color of specified player
-	auto filterSettings = VLC->settingsHandler->getFullConfig()["interface"]["playerColoredBackground"];
+	auto filterSettings = LIBRARY->settingsHandler->getFullConfig()["interface"]["playerColoredBackground"];
 	static const std::array<ColorFilter, PlayerColor::PLAYER_LIMIT_I> filters = {
 		ColorFilter::genRangeShifter( filterSettings["red"   ].convertTo<std::vector<float>>() ),
 		ColorFilter::genRangeShifter( filterSettings["blue"  ].convertTo<std::vector<float>>() ),
@@ -178,19 +178,19 @@ AssetGenerator::CanvasPtr AssetGenerator::createPlayerColoredBackground(const Pl
 
 	texture->adjustPalette(filters[player.getNum()], 0);
 
-	auto image = GH.renderHandler().createImage(texture->dimensions(), CanvasScalingPolicy::IGNORE);
+	auto image = ENGINE->renderHandler().createImage(texture->dimensions(), CanvasScalingPolicy::IGNORE);
 	Canvas canvas = image->getCanvas();
 	canvas.draw(texture, Point(0,0));
 
 	return image;
 }
 
-AssetGenerator::CanvasPtr AssetGenerator::createCombatUnitNumberWindow(float multR, float multG, float multB)
+AssetGenerator::CanvasPtr AssetGenerator::createCombatUnitNumberWindow(float multR, float multG, float multB) const
 {
 	auto locator = ImageLocator(ImagePath::builtin("CMNUMWIN"), EImageBlitMode::OPAQUE);
 	locator.layer = EImageBlitMode::OPAQUE;
 
-	std::shared_ptr<IImage> texture = GH.renderHandler().loadImage(locator);
+	std::shared_ptr<IImage> texture = ENGINE->renderHandler().loadImage(locator);
 
 	const auto shifter= ColorFilter::genRangeShifter(0.f, 0.f, 0.f, multR, multG, multB);
 
@@ -199,59 +199,120 @@ AssetGenerator::CanvasPtr AssetGenerator::createCombatUnitNumberWindow(float mul
 
 	texture->adjustPalette(shifter, ignoredMask);
 
-	auto image = GH.renderHandler().createImage(texture->dimensions(), CanvasScalingPolicy::IGNORE);
+	auto image = ENGINE->renderHandler().createImage(texture->dimensions(), CanvasScalingPolicy::IGNORE);
 	Canvas canvas = image->getCanvas();
 	canvas.draw(texture, Point(0,0));
 
 	return image;
 }
 
-AssetGenerator::CanvasPtr AssetGenerator::createCampaignBackground()
+AssetGenerator::CanvasPtr AssetGenerator::createCampaignBackground(int selection) const
 {
+
 	auto locator = ImageLocator(ImagePath::builtin("CAMPBACK"), EImageBlitMode::OPAQUE);
+	std::shared_ptr<IImage> img = ENGINE->renderHandler().loadImage(locator);
 
-	std::shared_ptr<IImage> img = GH.renderHandler().loadImage(locator);
-	auto image = GH.renderHandler().createImage(Point(800, 600), CanvasScalingPolicy::IGNORE);
+	auto image = ENGINE->renderHandler().createImage(Point(800, 600), CanvasScalingPolicy::IGNORE);
 	Canvas canvas = image->getCanvas();
-
 	canvas.draw(img, Point(0, 0), Rect(0, 0, 800, 600));
 
-	// left image
-	canvas.draw(img, Point(220, 73), Rect(290, 73, 141, 115));
-	canvas.draw(img, Point(37, 70), Rect(87, 70, 207, 120));
+	// BigBlock section
+	auto bigBlock = ENGINE->renderHandler().createImage(Point(248, 114), CanvasScalingPolicy::IGNORE);
+	Rect bigBlockRegion(292, 74, 248, 114);
+	Canvas croppedBigBlock = bigBlock->getCanvas();
+	croppedBigBlock.draw(img, Point(0, 0), bigBlockRegion);
+	bigBlock->scaleTo(Point(200, 114), EScalingAlgorithm::NEAREST);
 
-	// right image
-	canvas.draw(img, Point(513, 67), Rect(463, 67, 71, 126));
-	canvas.draw(img, Point(586, 71), Rect(536, 71, 207, 117));
+	// SmallBlock section
+	auto smallBlock = ENGINE->renderHandler().createImage(Point(248, 114), CanvasScalingPolicy::IGNORE);
+	Canvas croppedSmallBlock = smallBlock->getCanvas();
+	croppedSmallBlock.draw(img, Point(0, 0), bigBlockRegion);
+	smallBlock->scaleTo(Point(134, 114), EScalingAlgorithm::NEAREST);
 
-	// middle image
-	canvas.draw(img, Point(306, 68), Rect(86, 68, 209, 122));
+	// Tripple block section
+	auto trippleBlock = ENGINE->renderHandler().createImage(Point(72, 116), CanvasScalingPolicy::IGNORE);
+	Rect trippleBlockSection(512, 246, 72, 116);
+	Canvas croppedTrippleBlock = trippleBlock->getCanvas();
+	croppedTrippleBlock.draw(img, Point(0, 0), trippleBlockSection);
+	trippleBlock->scaleTo(Point(70, 114), EScalingAlgorithm::NEAREST);
 
-	// disabled fields
-	canvas.draw(img, Point(40, 72), Rect(313, 74, 197, 114));
-	canvas.draw(img, Point(310, 72), Rect(313, 74, 197, 114));
-	canvas.draw(img, Point(590, 72), Rect(313, 74, 197, 114));
-	canvas.draw(img, Point(43, 245), Rect(313, 74, 197, 114));
-	canvas.draw(img, Point(313, 244), Rect(313, 74, 197, 114));
-	canvas.draw(img, Point(586, 246), Rect(313, 74, 197, 114));
-	canvas.draw(img, Point(34, 417), Rect(313, 74, 197, 114));
-	canvas.draw(img, Point(404, 414), Rect(313, 74, 197, 114));
 
-	// skull
+	// First campaigns line
+	if (selection > 7)
+	{
+		// Rebuild 1. campaigns line from 2 to 3 fields
+		canvas.draw(bigBlock, Point(40, 72));
+		canvas.draw(trippleBlock, Point(240, 73));
+		canvas.draw(bigBlock, Point(310, 72));
+		canvas.draw(trippleBlock, Point(510, 72));
+		canvas.draw(bigBlock, Point(580, 72));
+		canvas.draw(trippleBlock, Point(780, 72));
+	} 
+	else
+	{
+		// Empty 1 + 2. field
+		canvas.draw(bigBlock, Point(90, 72));
+		canvas.draw(bigBlock, Point(540, 72));
+	}
+
+	// Second campaigns line
+	// 3. Field
+	canvas.draw(bigBlock, Point(43, 245));
+
+	if (selection == 4)
+	{
+		// Disabled 4. field
+		canvas.draw(trippleBlock, Point(310, 245));
+		canvas.draw(smallBlock, Point(380, 245));
+	}
+	else
+	{
+		// Empty 4. field
+		canvas.draw(bigBlock, Point(314, 244));
+	}
+	
+	// 5. Field
+	canvas.draw(bigBlock, Point(586, 246));
+
+	// Third campaigns line
+	// 6. Field
+	if (selection >= 6)
+	{
+		canvas.draw(bigBlock, Point(32, 417));
+	}
+	else
+	{
+		canvas.draw(trippleBlock, Point(30, 417));
+		canvas.draw(smallBlock, Point(100, 417));
+	}
+
 	auto locatorSkull = ImageLocator(ImagePath::builtin("CAMPNOSC"), EImageBlitMode::OPAQUE);
-	std::shared_ptr<IImage> imgSkull = GH.renderHandler().loadImage(locatorSkull);
-	canvas.draw(imgSkull, Point(562, 509), Rect(178, 108, 43, 19));
+	std::shared_ptr<IImage> imgSkull = ENGINE->renderHandler().loadImage(locatorSkull);
+
+	if (selection >= 7)
+	{
+		// Only skull part
+		canvas.draw(bigBlock, Point(404, 417));
+		canvas.draw(imgSkull, Point(563, 512), Rect(178, 108, 43, 19));
+	}
+	else
+	{
+		// Original disabled field with skull and stone for 8. field
+		imgSkull->scaleTo(Point(238, 150), EScalingAlgorithm::NEAREST);
+		canvas.draw(imgSkull, Point(385, 400));
+	}
+
 
 	return image;
 }
 
-AssetGenerator::CanvasPtr AssetGenerator::createChroniclesCampaignImages(int chronicle)
+AssetGenerator::CanvasPtr AssetGenerator::createChroniclesCampaignImages(int chronicle) const
 {
 	auto imgPathBg = ImagePath::builtin("chronicles_" + std::to_string(chronicle) + "/GamSelBk");
 	auto locator = ImageLocator(imgPathBg, EImageBlitMode::OPAQUE);
 
-	std::shared_ptr<IImage> img = GH.renderHandler().loadImage(locator);
-	auto image = GH.renderHandler().createImage(Point(200, 116), CanvasScalingPolicy::IGNORE);
+	std::shared_ptr<IImage> img = ENGINE->renderHandler().loadImage(locator);
+	auto image = ENGINE->renderHandler().createImage(Point(200, 116), CanvasScalingPolicy::IGNORE);
 	Canvas canvas = image->getCanvas();
 
 	std::array sourceRect = {
@@ -271,7 +332,7 @@ AssetGenerator::CanvasPtr AssetGenerator::createChroniclesCampaignImages(int chr
 	{
 		//skull
 		auto locatorSkull = ImageLocator(ImagePath::builtin("CampSP1"), EImageBlitMode::OPAQUE);
-		std::shared_ptr<IImage> imgSkull = GH.renderHandler().loadImage(locatorSkull);
+		std::shared_ptr<IImage> imgSkull = ENGINE->renderHandler().loadImage(locatorSkull);
 		canvas.draw(imgSkull, Point(162, 94), Rect(162, 94, 41, 22));
 		canvas.draw(img, Point(162, 94), Rect(424, 304, 14, 4));
 		canvas.draw(img, Point(162, 98), Rect(424, 308, 10, 4));
@@ -284,7 +345,7 @@ AssetGenerator::CanvasPtr AssetGenerator::createChroniclesCampaignImages(int chr
 
 void AssetGenerator::createPaletteShiftedSprites()
 {
-	for(auto entity : VLC->terrainTypeHandler->objects)
+	for(auto entity : LIBRARY->terrainTypeHandler->objects)
 	{
 		if(entity->paletteAnimation.empty())
 			continue;
@@ -296,7 +357,7 @@ void AssetGenerator::createPaletteShiftedSprites()
 		generatePaletteShiftedAnimation(entity->tilesFilename, paletteShifts);
 
 	}
-	for(auto entity : VLC->riverTypeHandler->objects)
+	for(auto entity : LIBRARY->riverTypeHandler->objects)
 	{
 		if(entity->paletteAnimation.empty())
 			continue;
@@ -313,7 +374,7 @@ void AssetGenerator::generatePaletteShiftedAnimation(const AnimationPath & sprit
 {
 	AnimationLayoutMap layout;
 
-	auto animation = GH.renderHandler().loadAnimation(sprite, EImageBlitMode::COLORKEY);
+	auto animation = ENGINE->renderHandler().loadAnimation(sprite, EImageBlitMode::COLORKEY);
 
 	int paletteTransformLength = 1;
 	for (const auto & transform : paletteAnimations)
@@ -326,7 +387,9 @@ void AssetGenerator::generatePaletteShiftedAnimation(const AnimationPath & sprit
 			ImagePath spriteName = ImagePath::builtin(sprite.getName() + boost::str(boost::format("%02d") % tileIndex) + "_" + std::to_string(paletteIndex) + ".png");
 			layout[paletteIndex].push_back(ImageLocator(spriteName, EImageBlitMode::SIMPLE));
 
-			imageFiles[spriteName]  = [=](){ return createPaletteShiftedImage(sprite, paletteAnimations, tileIndex, paletteIndex);};
+			imageFiles[spriteName] = [this, sprite, paletteAnimations, tileIndex, paletteIndex](){
+				return createPaletteShiftedImage(sprite, paletteAnimations, tileIndex, paletteIndex);
+			};
 		}
 	}
 
@@ -334,17 +397,17 @@ void AssetGenerator::generatePaletteShiftedAnimation(const AnimationPath & sprit
 	animationFiles[shiftedPath] = layout;
 }
 
-AssetGenerator::CanvasPtr AssetGenerator::createPaletteShiftedImage(const AnimationPath & source, const std::vector<PaletteAnimation> & palette, int frameIndex, int paletteShiftCounter)
+AssetGenerator::CanvasPtr AssetGenerator::createPaletteShiftedImage(const AnimationPath & source, const std::vector<PaletteAnimation> & palette, int frameIndex, int paletteShiftCounter) const
 {
-	auto animation = GH.renderHandler().loadAnimation(source, EImageBlitMode::COLORKEY);
+	auto animation = ENGINE->renderHandler().loadAnimation(source, EImageBlitMode::COLORKEY);
 
 	auto imgLoc = animation->getImageLocator(frameIndex, 0);
-	auto img = GH.renderHandler().loadImage(imgLoc);
+	auto img = ENGINE->renderHandler().loadImage(imgLoc);
 
 	for(const auto & element : palette)
 		img->shiftPalette(element.start, element.length, paletteShiftCounter % element.length);
 
-	auto image = GH.renderHandler().createImage(Point(32, 32), CanvasScalingPolicy::IGNORE);
+	auto image = ENGINE->renderHandler().createImage(Point(32, 32), CanvasScalingPolicy::IGNORE);
 	Canvas canvas = image->getCanvas();
 	canvas.draw(img, Point((32 - img->dimensions().x) / 2, (32 - img->dimensions().y) / 2));
 

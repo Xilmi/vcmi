@@ -13,10 +13,13 @@
 #include "ResourceManager.h"
 #include "BuildingManager.h"
 #include "Goals/Goals.h"
+#include "Goals/CompleteQuest.h"
 
-#include "../../lib/ArtifactUtils.h"
+#include "../../lib/AsyncRunner.h"
+#include "../../lib/CThreadHelper.h"
 #include "../../lib/UnlockGuard.h"
 #include "../../lib/StartInfo.h"
+#include "../../lib/battle/CPlayerBattleCallback.h"
 #include "../../lib/mapObjects/MapObjects.h"
 #include "../../lib/mapObjects/ObjectTemplate.h"
 #include "../../lib/CConfigHandler.h"
@@ -26,7 +29,10 @@
 #include "../../lib/bonuses/Limiters.h"
 #include "../../lib/bonuses/Updaters.h"
 #include "../../lib/bonuses/Propagators.h"
+#include "../../lib/entities/artifact/ArtifactUtils.h"
+#include "../../lib/entities/artifact/CArtifact.h"
 #include "../../lib/entities/building/CBuilding.h"
+#include "../../lib/mapObjects/CQuest.h"
 #include "../../lib/networkPacks/PacksForClient.h"
 #include "../../lib/networkPacks/PacksForClientBattle.h"
 #include "../../lib/networkPacks/PacksForServer.h"
@@ -75,7 +81,7 @@ struct SetGlobalState
 VCAI::VCAI()
 {
 	LOG_TRACE(logAi);
-	makingTurn = nullptr;
+	asyncTasks = std::make_unique<AsyncRunner>();
 	destinationTeleport = ObjectInstanceID();
 	destinationTeleportPos = int3(-1);
 
@@ -134,7 +140,7 @@ void VCAI::heroMoved(const TryMoveHero & details, bool verbose)
 	else if(details.result == TryMoveHero::EMBARK && hero)
 	{
 		//make sure AI not attempt to visit used boat
-		validateObject(hero->boat);
+		validateObject(hero->getBoat());
 	}
 	else if(details.result == TryMoveHero::DISEMBARK && o1)
 	{
@@ -174,7 +180,7 @@ void VCAI::showTavernWindow(const CGObjectInstance * object, const CGHeroInstanc
 	NET_EVENT_HANDLER;
 
 	status.addQuery(queryID, "TavernWindow");
-	requestActionASAP([=](){ answerQuery(queryID, 0); });
+	executeActionAsync("showTavernWindow", [this, queryID](){ answerQuery(queryID, 0); });
 }
 
 void VCAI::showThievesGuildWindow(const CGObjectInstance * obj)
@@ -223,7 +229,7 @@ void VCAI::gameOver(PlayerColor player, const EVictoryLossCheckResult & victoryL
 			logAi->debug("VCAI: Player %d (%s) lost. It's me. What a disappointment! :(", player, player.toString());
 		}
 
-		finish();
+		makingTurnInterrupption.interruptThread();
 	}
 }
 
@@ -311,7 +317,7 @@ void VCAI::heroExchangeStarted(ObjectInstanceID hero1, ObjectInstanceID hero2, Q
 
 	status.addQuery(query, boost::str(boost::format("Exchange between heroes %s (%d) and %s (%d)") % firstHero->getNameTranslated() % firstHero->tempOwner % secondHero->getNameTranslated() % secondHero->tempOwner));
 
-	requestActionASAP([=]()
+	executeActionAsync("heroExchangeStarted", [this, firstHero, secondHero, query]()
 	{
 		float goalpriority1 = 0;
 		float goalpriority2 = 0;
@@ -358,9 +364,15 @@ void VCAI::heroExchangeStarted(ObjectInstanceID hero1, ObjectInstanceID hero2, Q
 	});
 }
 
+void VCAI::heroExperienceChanged(const CGHeroInstance * hero, si64 val)
+{
+	LOG_TRACE_PARAMS(logAi, "val '%i'", val);
+	NET_EVENT_HANDLER;
+}
+
 void VCAI::heroPrimarySkillChanged(const CGHeroInstance * hero, PrimarySkill which, si64 val)
 {
-	LOG_TRACE_PARAMS(logAi, "which '%i', val '%i'", static_cast<int>(which) % val);
+	LOG_TRACE_PARAMS(logAi, "which '%i', val '%i'", which.getNum() % val);
 	NET_EVENT_HANDLER;
 }
 
@@ -370,7 +382,7 @@ void VCAI::showRecruitmentDialog(const CGDwelling * dwelling, const CArmedInstan
 	NET_EVENT_HANDLER;
 
 	status.addQuery(queryID, "RecruitmentDialog");
-	requestActionASAP([=](){
+	executeActionAsync("showRecruitmentDialog", [this, dwelling, dst, queryID](){
 		recruitCreatures(dwelling, dst);
 		checkHeroArmy(dynamic_cast<const CGHeroInstance*>(dst));
 		answerQuery(queryID, 0);
@@ -441,19 +453,6 @@ void VCAI::objectRemoved(const CGObjectInstance * obj, const PlayerColor & initi
 	//clear resource manager goal cache
 	ah->removeOutdatedObjectives(checkRemovalValidity);
 
-	//TODO: Find better way to handle hero boat removal
-	if(auto hero = dynamic_cast<const CGHeroInstance *>(obj))
-	{
-		if(hero->boat)
-		{
-			vstd::erase_if_present(visitableObjs, hero->boat);
-			vstd::erase_if_present(alreadyVisited, hero->boat);
-
-			for(auto h : cb->getHeroesInfo())
-				unreserveObject(h, hero->boat);
-		}
-	}
-
 	//TODO
 	//there are other places where CGObjectinstance ptrs are stored...
 	//
@@ -469,7 +468,7 @@ void VCAI::showHillFortWindow(const CGObjectInstance * object, const CGHeroInsta
 	LOG_TRACE(logAi);
 	NET_EVENT_HANDLER;
 
-	requestActionASAP([=]()
+	executeActionAsync("showHillFortWindow", [visitor]()
 	{
 		makePossibleUpgrades(visitor);
 	});
@@ -484,8 +483,8 @@ void VCAI::playerBonusChanged(const Bonus & bonus, bool gain)
 void VCAI::heroCreated(const CGHeroInstance * h)
 {
 	LOG_TRACE(logAi);
-	if(h->visitedTown)
-		townVisitsThisWeek[HeroPtr(h)].insert(h->visitedTown);
+	if(h->getVisitedTown())
+		townVisitsThisWeek[HeroPtr(h)].insert(h->getVisitedTown());
 	NET_EVENT_HANDLER;
 }
 
@@ -532,7 +531,7 @@ void VCAI::showUniversityWindow(const IMarket * market, const CGHeroInstance * v
 	NET_EVENT_HANDLER;
 
 	status.addQuery(queryID, "UniversityWindow");
-	requestActionASAP([=](){ answerQuery(queryID, 0); });
+	executeActionAsync("showUniversityWindow", [this, queryID](){ answerQuery(queryID, 0); });
 }
 
 void VCAI::heroManaPointsChanged(const CGHeroInstance * hero)
@@ -600,7 +599,7 @@ void VCAI::showMarketWindow(const IMarket * market, const CGHeroInstance * visit
 	NET_EVENT_HANDLER;
 
 	status.addQuery(queryID, "MarketWindow");
-	requestActionASAP([=](){ answerQuery(queryID, 0); });
+	executeActionAsync("showMarketWindow", [this, queryID](){ answerQuery(queryID, 0); });
 }
 
 void VCAI::showWorldViewEx(const std::vector<ObjectPosInfo> & objectPositions, bool showTerrain)
@@ -622,8 +621,7 @@ void VCAI::initGameInterface(std::shared_ptr<Environment> ENV, std::shared_ptr<C
 	NET_EVENT_HANDLER; //sets ah->rm->cb
 	playerID = *myCb->getPlayerID();
 	myCb->waitTillRealize = true;
-	myCb->unlockGsWhenWaiting = true;
-	pathfinderCache = std::make_unique<PathfinderCache>(myCb.get(), PathfinderOptions(myCb.get()));
+	pathfinderCache = std::make_unique<PathfinderCache>(myCb.get(), PathfinderOptions(*myCb));
 
 	if(!fh)
 		fh = new FuzzyHelper();
@@ -646,9 +644,15 @@ void VCAI::yourTurn(QueryID queryID)
 	LOG_TRACE_PARAMS(logAi, "queryID '%i'", queryID);
 	NET_EVENT_HANDLER;
 	status.addQuery(queryID, "YourTurn");
-	requestActionASAP([=](){ answerQuery(queryID, 0); });
+	executeActionAsync("yourTurn", [this, queryID](){ answerQuery(queryID, 0); });
 	status.startedTurn();
-	makingTurn = std::make_unique<boost::thread>(&VCAI::makeTurn, this);
+
+	makingTurnInterrupption.reset();
+	asyncTasks->run([this]()
+	{
+		ScopedThreadName guard("VCAI::makingTurn");
+		makeTurn();
+	});
 }
 
 void VCAI::heroGotLevel(const CGHeroInstance * hero, PrimarySkill pskill, std::vector<SecondarySkill> & skills, QueryID queryID)
@@ -656,15 +660,15 @@ void VCAI::heroGotLevel(const CGHeroInstance * hero, PrimarySkill pskill, std::v
 	LOG_TRACE_PARAMS(logAi, "queryID '%i'", queryID);
 	NET_EVENT_HANDLER;
 	status.addQuery(queryID, boost::str(boost::format("Hero %s got level %d") % hero->getNameTranslated() % hero->level));
-	requestActionASAP([=](){ answerQuery(queryID, 0); });
+	executeActionAsync("heroGotLevel", [this, queryID](){ answerQuery(queryID, 0); });
 }
 
 void VCAI::commanderGotLevel(const CCommanderInstance * commander, std::vector<ui32> skills, QueryID queryID)
 {
 	LOG_TRACE_PARAMS(logAi, "queryID '%i'", queryID);
 	NET_EVENT_HANDLER;
-	status.addQuery(queryID, boost::str(boost::format("Commander %s of %s got level %d") % commander->name % commander->armyObj->nodeName() % (int)commander->level));
-	requestActionASAP([=](){ answerQuery(queryID, 0); });
+	status.addQuery(queryID, boost::str(boost::format("Commander %s of %s got level %d") % commander->name % commander->getArmy()->nodeName() % static_cast<int>(commander->level)));
+	executeActionAsync("commanderGotLevel", [this, queryID](){ answerQuery(queryID, 0); });
 }
 
 void VCAI::showBlockingDialog(const std::string & text, const std::vector<Component> & components, QueryID askID, const int soundID, bool selection, bool cancel, bool safeToAutoaccept)
@@ -681,7 +685,7 @@ void VCAI::showBlockingDialog(const std::string & text, const std::vector<Compon
 	if(!selection && cancel) //yes&no -> always answer yes, we are a brave AI :)
 		sel = 1;
 
-	requestActionASAP([=]()
+	executeActionAsync("showBlockingDialog", [this, askID, sel]()
 	{
 		answerQuery(askID, sel);
 	});
@@ -699,7 +703,7 @@ void VCAI::showTeleportDialog(const CGHeroInstance * hero, TeleportChannelID cha
 	{
 		knownTeleportChannels[channel]->passability = TeleportChannel::IMPASSABLE;
 	}
-	else if(destinationTeleport != ObjectInstanceID() && destinationTeleportPos.valid())
+	else if(destinationTeleport != ObjectInstanceID() && destinationTeleportPos.isValid())
 	{
 		auto neededExit = std::make_pair(destinationTeleport, destinationTeleportPos);
 		if(destinationTeleport != ObjectInstanceID() && vstd::contains(exits, neededExit))
@@ -726,7 +730,7 @@ void VCAI::showTeleportDialog(const CGHeroInstance * hero, TeleportChannelID cha
 		}
 	}
 
-	requestActionASAP([=]()
+	executeActionAsync("showTeleportDialog", [this, askID, chosenExit]()
 	{
 		answerQuery(askID, chosenExit);
 	});
@@ -743,9 +747,9 @@ void VCAI::showGarrisonDialog(const CArmedInstance * up, const CGHeroInstance * 
 	status.addQuery(queryID, boost::str(boost::format("Garrison dialog with %s and %s") % s1 % s2));
 
 	//you can't request action from action-response thread
-	requestActionASAP([=]()
+	executeActionAsync("showGarrisonDialog", [this, down, up, removableUnits, queryID]()
 	{
-		if(removableUnits && !cb->getStartInfo()->isRestorationOfErathiaCampaign())
+		if(removableUnits && !cb->getStartInfo()->restrictedGarrisonsForAI())
 			pickBestCreatures(down, up);
 
 		answerQuery(queryID, 0);
@@ -756,7 +760,7 @@ void VCAI::showMapObjectSelectDialog(QueryID askID, const Component & icon, cons
 {
 	NET_EVENT_HANDLER;
 	status.addQuery(askID, "Map object select query");
-	requestActionASAP([=](){ answerQuery(askID, selectedObject.getNum()); });
+	executeActionAsync("showMapObjectSelectDialog", [this, askID](){ answerQuery(askID, selectedObject.getNum()); });
 }
 
 void makePossibleUpgrades(const CArmedInstance * obj)
@@ -780,10 +784,10 @@ void makePossibleUpgrades(const CArmedInstance * obj)
 						{
 							return id.toCreature()->getAIValue();
 						});
-					if(cb->getResourceAmount().canAfford(upgradeInfo.getUpgradeCostsFor(upgID) * s->count))
+					if(cb->getResourceAmount().canAfford(upgradeInfo.getUpgradeCostsFor(upgID) * s->getCount()))
 					{
 						cb->upgradeCreature(obj, SlotID(i), upgID);
-						logAi->debug("Upgraded %d %s to %s", s->count, upgradeInfo.oldID.toCreature()->getNamePluralTranslated(), 
+						logAi->debug("Upgraded %d %s to %s", s->getCount(), upgradeInfo.oldID.toCreature()->getNamePluralTranslated(),
 							upgradeInfo.getUpgrade().toCreature()->getNamePluralTranslated());
 					}
 					else
@@ -802,7 +806,7 @@ void VCAI::makeTurn()
 	auto day = cb->getDate(Date::DAY);
 	logAi->info("Player %d (%s) starting turn, day %d", playerID, playerID.toString(), day);
 
-	boost::shared_lock gsLock(CGameState::mutex);
+	std::shared_lock gsLock(CGameState::mutex);
 	setThreadName("VCAI::makeTurn");
 
 	switch(cb->getDate(Date::DAY_OF_WEEK))
@@ -845,9 +849,8 @@ void VCAI::makeTurn()
 				logAi->info("Hero %s has %d MP left", h->getNameTranslated(), h->movementPointsRemaining());
 		}
 	}
-	catch (boost::thread_interrupted & e)
+	catch (const TerminationRequestedException &)
 	{
-	(void)e;
 		logAi->debug("Making turn thread has been interrupted. We'll end without calling endTurn.");
 		return;
 	}
@@ -998,17 +1001,16 @@ void VCAI::mainLoop()
 
 			try
 			{
-				boost::this_thread::interruption_point();
+				makingTurnInterrupption.interruptionPoint();
 				goalToRealize->accept(this); //visitor pattern
-				boost::this_thread::interruption_point();
+				makingTurnInterrupption.interruptionPoint();
 			}
-			catch (boost::thread_interrupted & e)
+			catch (const TerminationRequestedException &)
 			{
-				(void)e;
 				logAi->debug("Player %d: Making turn thread received an interruption!", playerID);
 				throw; //rethrow, we want to truly end this thread
 			}
-			catch (goalFulfilledException & e)
+			catch (const goalFulfilledException & e)
 			{
 				//the sub-goal was completed successfully
 				completeGoal(e.goal);
@@ -1018,7 +1020,7 @@ void VCAI::mainLoop()
 				// remove abstract visit tile if we completed the elementar one
 				vstd::erase_if_present(goalsToAdd, goalToRealize);
 			}
-			catch (std::exception & e)
+			catch (const std::exception & e)
 			{
 				logAi->debug("Failed to realize subgoal of type %s, I will stop.", goalToRealize->name());
 				logAi->debug("The error message was: %s", e.what());
@@ -1067,12 +1069,12 @@ void VCAI::performObjectInteraction(const CGObjectInstance * obj, HeroPtr h)
 	{
 	case Obj::TOWN:
 		moveCreaturesToHero(dynamic_cast<const CGTownInstance *>(obj));
-		if(h->visitedTown) //we are inside, not just attacking
+		if(h->getVisitedTown()) //we are inside, not just attacking
 		{
-			townVisitsThisWeek[h].insert(h->visitedTown);
+			townVisitsThisWeek[h].insert(h->getVisitedTown());
 			if(!h->hasSpellbook() && ah->freeGold() >= GameConstants::SPELLBOOK_GOLD_COST)
 			{
-				if(h->visitedTown->hasBuilt(BuildingID::MAGES_GUILD_1))
+				if(h->getVisitedTown()->hasBuilt(BuildingID::MAGES_GUILD_1))
 					cb->buyArtifact(h.get(), ArtifactID::SPELLBOOK);
 			}
 		}
@@ -1083,9 +1085,9 @@ void VCAI::performObjectInteraction(const CGObjectInstance * obj, HeroPtr h)
 
 void VCAI::moveCreaturesToHero(const CGTownInstance * t)
 {
-	if(t->visitingHero && t->armedGarrison() && t->visitingHero->tempOwner == t->tempOwner)
+	if(t->getVisitingHero() && t->armedGarrison() && t->getVisitingHero()->tempOwner == t->tempOwner)
 	{
-		pickBestCreatures(t->visitingHero, t);
+		pickBestCreatures(t->getVisitingHero(), t);
 	}
 }
 
@@ -1169,22 +1171,22 @@ void VCAI::pickBestArtifacts(const CGHeroInstance * h, const CGHeroInstance * ot
 			{
 				for(auto p : h->artifactsWorn)
 				{
-					if(p.second.artifact)
+					if(p.second.getArt())
 						allArtifacts.push_back(ArtifactLocation(h->id, p.first));
 				}
 			}
 			for(auto slot : h->artifactsInBackpack)
-				allArtifacts.push_back(ArtifactLocation(h->id, h->getArtPos(slot.artifact)));
+				allArtifacts.push_back(ArtifactLocation(h->id, h->getArtPos(slot.getArt())));
 
 			if(otherh)
 			{
 				for(auto p : otherh->artifactsWorn)
 				{
-					if(p.second.artifact)
+					if(p.second.getArt())
 						allArtifacts.push_back(ArtifactLocation(otherh->id, p.first));
 				}
 				for(auto slot : otherh->artifactsInBackpack)
-					allArtifacts.push_back(ArtifactLocation(otherh->id, otherh->getArtPos(slot.artifact)));
+					allArtifacts.push_back(ArtifactLocation(otherh->id, otherh->getArtPos(slot.getArt())));
 			}
 			//we give stuff to one hero or another, depending on giveStuffToFirstHero
 
@@ -1205,7 +1207,7 @@ void VCAI::pickBestArtifacts(const CGHeroInstance * h, const CGHeroInstance * ot
 				auto s = cb->getHero(location.artHolder)->getSlot(location.slot);
 				if(!s || s->locked) //we can't move locks
 					continue;
-				auto artifact = s->artifact;
+				auto artifact = s->getArt();
 				if(!artifact)
 					continue;
 				//FIXME: why are the above possible to be null?
@@ -1227,13 +1229,13 @@ void VCAI::pickBestArtifacts(const CGHeroInstance * h, const CGHeroInstance * ot
 					for(auto slot : artifact->getType()->getPossibleSlots().at(target->bearerType()))
 					{
 						auto otherSlot = target->getSlot(slot);
-						if(otherSlot && otherSlot->artifact) //we need to exchange artifact for better one
+						if(otherSlot && otherSlot->getArt()) //we need to exchange artifact for better one
 						{
 							//if that artifact is better than what we have, pick it
-							if(compareArtifacts(artifact, otherSlot->artifact) && artifact->canBePutAt(target, slot, true)) //combined artifacts are not always allowed to move
+							if(compareArtifacts(artifact, otherSlot->getArt()) && artifact->canBePutAt(target, slot, true)) //combined artifacts are not always allowed to move
 							{
 								ArtifactLocation destLocation(target->id, slot);
-								cb->swapArtifacts(location, ArtifactLocation(target->id, target->getArtPos(otherSlot->artifact)));
+								cb->swapArtifacts(location, ArtifactLocation(target->id, target->getArtPos(otherSlot->getArt())));
 								changeMade = true;
 								break;
 							}
@@ -1264,7 +1266,7 @@ void VCAI::recruitCreatures(const CGDwelling * d, const CArmedInstance * recruit
 		int count = d->creatures[i].first;
 		CreatureID creID = d->creatures[i].second.back();
 
-		vstd::amin(count, ah->freeResources() / VLC->creatures()->getById(creID)->getFullRecruitCost());
+		vstd::amin(count, ah->freeResources() / LIBRARY->creatures()->getById(creID)->getFullRecruitCost());
 		if(count > 0)
 			cb->recruitCreatures(d, recruiter, creID, count, i);
 	}
@@ -1291,7 +1293,7 @@ bool VCAI::isGoodForVisit(const CGObjectInstance * obj, HeroPtr h, const AIPath 
 {
 	const int3 pos = obj->visitablePos();
 	const int3 targetPos = path.firstTileToGet();
-	if (!targetPos.valid())
+	if (!targetPos.isValid())
 		return false;
 	if (!isTileNotReserved(h.get(), targetPos))
 		return false;
@@ -1320,7 +1322,7 @@ bool VCAI::isGoodForVisit(const CGObjectInstance * obj, HeroPtr h, const AIPath 
 
 bool VCAI::isTileNotReserved(const CGHeroInstance * h, int3 t) const
 {
-	if(t.valid())
+	if(t.isValid())
 	{
 		auto obj = cb->getTopObj(t);
 		if(obj && vstd::contains(ai->reservedObjs, obj)
@@ -1357,10 +1359,10 @@ void VCAI::wander(HeroPtr h)
 {
 	auto visitTownIfAny = [this](HeroPtr h) -> bool
 	{
-		if (h->visitedTown)
+		if (h->getVisitedTown())
 		{
-			townVisitsThisWeek[h].insert(h->visitedTown);
-			buildArmyIn(h->visitedTown);
+			townVisitsThisWeek[h].insert(h->getVisitedTown());
+			buildArmyIn(h->getVisitedTown());
 			return true;
 		}
 		return false;
@@ -1428,7 +1430,7 @@ void VCAI::wander(HeroPtr h)
 			std::vector<const CGTownInstance *> townsNotReachable;
 			for(const CGTownInstance * t : cb->getTownsInfo())
 			{
-				if(!t->visitingHero && !vstd::contains(townVisitsThisWeek[h], t))
+				if(!t->getVisitingHero() && !vstd::contains(townVisitsThisWeek[h], t))
 				{
 					if(isAccessibleForHero(t->visitablePos(), h))
 						townsReachable.push_back(t);
@@ -1756,7 +1758,7 @@ const CGObjectInstance * VCAI::lookForArt(ArtifactID aid) const
 {
 	for(const CGObjectInstance * obj : ai->visitableObjs)
 	{
-		if(obj->ID == Obj::ARTIFACT && dynamic_cast<const CGArtifact *>(obj)->getArtifact()  == aid)
+		if(obj->ID == Obj::ARTIFACT && dynamic_cast<const CGArtifact *>(obj)->getArtifactType()  == aid)
 			return obj;
 	}
 
@@ -1860,10 +1862,7 @@ bool VCAI::moveHeroToTile(int3 dst, HeroPtr h)
 
 		auto getObj = [&](int3 coord, bool ignoreHero)
 		{
-			auto tile = cb->getTile(coord, false);
-			assert(tile);
-			return tile->topVisitableObj(ignoreHero);
-			//return cb->getTile(coord,false)->topVisitableObj(ignoreHero);
+			return cb->getObj(cb->getTile(coord)->topVisitableObj(ignoreHero));
 		};
 
 		auto isTeleportAction = [&](EPathNodeAction action) -> bool
@@ -1900,7 +1899,7 @@ bool VCAI::moveHeroToTile(int3 dst, HeroPtr h)
 		auto doTeleportMovement = [&](ObjectInstanceID exitId, int3 exitPos)
 		{
 			destinationTeleport = exitId;
-			if(exitPos.valid())
+			if(exitPos.isValid())
 				destinationTeleportPos = exitPos;
 			cb->moveHero(*h, h->pos, false);
 			destinationTeleport = ObjectInstanceID();
@@ -2151,7 +2150,7 @@ void VCAI::tryRealize(Goals::Trade & g) //trade
 
 				int toGive;
 				int toGet;
-				m->getOffer(res, g.resID, toGive, toGet, EMarketMode::RESOURCE_RESOURCE);
+				m->getOffer(res.getNum(), g.resID, toGive, toGet, EMarketMode::RESOURCE_RESOURCE);
 				toGive = static_cast<int>(toGive * (it->resVal / toGive)); //round down
 				//TODO trade only as much as needed
 				if (toGive) //don't try to sell 0 resources
@@ -2245,7 +2244,7 @@ void VCAI::tryRealize(Goals::AbstractGoal & g)
 const CGTownInstance * VCAI::findTownWithTavern() const
 {
 	for(const CGTownInstance * t : cb->getTownsInfo())
-		if(t->hasBuilt(BuildingID::TAVERN) && !t->visitingHero)
+		if(t->hasBuilt(BuildingID::TAVERN) && !t->getVisitingHero())
 			return t;
 
 	return nullptr;
@@ -2364,24 +2363,23 @@ void VCAI::striveToGoal(Goals::TSubgoal basicGoal)
 
 		try
 		{
-			boost::this_thread::interruption_point();
+			makingTurnInterrupption.interruptionPoint();
 			elementarGoal->accept(this); //visitor pattern
-			boost::this_thread::interruption_point();
+			makingTurnInterrupption.interruptionPoint();
 		}
-		catch (boost::thread_interrupted & e)
+		catch (const TerminationRequestedException &)
 		{
-			(void)e;
 			logAi->debug("Player %d: Making turn thread received an interruption!", playerID);
 			throw; //rethrow, we want to truly end this thread
 		}
-		catch (goalFulfilledException & e)
+		catch (const goalFulfilledException & e)
 		{
 			//the sub-goal was completed successfully
 			completeGoal(e.goal);
 			//local goal was also completed
 			completeGoal(elementarGoal);
 		}
-		catch (std::exception & e)
+		catch (const std::exception & e)
 		{
 			logAi->debug("Failed to realize subgoal of type %s, I will stop.", elementarGoal->name());
 			logAi->debug("The error message was: %s", e.what());
@@ -2409,7 +2407,7 @@ Goals::TSubgoal VCAI::decomposeGoal(Goals::TSubgoal ultimateGoal)
 	int maxGoals = searchDepth; //preventing deadlock for mutually dependent goals
 	while (maxGoals)
 	{
-		boost::this_thread::interruption_point();
+		makingTurnInterrupption.interruptionPoint();
 
 		goal = goal->whatToDoToAchieve(); //may throw if decomposition fails
 		--maxGoals;
@@ -2450,7 +2448,7 @@ void VCAI::performTypicalActions()
 
 void VCAI::buildArmyIn(const CGTownInstance * t)
 {
-	makePossibleUpgrades(t->visitingHero);
+	makePossibleUpgrades(t->getVisitingHero());
 	makePossibleUpgrades(t);
 	recruitCreatures(t, t->getUpperArmy());
 	moveCreaturesToHero(t);
@@ -2490,27 +2488,27 @@ void VCAI::recruitHero(const CGTownInstance * t, bool throwing)
 
 void VCAI::finish()
 {
-	//we want to lock to avoid multiple threads from calling makingTurn->join() at same time
-	boost::lock_guard<boost::mutex> multipleCleanupGuard(turnInterruptionMutex);
-	if(makingTurn)
+	makingTurnInterrupption.interruptThread();
+
+	if (asyncTasks)
 	{
-		makingTurn->interrupt();
-		makingTurn->join();
-		makingTurn.reset();
+		asyncTasks->wait();
+		asyncTasks.reset();
 	}
 }
 
-void VCAI::requestActionASAP(std::function<void()> whatToDo)
+void VCAI::executeActionAsync(const std::string & description, const std::function<void()> & whatToDo)
 {
-	boost::thread newThread([this, whatToDo]()
+	if (!asyncTasks)
+		throw std::runtime_error("Attempt to execute task on shut down AI state!");
+
+	asyncTasks->run([this, description, whatToDo]()
 	{
-		setThreadName("VCAI::requestActionASAP::whatToDo");
+		ScopedThreadName guard("VCAI::" + description);
 		SET_GLOBAL_STATE(this);
-		boost::shared_lock gsLock(CGameState::mutex);
+		std::shared_lock gsLock(CGameState::mutex);
 		whatToDo();
 	});
-
-	newThread.detach();
 }
 
 void VCAI::lostHero(HeroPtr h)
@@ -2622,7 +2620,7 @@ AIStatus::~AIStatus()
 
 void AIStatus::setBattle(BattleState BS)
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	LOG_TRACE_PARAMS(logAi, "battle state=%d", (int)BS);
 	battle = BS;
 	cv.notify_all();
@@ -2630,7 +2628,7 @@ void AIStatus::setBattle(BattleState BS)
 
 BattleState AIStatus::getBattle()
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	return battle;
 }
 
@@ -2643,7 +2641,7 @@ void AIStatus::addQuery(QueryID ID, std::string description)
 	}
 
 	assert(ID.getNum() >= 0);
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 
 	assert(!vstd::contains(remainingQueries, ID));
 
@@ -2655,7 +2653,7 @@ void AIStatus::addQuery(QueryID ID, std::string description)
 
 void AIStatus::removeQuery(QueryID ID)
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	assert(vstd::contains(remainingQueries, ID));
 
 	std::string description = remainingQueries[ID];
@@ -2667,40 +2665,40 @@ void AIStatus::removeQuery(QueryID ID)
 
 int AIStatus::getQueriesCount()
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	return static_cast<int>(remainingQueries.size());
 }
 
 void AIStatus::startedTurn()
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	havingTurn = true;
 	cv.notify_all();
 }
 
 void AIStatus::madeTurn()
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	havingTurn = false;
 	cv.notify_all();
 }
 
 void AIStatus::waitTillFree()
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	while(battle != NO_BATTLE || !remainingQueries.empty() || !objectsBeingVisited.empty() || ongoingHeroMovement)
-		cv.wait_for(lock, boost::chrono::milliseconds(100));
+		cv.wait_for(lock, std::chrono::milliseconds(100));
 }
 
 bool AIStatus::haveTurn()
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	return havingTurn;
 }
 
 void AIStatus::attemptedAnsweringQuery(QueryID queryID, int answerRequestID)
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	assert(vstd::contains(remainingQueries, queryID));
 	std::string description = remainingQueries[queryID];
 	logAi->debug("Attempted answering query %d - %s. Request id=%d. Waiting for results...", queryID, description, answerRequestID);
@@ -2712,7 +2710,7 @@ void AIStatus::receivedAnswerConfirmation(int answerRequestID, int result)
 	QueryID query;
 
 	{
-		boost::unique_lock<boost::mutex> lock(mx);
+		std::unique_lock<std::mutex> lock(mx);
 
 		assert(vstd::contains(requestToQueryID, answerRequestID));
 		query = requestToQueryID[answerRequestID];
@@ -2733,7 +2731,7 @@ void AIStatus::receivedAnswerConfirmation(int answerRequestID, int result)
 
 void AIStatus::heroVisit(const CGObjectInstance * obj, bool started)
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	if(started)
 	{
 		objectsBeingVisited.push_back(obj);
@@ -2751,14 +2749,14 @@ void AIStatus::heroVisit(const CGObjectInstance * obj, bool started)
 
 void AIStatus::setMove(bool ongoing)
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	ongoingHeroMovement = ongoing;
 	cv.notify_all();
 }
 
 void AIStatus::setChannelProbing(bool ongoing)
 {
-	boost::unique_lock<boost::mutex> lock(mx);
+	std::unique_lock<std::mutex> lock(mx);
 	ongoingChannelProbing = ongoing;
 	cv.notify_all();
 }
@@ -2803,7 +2801,7 @@ bool shouldVisit(HeroPtr h, const CGObjectInstance * obj)
 	{
 		for(auto q : ai->myCb->getMyQuests())
 		{
-			if(q.obj == obj)
+			if(q.getObject(cb) == obj)
 			{
 				return false; // do not visit guards or gates when wandering
 			}
@@ -2817,9 +2815,9 @@ bool shouldVisit(HeroPtr h, const CGObjectInstance * obj)
 	{
 		for(auto q : ai->myCb->getMyQuests())
 		{
-			if(q.obj == obj)
+			if(q.getObject(cb) == obj)
 			{
-				if(q.quest->checkQuest(h.h))
+				if(q.getQuest(cb)->checkQuest(h.h))
 					return true; //we completed the quest
 				else
 					return false; //we can't complete this quest
@@ -2845,7 +2843,7 @@ bool shouldVisit(HeroPtr h, const CGObjectInstance * obj)
 	}
 	case Obj::HILL_FORT:
 	{
-		for(auto slot : h->Slots())
+		for(const auto & slot : h->Slots())
 		{
 			if(slot.second->getType()->hasUpgrades())
 				return true; //TODO: check price?

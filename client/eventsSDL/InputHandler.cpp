@@ -18,7 +18,8 @@
 #include "InputSourceText.h"
 #include "InputSourceGameController.h"
 
-#include "../gui/CGuiHandler.h"
+#include "../GameEngine.h"
+#include "../GameEngineUser.h"
 #include "../gui/CursorHandler.h"
 #include "../gui/EventDispatcher.h"
 #include "../gui/MouseButton.h"
@@ -26,7 +27,6 @@
 #include "../media/ISoundPlayer.h"
 #include "../CMT.h"
 #include "../CPlayerInterface.h"
-#include "../CGameInfo.h"
 
 #include "../../lib/CConfigHandler.h"
 
@@ -134,7 +134,7 @@ void InputHandler::setCurrentInputMode(InputMode modi)
 	if(currentInputMode != modi)
 	{
 		currentInputMode = modi;
-		GH.events().dispatchInputModeChanged(modi);
+		ENGINE->events().dispatchInputModeChanged(modi);
 	}
 }
 
@@ -150,7 +150,7 @@ void InputHandler::copyToClipBoard(const std::string & text)
 
 std::vector<SDL_Event> InputHandler::acquireEvents()
 {
-	boost::unique_lock<boost::mutex> lock(eventsMutex);
+	std::unique_lock<std::mutex> lock(eventsMutex);
 
 	std::vector<SDL_Event> result;
 	std::swap(result, eventsQueue);
@@ -172,7 +172,7 @@ bool InputHandler::ignoreEventsUntilInput()
 {
 	bool inputFound = false;
 
-	boost::unique_lock<boost::mutex> lock(eventsMutex);
+	std::unique_lock<std::mutex> lock(eventsMutex);
 	for(const auto & event : eventsQueue)
 	{
 		switch(event.type)
@@ -193,11 +193,11 @@ void InputHandler::preprocessEvent(const SDL_Event & ev)
 {
 	if(ev.type == SDL_QUIT)
 	{
-		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
+		std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
 #ifdef VCMI_ANDROID
-		handleQuit(false);
+		ENGINE->user().onShutdownRequested(false);
 #else
-		handleQuit(true);
+		ENGINE->user().onShutdownRequested(true);
 #endif
 		return;
 	}
@@ -206,21 +206,21 @@ void InputHandler::preprocessEvent(const SDL_Event & ev)
 		if(ev.key.keysym.sym == SDLK_F4 && (ev.key.keysym.mod & KMOD_ALT))
 		{
 			// FIXME: dead code? Looks like intercepted by OS/SDL and delivered as SDL_Quit instead?
-			boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
-			handleQuit(true);
+			std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
+			ENGINE->user().onShutdownRequested(true);
 			return;
 		}
 
 		if(ev.key.keysym.scancode == SDL_SCANCODE_AC_BACK && !settings["input"]["handleBackRightMouseButton"].Bool())
 		{
-			boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
-			handleQuit(true);
+			std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
+			ENGINE->user().onShutdownRequested(true);
 			return;
 		}
 	}
 	else if(ev.type == SDL_USEREVENT)
 	{
-		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
+		std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
 		handleUserEvent(ev.user);
 
 		return;
@@ -231,34 +231,34 @@ void InputHandler::preprocessEvent(const SDL_Event & ev)
 			case SDL_WINDOWEVENT_RESTORED:
 #ifndef VCMI_IOS
 			{
-				boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
-				GH.onScreenResize(false);
+				std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
+				ENGINE->onScreenResize(false);
 			}
 #endif
 				break;
 			case SDL_WINDOWEVENT_SIZE_CHANGED:
-#ifdef VCMI_ANDROID
+#ifdef VCMI_MOBILE
 			{
-				boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
-				GH.onScreenResize(true);
+				std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
+				ENGINE->onScreenResize(true);
 			}
 #endif
 				break;
 			case SDL_WINDOWEVENT_FOCUS_GAINED:
 			{
-				boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
+				std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
 				if(settings["general"]["audioMuteFocus"].Bool()) {
-					CCS->musich->setVolume(settings["general"]["music"].Integer());
-					CCS->soundh->setVolume(settings["general"]["sound"].Integer());
+					ENGINE->music().setVolume(settings["general"]["music"].Integer());
+					ENGINE->sound().setVolume(settings["general"]["sound"].Integer());
 				}
 			}
 				break;
 			case SDL_WINDOWEVENT_FOCUS_LOST:
 			{
-				boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
+				std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
 				if(settings["general"]["audioMuteFocus"].Bool()) {
-					CCS->musich->setVolume(0);
-					CCS->soundh->setVolume(0);
+					ENGINE->music().setVolume(0);
+					ENGINE->sound().setVolume(0);
 				}
 			}
 				break;
@@ -267,7 +267,7 @@ void InputHandler::preprocessEvent(const SDL_Event & ev)
 	}
 	else if(ev.type == SDL_SYSWMEVENT)
 	{
-		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
+		std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
 		if(!settings["session"]["headless"].Bool() && settings["general"]["notifications"].Bool())
 		{
 			NotificationHandler::handleSdlEvent(ev);
@@ -289,16 +289,17 @@ void InputHandler::preprocessEvent(const SDL_Event & ev)
 		return;
 	}
 
+#ifndef VCMI_EMULATE_TOUCHSCREEN_WITH_MOUSE
 	//preprocessing
 	if(ev.type == SDL_MOUSEMOTION)
 	{
-		boost::mutex::scoped_lock interfaceLock(GH.interfaceMutex);
-		if (CCS && CCS->curh)
-			CCS->curh->cursorMove(ev.motion.x, ev.motion.y);
+		std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
+		ENGINE->cursor().cursorMove(ev.motion.x, ev.motion.y);
 	}
+#endif
 
 	{
-		boost::unique_lock<boost::mutex> lock(eventsMutex);
+		std::unique_lock<std::mutex> lock(eventsMutex);
 
 		// In a sequence of motion events, skip all but the last one.
 		// This prevents freezes when every motion event takes longer to handle than interval at which
@@ -368,7 +369,7 @@ void InputHandler::moveCursorPosition(const Point & distance)
 void InputHandler::setCursorPosition(const Point & position)
 {
 	cursorPosition = position;
-	GH.events().dispatchMouseMoved(Point(0, 0), position);
+	ENGINE->events().dispatchMouseMoved(Point(0, 0), position);
 }
 
 void InputHandler::startTextInput(const Rect & where)
@@ -406,23 +407,28 @@ int InputHandler::getNumTouchFingers() const
 
 void InputHandler::dispatchMainThread(const std::function<void()> & functor)
 {
-	auto heapFunctor = new std::function<void()>(functor);
+	auto heapFunctor = std::make_unique<std::function<void()>>(functor);
 
 	SDL_Event event;
 	event.user.type = SDL_USEREVENT;
 	event.user.code = 0;
-	event.user.data1 = static_cast <void*>(heapFunctor);
+	event.user.data1 = nullptr;
 	event.user.data2 = nullptr;
 	SDL_PushEvent(&event);
+
+	// NOTE: approach with dispatchedTasks container is a bit excessive
+	// used mostly to prevent false-positives leaks in analyzers
+	dispatchedTasks.push(std::move(heapFunctor));
 }
 
 void InputHandler::handleUserEvent(const SDL_UserEvent & current)
 {
-	auto heapFunctor = static_cast<std::function<void()>*>(current.data1);
+	std::unique_ptr<std::function<void()>> task;
 
-	(*heapFunctor)();
+	if (!dispatchedTasks.try_pop(task))
+		throw std::runtime_error("InputHandler::handleUserEvent received without active task!");
 
-	delete heapFunctor;
+	(*task)();
 }
 
 const Point & InputHandler::getCursorPosition() const

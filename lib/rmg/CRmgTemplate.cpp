@@ -15,11 +15,14 @@
 #include "Functions.h"
 
 #include "../TerrainHandler.h"
-#include "../VCMI_Lib.h"
+#include "../GameLibrary.h"
 #include "../constants/StringConstants.h"
 #include "../entities/faction/CTownHandler.h"
 #include "../modding/ModScope.h"
 #include "../serializer/JsonSerializeFormat.h"
+
+#include <boost/lexical_cast.hpp>
+
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -102,7 +105,38 @@ void ZoneOptions::CTownInfo::serializeJson(JsonSerializeFormat & handler)
 	handler.serializeInt("castles", castleCount, 0);
 	handler.serializeInt("townDensity", townDensity, 0);
 	handler.serializeInt("castleDensity", castleDensity, 0);
-	handler.serializeInt("sourceZone", sourceZone, NO_ZONE);
+	handler.serializeInt("townTypesLikeZone", townTypesLikeZone, NO_ZONE);
+	handler.serializeInt("townTypesNotLikeZone", townTypesNotLikeZone, NO_ZONE);
+	handler.serializeInt("townTypesRelatedToZoneTerrain", townTypesRelatedToZoneTerrain, NO_ZONE);
+}
+
+ZoneOptions::CTownHints::CTownHints()
+	: likeZone(NO_ZONE),
+	relatedToZoneTerrain(NO_ZONE)
+{
+
+}
+
+void ZoneOptions::CTownHints::serializeJson(JsonSerializeFormat & handler)
+{
+	handler.serializeInt("likeZone", likeZone, NO_ZONE);
+	auto node = handler.getCurrent();
+	if (node["notLikeZone"].isVector())
+	{
+		// TODO: Utility to serialize vector of ints?
+		auto notLikeZoneData = handler.enterArray("notLikeZone");
+		notLikeZone.resize(notLikeZoneData.size());
+		for (size_t i = 0; i < notLikeZoneData.size(); ++i)
+		{
+			notLikeZoneData.serializeInt(i, notLikeZone[i]);
+		}
+	}
+	else
+	{
+		notLikeZone.resize(1);
+		handler.serializeInt("notLikeZone", notLikeZone[0], NO_ZONE);
+	}
+	handler.serializeInt("relatedToZoneTerrain", relatedToZoneTerrain, NO_ZONE);
 }
 
 ZoneOptions::ZoneOptions():
@@ -110,13 +144,17 @@ ZoneOptions::ZoneOptions():
 	type(ETemplateZoneType::PLAYER_START),
 	size(1),
 	maxTreasureValue(0),
-	owner(std::nullopt),
+	owner(PlayerColor(0)),
 	matchTerrainToTown(true),
 	townsAreSameType(false),
 	monsterStrength(EMonsterStrength::ZONE_NORMAL),
+	townsLikeZone(NO_ZONE),
 	minesLikeZone(NO_ZONE),
 	terrainTypeLikeZone(NO_ZONE),
-	treasureLikeZone(NO_ZONE)
+	treasureLikeZone(NO_ZONE),
+	customObjectsLikeZone(NO_ZONE),
+	visiblePosition(Point(0, 0)),
+	visibleSize(1.0)
 {
 }
 
@@ -177,7 +215,7 @@ void ZoneOptions::setTerrainTypes(const std::set<TerrainId> & value)
 std::set<TerrainId> ZoneOptions::getDefaultTerrainTypes() const
 {
 	std::set<TerrainId> terrains;
-	for(const auto & terrain : VLC->terrainTypeHandler->objects)
+	for(const auto & terrain : LIBRARY->terrainTypeHandler->objects)
 	{
 		if (terrain->isLand() && terrain->isPassable())
 		{
@@ -189,7 +227,7 @@ std::set<TerrainId> ZoneOptions::getDefaultTerrainTypes() const
 
 std::set<FactionID> ZoneOptions::getDefaultTownTypes() const
 {
-	return VLC->townh->getDefaultAllowed();
+	return LIBRARY->townh->getDefaultAllowed();
 }
 
 std::set<FactionID> ZoneOptions::getTownTypes() const
@@ -291,6 +329,31 @@ TRmgTemplateZoneId ZoneOptions::getCustomObjectsLikeZone() const
 	return customObjectsLikeZone;
 }
 
+TRmgTemplateZoneId ZoneOptions::getTownsLikeZone() const
+{
+	return townsLikeZone;
+}
+
+Point ZoneOptions::getVisiblePosition() const
+{
+	return visiblePosition;
+}
+
+void ZoneOptions::setVisiblePosition(Point value)
+{
+	visiblePosition = value;
+}
+
+float ZoneOptions::getVisibleSize() const
+{
+	return visibleSize;
+}
+
+void ZoneOptions::setVisibleSize(float value)
+{
+	visibleSize = value;
+}
+
 void ZoneOptions::addConnection(const ZoneConnection & connection)
 {
 	connectedZoneIds.push_back(connection.getOtherZoneId(getId()));
@@ -317,14 +380,49 @@ bool ZoneOptions::isMatchTerrainToTown() const
 	return matchTerrainToTown;
 }
 
+void ZoneOptions::setMatchTerrainToTown(bool value)
+{
+	matchTerrainToTown = value;
+}
+
 const ZoneOptions::CTownInfo & ZoneOptions::getPlayerTowns() const
 {
 	return playerTowns;
 }
 
+void ZoneOptions::setPlayerTowns(const CTownInfo & value)
+{
+	playerTowns = value;
+}
+
 const ZoneOptions::CTownInfo & ZoneOptions::getNeutralTowns() const
 {
 	return neutralTowns;
+}
+
+void ZoneOptions::setNeutralTowns(const CTownInfo & value)
+{
+	neutralTowns = value;
+}
+
+const std::vector<ZoneOptions::CTownHints> & ZoneOptions::getTownHints() const
+{
+	return townHints;
+}
+
+void ZoneOptions::setTownHints(const std::vector<CTownHints> & value)
+{
+	townHints = value;
+}
+
+std::set<FactionID> ZoneOptions::getBannedTownTypes() const
+{
+	return bannedTownTypes;
+}
+
+void ZoneOptions::setBannedTownTypes(const std::set<FactionID> & value)
+{
+	bannedTownTypes = value;
 }
 
 void ZoneOptions::serializeJson(JsonSerializeFormat & handler)
@@ -348,6 +446,7 @@ void ZoneOptions::serializeJson(JsonSerializeFormat & handler)
 
 	#define SERIALIZE_ZONE_LINK(fieldName) handler.serializeInt(#fieldName, fieldName, NO_ZONE);
 
+	SERIALIZE_ZONE_LINK(townsLikeZone);
 	SERIALIZE_ZONE_LINK(minesLikeZone);
 	SERIALIZE_ZONE_LINK(terrainTypeLikeZone);
 	SERIALIZE_ZONE_LINK(treasureLikeZone);
@@ -366,6 +465,8 @@ void ZoneOptions::serializeJson(JsonSerializeFormat & handler)
 	handler.serializeIdArray("bannedMonsters", bannedMonsters);
 	handler.serializeIdArray("allowedTowns", townTypes);
 	handler.serializeIdArray("bannedTowns", bannedTownTypes);
+
+	handler.enterArray("townHints").serializeStruct(townHints);
 
 	{
 		//TODO: add support for std::map to serializeEnum
@@ -418,6 +519,12 @@ void ZoneOptions::serializeJson(JsonSerializeFormat & handler)
 	}
 
 	handler.serializeStruct("customObjects", objectConfig);
+	handler.serializeInt("visiblePositionX", visiblePosition.x);
+	handler.serializeInt("visiblePositionY", visiblePosition.y);
+	handler.serializeFloat("visibleSize", visibleSize);
+
+	if(!handler.saving && visibleSize < 0.01)
+		visibleSize = 1.0;
 }
 
 ZoneConnection::ZoneConnection():
@@ -829,6 +936,8 @@ void CRmgTemplate::afterLoad()
 		auto zone = idAndZone.second;
 
 		// Inherit properties recursively
+		inheritTownProperties(zone);
+
 		inheritZoneProperty(zone, 
 							&rmg::ZoneOptions::getTerrainTypes, 
 							&rmg::ZoneOptions::setTerrainTypes, 
@@ -857,7 +966,7 @@ void CRmgTemplate::afterLoad()
 		auto monsterTypes = zone->getMonsterTypes();
 		if (monsterTypes.empty())
 		{
-			zone->setMonsterTypes(VLC->townh->getAllowedFactions(false));
+			zone->setMonsterTypes(LIBRARY->townh->getAllowedFactions(false));
 		}
 	}
 
@@ -880,6 +989,31 @@ void CRmgTemplate::afterLoad()
 		allowedWaterContent.insert(EWaterContent::ISLANDS);
 	}
 	allowedWaterContent.erase(EWaterContent::RANDOM);
+}
+
+void CRmgTemplate::inheritTownProperties(std::shared_ptr<rmg::ZoneOptions> zone, uint32_t iteration)
+{
+	if (iteration >= 50)
+	{
+		logGlobal->error("Infinite recursion for town properties detected in template %s", name);
+		return;
+	}
+
+	if (zone->getTownsLikeZone() != rmg::ZoneOptions::NO_ZONE)
+	{
+		const auto otherZone = zones.at(zone->getTownsLikeZone());
+		
+		// Recursively inherit from the source zone first
+		inheritTownProperties(otherZone, iteration + 1);
+
+		// Now copy all town-related properties from the source zone
+		zone->setPlayerTowns(otherZone->getPlayerTowns());
+		zone->setNeutralTowns(otherZone->getNeutralTowns());
+		zone->setMatchTerrainToTown(otherZone->isMatchTerrainToTown());
+		zone->setTownHints(otherZone->getTownHints());
+		zone->setTownTypes(otherZone->getTownTypes());
+		zone->setBannedTownTypes(otherZone->getBannedTownTypes());
+	}
 }
 
 // TODO: Allow any integer size which does not match enum, as well

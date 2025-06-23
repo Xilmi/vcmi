@@ -12,8 +12,9 @@
 
 #include "../ResourceSet.h"
 #include "../texts/MetaString.h"
-#include "../VCMI_Lib.h"
+#include "../GameLibrary.h"
 #include "../TerrainHandler.h"
+#include "../mapObjects/CGObjectInstance.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -52,26 +53,12 @@ public:
 		h & name;
 		h & message;
 		h & resources;
-		if (h.version >= Handler::Version::EVENTS_PLAYER_SET)
-		{
-			h & players;
-		}
-		else
-		{
-			ui8 playersMask = 0;
-			h & playersMask;
-			for (int i = 0; i < 8; ++i)
-				if ((playersMask & (1 << i)) != 0)
-					players.insert(PlayerColor(i));
-		}
+		h & players;
 		h & humanAffected;
 		h & computerAffected;
 		h & firstOccurrence;
 		h & nextOccurrence;
-		if(h.version >= Handler::Version::EVENT_OBJECTS_DELETION)
-		{
-			h & deletedObjectsInstances;
-		}
+		h & deletedObjectsInstances;
 	}
 	
 	virtual void serializeJson(JsonSerializeFormat & handler);
@@ -110,8 +97,7 @@ struct DLL_LINKAGE TerrainTile
 	/// Checks for blocking objects and terraint type (water / land).
 	bool isClear(const TerrainTile * from = nullptr) const;
 	/// Gets the ID of the top visitable object or -1 if there is none.
-	Obj topVisitableId(bool excludeTop = false) const;
-	CGObjectInstance * topVisitableObj(bool excludeTop = false) const;
+	ObjectInstanceID topVisitableObj(bool excludeTop = false) const;
 	inline bool isWater() const;
 	inline bool isLand() const;
 	EDiggingStatus getDiggingStatus(bool excludeTop = true) const;
@@ -141,57 +127,37 @@ struct DLL_LINKAGE TerrainTile
 	///	7th bit - whether tile is coastal (allows disembarking if land or block movement if water); 8th bit - Favorable Winds effect
 	ui8 extTileFlags;
 
-	std::vector<CGObjectInstance *> visitableObjects;
-	std::vector<CGObjectInstance *> blockingObjects;
+	std::vector<ObjectInstanceID> visitableObjects;
+	std::vector<ObjectInstanceID> blockingObjects;
 
 	template <typename Handler>
 	void serialize(Handler & h)
 	{
-		if (h.version >= Handler::Version::REMOVE_VLC_POINTERS)
-		{
-			h & terrainType;
-		}
-		else
-		{
-			bool isNull = false;
-			h & isNull;
-			if (!isNull)
-				h & terrainType;
-		}
+		h & terrainType;
 		h & terView;
-		if (h.version >= Handler::Version::REMOVE_VLC_POINTERS)
-		{
-			h & riverType;
-		}
-		else
-		{
-			bool isNull = false;
-			h & isNull;
-			if (!isNull)
-				h & riverType;
-		}
+		h & riverType;
 		h & riverDir;
-		if (h.version >= Handler::Version::REMOVE_VLC_POINTERS)
-		{
-			h & roadType;
-		}
-		else
-		{
-			bool isNull = false;
-			h & isNull;
-			if (!isNull)
-				h & roadType;
-		}
+		h & roadType;
 		h & roadDir;
 		h & extTileFlags;
-		if (h.version < Handler::Version::REMOVE_VLC_POINTERS)
+
+		if (h.hasFeature(Handler::Version::NO_RAW_POINTERS_IN_SERIALIZER))
 		{
-			bool unused = false;
-			h & unused;
-			h & unused;
+			h & visitableObjects;
+			h & blockingObjects;
 		}
-		h & visitableObjects;
-		h & blockingObjects;
+		else
+		{
+			std::vector<std::shared_ptr<CGObjectInstance>> objectPtrs;
+			h & objectPtrs;
+			for (const auto & ptr : objectPtrs)
+				visitableObjects.push_back(ptr->id);
+			h & objectPtrs;
+			for (const auto & ptr : objectPtrs)
+				blockingObjects.push_back(ptr->id);
+		}
+
+
 	}
 };
 
@@ -232,17 +198,17 @@ inline bool TerrainTile::hasRoad() const
 
 inline const TerrainType * TerrainTile::getTerrain() const
 {
-	return terrainType.toEntity(VLC);
+	return terrainType.toEntity(LIBRARY);
 }
 
 inline const RiverType * TerrainTile::getRiver() const
 {
-	return riverType.toEntity(VLC);
+	return riverType.toEntity(LIBRARY);
 }
 
 inline const RoadType * TerrainTile::getRoad() const
 {
-	return roadType.toEntity(VLC);
+	return roadType.toEntity(LIBRARY);
 }
 
 inline TerrainId TerrainTile::getTerrainID() const

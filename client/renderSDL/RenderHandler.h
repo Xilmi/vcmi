@@ -24,15 +24,15 @@ class RenderHandler final : public IRenderHandler
 {
 	using AnimationLayoutMap = std::map<size_t, std::vector<ImageLocator>>;
 
-	std::map<AnimationPath, std::shared_ptr<CDefFile>> animationFiles;
+	std::map<AnimationPath, std::weak_ptr<CDefFile>> animationFiles;
 	std::map<AnimationPath, AnimationLayoutMap> animationLayouts;
-	std::map<SharedImageLocator, std::shared_ptr<ScalableImageShared>> imageFiles;
+	std::map<SharedImageLocator, std::weak_ptr<ScalableImageShared>> imageFiles;
 	std::map<EFonts, std::shared_ptr<const IFont>> fonts;
 	std::unique_ptr<AssetGenerator> assetGenerator;
 
 	std::shared_ptr<CDefFile> getAnimationFile(const AnimationPath & path);
 	AnimationLayoutMap & getAnimationLayout(const AnimationPath & path, int scalingFactor, EImageBlitMode mode);
-	void initFromJson(AnimationLayoutMap & layout, const JsonNode & config, EImageBlitMode mode);
+	void initFromJson(AnimationLayoutMap & layout, const JsonNode & config, EImageBlitMode mode) const;
 
 	void addImageListEntry(size_t index, size_t group, const std::string & listName, const std::string & imageName);
 	void addImageListEntries(const EntityService * service);

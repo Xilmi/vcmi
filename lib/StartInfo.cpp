@@ -11,7 +11,7 @@
 #include "StartInfo.h"
 
 #include "texts/CGeneralTextHandler.h"
-#include "VCMI_Lib.h"
+#include "GameLibrary.h"
 #include "entities/faction/CFaction.h"
 #include "entities/faction/CTownHandler.h"
 #include "entities/hero/CHeroHandler.h"
@@ -33,7 +33,7 @@ FactionID PlayerSettings::getCastleValidated() const
 {
 	if (!castle.isValid())
 		return FactionID(0);
-	if (castle.getNum() < VLC->townh->size() && castle.toEntity(VLC)->hasTown())
+	if (castle.getNum() < LIBRARY->townh->size() && castle.toEntity(LIBRARY)->hasTown())
 		return castle;
 
 	return FactionID(0);
@@ -43,7 +43,7 @@ HeroTypeID PlayerSettings::getHeroValidated() const
 {
 	if (!hero.isValid())
 		return HeroTypeID(0);
-	if (hero.getNum() < VLC->heroh->size())
+	if (hero.getNum() < LIBRARY->heroh->size())
 		return hero;
 
 	return HeroTypeID(0);
@@ -87,31 +87,18 @@ std::string StartInfo::getCampaignName() const
 	if(!campState->getNameTranslated().empty())
 		return campState->getNameTranslated();
 	else
-		return VLC->generaltexth->allTexts[508];
+		return LIBRARY->generaltexth->allTexts[508];
 }
 
-bool StartInfo::isRestorationOfErathiaCampaign() const
+bool StartInfo::restrictedGarrisonsForAI() const
 {
-	constexpr std::array roeCampaigns = {
-		"DATA/GOOD1",
-		"DATA/EVIL1",
-		"DATA/GOOD2",
-		"DATA/NEUTRAL1",
-		"DATA/EVIL2",
-		"DATA/GOOD3",
-		"DATA/SECRET1",
-	};
-
-	if (!campState)
-		return false;
-
-	return vstd::contains(roeCampaigns, campState->getFilename());
+	return campState && campState->restrictedGarrisonsForAI();
 }
 
 void LobbyInfo::verifyStateBeforeStart(bool ignoreNoHuman) const
 {
 	if(!mi || !mi->mapHeader)
-		throw std::domain_error(VLC->generaltexth->translate("core.genrltxt.529"));
+		throw std::domain_error(LIBRARY->generaltexth->translate("core.genrltxt.529"));
 	
 	auto missingMods = CMapService::verifyMapHeaderMods(*mi->mapHeader);
 	ModIncompatibility::ModList modList;
@@ -128,12 +115,12 @@ void LobbyInfo::verifyStateBeforeStart(bool ignoreNoHuman) const
 			break;
 
 	if(i == si->playerInfos.cend() && !ignoreNoHuman)
-		throw std::domain_error(VLC->generaltexth->translate("core.genrltxt.530"));
+		throw std::domain_error(LIBRARY->generaltexth->translate("core.genrltxt.530"));
 
 	if(si->mapGenOptions && si->mode == EStartMode::NEW_GAME)
 	{
 		if(!si->mapGenOptions->checkOptions())
-			throw std::domain_error(VLC->generaltexth->translate("core.genrltxt.751"));
+			throw std::domain_error(LIBRARY->generaltexth->translate("core.genrltxt.751"));
 	}
 }
 

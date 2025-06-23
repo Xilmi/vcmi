@@ -63,8 +63,7 @@ struct DLL_LINKAGE StatisticDataSetEntry
 		h & timestamp;
 		h & day;
 		h & player;
-		if(h.version >= Handler::Version::STATISTICS_SCREEN)
-			h & playerName;
+		h & playerName;
 		h & team;
 		h & isHuman;
 		h & status;
@@ -92,11 +91,8 @@ struct DLL_LINKAGE StatisticDataSetEntry
 		h & spentResourcesForArmy;
 		h & spentResourcesForBuildings;
 		h & tradeVolume;
-		if(h.version >= Handler::Version::STATISTICS_SCREEN)
-		{
-			h & eventCapturedTown;
-			h & eventDefeatedStrongestHero;
-		}
+		h & eventCapturedTown;
+		h & eventDefeatedStrongestHero;
 		h & movementPointsUsed;
 	}
 };
@@ -104,10 +100,10 @@ struct DLL_LINKAGE StatisticDataSetEntry
 class DLL_LINKAGE StatisticDataSet
 {
 public:
-    void add(StatisticDataSetEntry entry);
-	static StatisticDataSetEntry createEntry(const PlayerState * ps, const CGameState * gs);
-    std::string toCsv(std::string sep);
-    std::string writeCsv();
+	void add(StatisticDataSetEntry entry);
+	static StatisticDataSetEntry createEntry(const PlayerState * ps, const CGameState * gs, const StatisticDataSet & accumulatedData);
+	std::string toCsv(std::string sep) const;
+	std::string writeCsv() const;
 
 	struct PlayerAccumulatedValueStorage // holds some actual values needed for stats
 	{
@@ -136,11 +132,8 @@ public:
 			h & spentResourcesForBuildings;
 			h & tradeVolume;
 			h & movementPointsUsed;
-			if(h.version >= Handler::Version::STATISTICS_SCREEN)
-			{
-				h & lastCapturedTownDay;
-				h & lastDefeatedStrongestHeroDay;
-			}
+			h & lastCapturedTownDay;
+			h & lastDefeatedStrongestHeroDay;
 		}
 	};
 	std::vector<StatisticDataSetEntry> data;
@@ -155,7 +148,6 @@ public:
 
 class DLL_LINKAGE Statistic
 {
-	static std::vector<const CGMine *> getMines(const CGameState * gs, const PlayerState * ps);
 public:
 	static int getNumberOfArts(const PlayerState * ps);
 	static int getNumberOfDwellings(const PlayerState * ps);

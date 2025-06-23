@@ -14,9 +14,8 @@
 #include "MapView.h"
 #include "MapViewModel.h"
 
-#include "../CGameInfo.h"
 #include "../adventureMap/AdventureMapInterface.h"
-#include "../gui/CGuiHandler.h"
+#include "../GameEngine.h"
 #include "../gui/CursorHandler.h"
 #include "../gui/MouseButton.h"
 
@@ -109,6 +108,9 @@ void MapViewActions::mouseDragged(const Point & cursorPosition, const Point & la
 
 void MapViewActions::mouseDraggedPopup(const Point & cursorPosition, const Point & lastUpdateDistance)
 {
+	if(!settings["adventure"]["rightButtonDrag"].Bool())
+		return;
+
 	dragActive = true;
 	owner.onMapSwiped(lastUpdateDistance);
 }
@@ -144,7 +146,7 @@ void MapViewActions::handleHover(const Point & cursorPosition)
 
 	if(!context->isInMap(tile))
 	{
-		CCS->curh->set(Cursor::Map::POINTER);
+		ENGINE->cursor().set(Cursor::Map::POINTER);
 		return;
 	}
 
@@ -155,7 +157,7 @@ void MapViewActions::hover(bool on)
 {
 	if(!on)
 	{
-		GH.statusbar()->clear();
-		CCS->curh->set(Cursor::Map::POINTER);
+		ENGINE->statusbar()->clear();
+		ENGINE->cursor().set(Cursor::Map::POINTER);
 	}
 }

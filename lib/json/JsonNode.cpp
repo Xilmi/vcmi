@@ -15,6 +15,8 @@
 #include "JsonWriter.h"
 #include "filesystem/Filesystem.h"
 
+#include <boost/lexical_cast.hpp>
+
 // to avoid duplicating const and non-const code
 template<typename Node>
 Node & resolvePointer(Node & in, const std::string & pointer)
@@ -48,7 +50,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 
 static const JsonNode nullNode;
 
-class LibClasses;
+class GameLibrary;
 class CModHandler;
 
 JsonNode::JsonNode(bool boolean)

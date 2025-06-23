@@ -14,7 +14,7 @@
 #include "ScalableImage.h"
 #include "FontChain.h"
 
-#include "../gui/CGuiHandler.h"
+#include "../GameEngine.h"
 
 #include "../render/AssetGenerator.h"
 #include "../render/CAnimation.h"
@@ -58,13 +58,14 @@ std::shared_ptr<CDefFile> RenderHandler::getAnimationFile(const AnimationPath & 
 	auto it = animationFiles.find(actualPath);
 
 	if (it != animationFiles.end())
-		return it->second;
+	{
+		auto locked = it->second.lock();
+		if (locked)
+			return locked;
+	}
 
 	if (!CResourceHandler::get()->existsResource(actualPath))
-	{
-		animationFiles[actualPath] = nullptr;
 		return nullptr;
-	}
 
 	auto result = std::make_shared<CDefFile>(actualPath);
 
@@ -72,7 +73,7 @@ std::shared_ptr<CDefFile> RenderHandler::getAnimationFile(const AnimationPath & 
 	return result;
 }
 
-void RenderHandler::initFromJson(AnimationLayoutMap & source, const JsonNode & config, EImageBlitMode mode)
+void RenderHandler::initFromJson(AnimationLayoutMap & source, const JsonNode & config, EImageBlitMode mode) const
 {
 	std::string basepath;
 	basepath = config["basepath"].String();
@@ -155,20 +156,13 @@ RenderHandler::AnimationLayoutMap & RenderHandler::getAnimationLayout(const Anim
 
 	for(auto & loader : configList)
 	{
-		try {
-			auto stream = loader->load(jsonResource);
-			std::unique_ptr<ui8[]> textData(new ui8[stream->getSize()]);
-			stream->read(textData.get(), stream->getSize());
+		auto stream = loader->load(jsonResource);
+		std::unique_ptr<ui8[]> textData(new ui8[stream->getSize()]);
+		stream->read(textData.get(), stream->getSize());
 
-			const JsonNode config(reinterpret_cast<const std::byte*>(textData.get()), stream->getSize(), path.getOriginalName());
+		const JsonNode config(reinterpret_cast<const std::byte*>(textData.get()), stream->getSize(), path.getOriginalName());
 
-			initFromJson(result, config, mode);
-		}
-		catch (const DataLoadingException & e)
-		{
-			// FIXME: sometimes triggered by generated animation assets, e.g. lava/water tiles
-			logGlobal->error("Failed to load animation file! Reason: %s", e.what());
-		}
+		initFromJson(result, config, mode);
 	}
 
 	animationLayouts[actualPath] = result;
@@ -177,7 +171,7 @@ RenderHandler::AnimationLayoutMap & RenderHandler::getAnimationLayout(const Anim
 
 int RenderHandler::getScalingFactor() const
 {
-	return GH.screenHandler().getScalingFactor();
+	return ENGINE->screenHandler().getScalingFactor();
 }
 
 ImageLocator RenderHandler::getLocatorForAnimationFrame(const AnimationPath & path, int frame, int group, int scaling, EImageBlitMode mode)
@@ -200,7 +194,11 @@ std::shared_ptr<ScalableImageShared> RenderHandler::loadImageImpl(const ImageLoc
 {
 	auto it = imageFiles.find(locator);
 	if (it != imageFiles.end())
-		return it->second;
+	{
+		auto locked = it->second.lock();
+		if (locked)
+			return locked;
+	}
 
 	auto sdlImage = loadImageFromFileUncached(locator);
 	auto scaledImage = std::make_shared<ScalableImageShared>(locator, sdlImage);

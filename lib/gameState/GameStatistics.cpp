@@ -31,7 +31,7 @@ void StatisticDataSet::add(StatisticDataSetEntry entry)
 	data.push_back(entry);
 }
 
-StatisticDataSetEntry StatisticDataSet::createEntry(const PlayerState * ps, const CGameState * gs)
+StatisticDataSetEntry StatisticDataSet::createEntry(const PlayerState * ps, const CGameState * gs, const StatisticDataSet & accumulatedData)
 {
 	StatisticDataSetEntry data;
 
@@ -40,7 +40,7 @@ StatisticDataSetEntry StatisticDataSet::createEntry(const PlayerState * ps, cons
 	scenarioHighScores.parameters.push_back(param);
 	scenarioHighScores.isCampaign = false;
 
-	data.map = gs->map->name.toString();
+	data.map = gs->getMap().name.toString();
 	data.timestamp = std::time(nullptr);
 	data.day = gs->getDate(Date::DAY);
 	data.player = ps->color;
@@ -63,23 +63,23 @@ StatisticDataSetEntry StatisticDataSet::createEntry(const PlayerState * ps, cons
 	data.numMines = Statistic::getNumMines(gs, ps);
 	data.score = scenarioHighScores.calculate().total;
 	data.maxHeroLevel = Statistic::findBestHero(gs, ps->color) ? Statistic::findBestHero(gs, ps->color)->level : 0;
-	data.numBattlesNeutral = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).numBattlesNeutral : 0;
-	data.numBattlesPlayer = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).numBattlesPlayer : 0;
-	data.numWinBattlesNeutral = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).numWinBattlesNeutral : 0;
-	data.numWinBattlesPlayer = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).numWinBattlesPlayer : 0;
-	data.numHeroSurrendered = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).numHeroSurrendered : 0;
-	data.numHeroEscaped = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).numHeroEscaped : 0;
-	data.spentResourcesForArmy = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).spentResourcesForArmy : TResources();
-	data.spentResourcesForBuildings = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).spentResourcesForBuildings : TResources();
-	data.tradeVolume = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).tradeVolume : TResources();
-	data.eventCapturedTown = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).lastCapturedTownDay == gs->getDate(Date::DAY) : false;
-	data.eventDefeatedStrongestHero = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).lastDefeatedStrongestHeroDay == gs->getDate(Date::DAY) : false;
-	data.movementPointsUsed = gs->statistic.accumulatedValues.count(ps->color) ? gs->statistic.accumulatedValues.at(ps->color).movementPointsUsed : 0;
+	data.numBattlesNeutral = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).numBattlesNeutral : 0;
+	data.numBattlesPlayer = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).numBattlesPlayer : 0;
+	data.numWinBattlesNeutral = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).numWinBattlesNeutral : 0;
+	data.numWinBattlesPlayer = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).numWinBattlesPlayer : 0;
+	data.numHeroSurrendered = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).numHeroSurrendered : 0;
+	data.numHeroEscaped = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).numHeroEscaped : 0;
+	data.spentResourcesForArmy = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).spentResourcesForArmy : TResources();
+	data.spentResourcesForBuildings = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).spentResourcesForBuildings : TResources();
+	data.tradeVolume = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).tradeVolume : TResources();
+	data.eventCapturedTown = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).lastCapturedTownDay == gs->getDate(Date::DAY) : false;
+	data.eventDefeatedStrongestHero = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).lastDefeatedStrongestHeroDay == gs->getDate(Date::DAY) : false;
+	data.movementPointsUsed = accumulatedData.accumulatedValues.count(ps->color) ? accumulatedData.accumulatedValues.at(ps->color).movementPointsUsed : 0;
 
 	return data;
 }
 
-std::string StatisticDataSet::toCsv(std::string sep)
+std::string StatisticDataSet::toCsv(std::string sep) const
 {
 	std::stringstream ss;
 
@@ -162,7 +162,7 @@ std::string StatisticDataSet::toCsv(std::string sep)
 		for(auto & resource : resources)
 			ss << sep << entry.resources[resource];
 		for(auto & resource : resources)
-			ss << sep << entry.numMines[resource];
+			ss << sep << entry.numMines.at(resource);
 		for(auto & resource : resources)
 			ss << sep << entry.spentResourcesForArmy[resource];
 		for(auto & resource : resources)
@@ -175,7 +175,7 @@ std::string StatisticDataSet::toCsv(std::string sep)
 	return ss.str();
 }
 
-std::string StatisticDataSet::writeCsv()
+std::string StatisticDataSet::writeCsv() const
 {
 	const boost::filesystem::path outPath = VCMIDirs::get().userCachePath() / "statistic";
 	boost::filesystem::create_directories(outPath);
@@ -186,34 +186,6 @@ std::string StatisticDataSet::writeCsv()
 	file << csv;
 
 	return filePath.string();
-}
-
-std::vector<const CGMine *> Statistic::getMines(const CGameState * gs, const PlayerState * ps)
-{
-	std::vector<const CGMine *> tmp;
-
-	std::vector<const CGObjectInstance *> ownedObjects;
-	for(const CGObjectInstance * obj : gs->map->objects)
-	{
-		if(obj && obj->tempOwner == ps->color)
-			ownedObjects.push_back(obj);
-	}
-	/// This is code from CPlayerSpecificInfoCallback::getMyObjects
-	/// I'm really need to find out about callback interface design...
-
-	for(const auto * object : ownedObjects)
-	{
-		//Mines
-		if ( object->ID == Obj::MINE )
-		{
-			const auto * mine = dynamic_cast<const CGMine *>(object);
-			assert(mine);
-
-			tmp.push_back(mine);
-		}
-	}
-
-	return tmp;
 }
 
 //calculates total number of artifacts that belong to given player
@@ -244,7 +216,7 @@ si64 Statistic::getArmyStrength(const PlayerState * ps, bool withTownGarrison)
 
 	for(auto h : ps->getHeroes())
 	{
-		if(!h->inTownGarrison || withTownGarrison)		//original h3 behavior
+		if(!h->isGarrisoned() || withTownGarrison)		//original h3 behavior
 			str += h->getArmyStrength();
 	}
 	return str;
@@ -267,15 +239,8 @@ int Statistic::getIncome(const CGameState * gs, const PlayerState * ps)
 	int totalIncome = 0;
 
 	//Heroes can produce gold as well - skill, specialty or arts
-	for(const auto & h : ps->getHeroes())
-		totalIncome += h->dailyIncome()[EGameResID::GOLD];
-
-	//Add town income of all towns
-	for(const auto & t : ps->getTowns())
-		totalIncome += t->dailyIncome()[EGameResID::GOLD];
-
-	for(const CGMine * mine : getMines(gs, ps))
-			totalIncome += mine->dailyIncome()[EGameResID::GOLD];
+	for(const auto & object : ps->getOwnedObjects())
+		totalIncome += object->asOwnable()->dailyIncome()[EGameResID::GOLD];
 
 	return totalIncome;
 }
@@ -285,16 +250,16 @@ float Statistic::getMapExploredRatio(const CGameState * gs, PlayerColor player)
 	float visible = 0.0;
 	float numTiles = 0.0;
 
-	for(int layer = 0; layer < (gs->map->twoLevel ? 2 : 1); layer++)
-		for(int y = 0; y < gs->map->height; ++y)
-			for(int x = 0; x < gs->map->width; ++x)
+	for(int layer = 0; layer < (gs->getMap().twoLevel ? 2 : 1); layer++)
+		for(int y = 0; y < gs->getMap().height; ++y)
+			for(int x = 0; x < gs->getMap().width; ++x)
 			{
-				TerrainTile tile = gs->map->getTile(int3(x, y, layer));
+				TerrainTile tile = gs->getMap().getTile(int3(x, y, layer));
 
 				if(tile.blocked() && !tile.visitable())
 					continue;
 
-				if(gs->isVisible(int3(x, y, layer), player))
+				if(gs->isVisibleFor(int3(x, y, layer), player))
 					visible++;
 				numTiles++;
 			}
@@ -346,17 +311,17 @@ std::vector<std::vector<PlayerColor>> Statistic::getRank(std::vector<std::pair<P
 
 int Statistic::getObeliskVisited(const CGameState * gs, const TeamID & t)
 {
-	if(gs->map->obelisksVisited.count(t))
-		return gs->map->obelisksVisited.at(t);
+	if(gs->getMap().obelisksVisited.count(t))
+		return gs->getMap().obelisksVisited.at(t);
 	else
 		return 0;
 }
 
 float Statistic::getObeliskVisitedRatio(const CGameState * gs, const TeamID & t)
 {
-	if(!gs->map->obeliskCount)
+	if(!gs->getMap().obeliskCount)
 		return 0;
-	return static_cast<float>(getObeliskVisited(gs, t)) / gs->map->obeliskCount;
+	return static_cast<float>(getObeliskVisited(gs, t)) / gs->getMap().obeliskCount;
 }
 
 std::map<EGameResID, int> Statistic::getNumMines(const CGameState * gs, const PlayerState * ps)
@@ -366,9 +331,16 @@ std::map<EGameResID, int> Statistic::getNumMines(const CGameState * gs, const Pl
 	for(auto & res : EGameResID::ALL_RESOURCES())
 		tmp[res] = 0;
 
-	for(const CGMine * mine : getMines(gs, ps))
-		tmp[mine->producedResource]++;
-	
+	for(const auto * object : ps->getOwnedObjects())
+	{
+		//Mines
+		if(object->ID == Obj::MINE || object->ID == Obj::ABANDONED_MINE)
+		{
+			const auto * mine = dynamic_cast<const CGMine *>(object);
+			assert(mine);
+			tmp[mine->producedResource]++;
+		}
+	}
 	return tmp;
 }
 

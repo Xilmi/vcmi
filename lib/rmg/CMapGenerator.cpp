@@ -12,16 +12,16 @@
 
 #include "../mapping/CMap.h"
 #include "../mapping/MapFormat.h"
-#include "../VCMI_Lib.h"
+#include "../GameLibrary.h"
 #include "../texts/CGeneralTextHandler.h"
 #include "../CRandomGenerator.h"
+#include "../entities/artifact/CArtHandler.h"
 #include "../entities/faction/CTownHandler.h"
 #include "../entities/faction/CFaction.h"
 #include "../entities/hero/CHero.h"
 #include "../mapObjectConstructors/AObjectTypeHandler.h"
 #include "../mapObjectConstructors/CObjectClassesHandler.h"
 #include "../mapping/CMapEditManager.h"
-#include "../CArtHandler.h"
 #include "../constants/StringConstants.h"
 #include "../filesystem/Filesystem.h"
 #include "CZonePlacer.h"
@@ -29,7 +29,6 @@
 #include "Zone.h"
 #include "Functions.h"
 #include "RmgMap.h"
-#include "threadpool/ThreadPool.h"
 #include "modificators/ObjectManager.h"
 #include "modificators/TreasurePlacer.h"
 #include "modificators/RoadPlacer.h"
@@ -37,9 +36,11 @@
 #include <vstd/RNG.h>
 #include <vcmi/HeroTypeService.h>
 
+#include <tbb/task_group.h>
+
 VCMI_LIB_NAMESPACE_BEGIN
 
-CMapGenerator::CMapGenerator(CMapGenOptions& mapGenOptions, IGameCallback * cb, int RandomSeed) :
+CMapGenerator::CMapGenerator(CMapGenOptions& mapGenOptions, IGameInfoCallback * cb, int RandomSeed) :
 	mapGenOptions(mapGenOptions), randomSeed(RandomSeed),
 	monolithIndex(0),
 	rand(std::make_unique<CRandomGenerator>(RandomSeed))
@@ -105,11 +106,11 @@ const CMapGenOptions& CMapGenerator::getMapGenOptions() const
 void CMapGenerator::initQuestArtsRemaining()
 {
 	//TODO: Move to QuestArtifactPlacer?
-	for (auto artID : VLC->arth->getDefaultAllowed())
+	for (auto artID : LIBRARY->arth->getDefaultAllowed())
 	{
 		auto art = artID.toArtifact();
 		//Don't use parts of combined artifacts
-		if (art->aClass == CArtifact::ART_TREASURE && VLC->arth->legalArtifact(art->getId()) && art->getPartOf().empty())
+		if (art->aClass == EArtifactClass::ART_TREASURE && LIBRARY->arth->legalArtifact(art->getId()) && art->getPartOf().empty())
 			questArtifacts.push_back(art->getId());
 	}
 }
@@ -395,10 +396,7 @@ void CMapGenerator::fillZones()
 	}
 	else
 	{
-		ThreadPool pool;
-		std::vector<boost::future<void>> futures;
-		//At most one Modificator can run for every zone
-		pool.init(std::min<int>(boost::thread::hardware_concurrency(), numZones));
+		tbb::task_group pool;
 
 		while (!allJobs.empty())
 		{
@@ -412,12 +410,12 @@ void CMapGenerator::fillZones()
 				else if ((*it)->isReady())
 				{
 					auto jobCopy = *it;
-					futures.emplace_back(pool.async([this, jobCopy]() -> void
+					pool.run([this, jobCopy]() -> void
 						{
 							jobCopy->run();
 							Progress::Progress::step(); //Update progress bar
 						}
-					));
+					);
 					it = allJobs.erase(it);
 				}
 				else
@@ -428,10 +426,7 @@ void CMapGenerator::fillZones()
 		}
 
 		//Wait for all the tasks
-		for (auto& fut : futures)
-		{
-			fut.get();
-		}
+		pool.wait();
 	}
 
 	for (const auto& it : map->getZones())
@@ -477,12 +472,12 @@ int CMapGenerator::getNextMonlithIndex()
 {
 	while (true)
 	{
-		if (monolithIndex >= VLC->objtypeh->knownSubObjects(Obj::MONOLITH_TWO_WAY).size())
+		if (monolithIndex >= LIBRARY->objtypeh->knownSubObjects(Obj::MONOLITH_TWO_WAY).size())
 			throw rmgException(boost::str(boost::format("There is no Monolith Two Way with index %d available!") % monolithIndex));
 		else
 		{
 			//Skip modded Monoliths which can't beplaced on every terrain
-			auto templates = VLC->objtypeh->getHandlerFor(Obj::MONOLITH_TWO_WAY, monolithIndex)->getTemplates();
+			auto templates = LIBRARY->objtypeh->getHandlerFor(Obj::MONOLITH_TWO_WAY, monolithIndex)->getTemplates();
 			if (templates.empty() || !templates[0]->canBePlacedAtAnyTerrain())
 			{
 				monolithIndex++;
@@ -513,7 +508,7 @@ const std::vector<HeroTypeID> CMapGenerator::getAllPossibleHeroes() const
 
 	for (HeroTypeID hero : map->getMap(this).allowedHeroes)
 	{
-		auto * h = dynamic_cast<const CHero*>(VLC->heroTypes()->getById(hero));
+		auto * h = dynamic_cast<const CHero*>(LIBRARY->heroTypes()->getById(hero));
 		if(h->onlyOnWaterMap && !isWaterMap)
 			continue;
 

@@ -103,7 +103,7 @@ class CServerHandler final : public IServerAPI, public LobbyInfo, public INetwor
 	std::shared_ptr<CMapInfo> mapToStart;
 	std::vector<std::string> localPlayerNames;
 
-	boost::thread threadNetwork;
+	std::thread threadNetwork;
 
 	std::atomic<EClientState> state;
 
@@ -200,7 +200,7 @@ public:
 	bool validateGameStart(bool allowOnlyAI = false) const;
 	void debugStartTest(std::string filename, bool save = false);
 
-	void startGameplay(VCMI_LIB_WRAP_NAMESPACE(CGameState) * gameState = nullptr);
+	void startGameplay(std::shared_ptr<CGameState> gameState);
 	void showHighScoresAndEndGameplay(PlayerColor player, bool victory, const StatisticDataSet & statistic);
 	void endNetwork();
 	void endGameplay();
@@ -215,5 +215,3 @@ public:
 	void visitForLobby(CPackForLobby & lobbyPack);
 	void visitForClient(CPackForClient & clientPack);
 };
-
-extern CServerHandler * CSH;

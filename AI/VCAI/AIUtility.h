@@ -9,15 +9,14 @@
  */
 #pragma once
 
-#include "../../lib/VCMI_Lib.h"
+#include "../../lib/GameLibrary.h"
 #include "../../lib/CCreatureHandler.h"
 #include "../../lib/spells/CSpellHandler.h"
 #include "../../lib/CStopWatch.h"
 #include "../../lib/mapObjects/CGHeroInstance.h"
-#include "../../CCallback.h"
+#include "../../lib/callback/CCallback.h"
 
 class VCAI;
-class CCallback;
 struct creInfo;
 
 using crint3 = const int3 &;
