@@ -9,7 +9,7 @@
  */
 #include "StdInc.h"
 #include "EditorCallback.h"
-#include "../lib/mapping/CMap.h"
+#include "../mapping/CMap.h"
 
 #define THROW_EDITOR_UNSUPPORTED \
 	throw std::runtime_error(std::string("EditorCallback: ") + __func__ + " is not available in map editor")
@@ -27,9 +27,14 @@ EditorCallback::EditorCallback(const CMap * map)
 	: map(map)
 {}
 
-void EditorCallback::setMap(const CMap * map)
+void EditorCallback::setMap(const CMap * newMap)
 {
-	this->map = map;
+	map = newMap;
+}
+
+const scripting::Pool & EditorCallback::getScriptContextPool() const
+{
+	THROW_EDITOR_UNSUPPORTED;
 }
 
 CGameState & EditorCallback::gameState()
@@ -52,12 +57,17 @@ int EditorCallback::getDate(Date mode) const
 	THROW_EDITOR_UNSUPPORTED;
 }
 
-const TerrainTile * EditorCallback::getTile(int3, bool) const
+const TerrainTile * EditorCallback::getTile(int3 tile, bool) const
+{
+	return &map->getTile(tile);
+}
+
+const TerrainTile * EditorCallback::getTileUnchecked(int3) const
 {
 	THROW_EDITOR_UNSUPPORTED;
 }
 
-const TerrainTile * EditorCallback::getTileUnchecked(int3) const
+bool EditorCallback::isTileGuardedUnchecked(int3 tile) const
 {
 	THROW_EDITOR_UNSUPPORTED;
 }
@@ -92,12 +102,12 @@ std::vector<const CGObjectInstance*> EditorCallback::getGuardingCreatures(int3) 
 	THROW_EDITOR_UNSUPPORTED;
 }
 
-void EditorCallback::getTilesInRange(std::unordered_set<int3> &, const int3 &, int, ETileVisibility, std::optional<PlayerColor>, int3::EDistanceFormula) const
+void EditorCallback::getTilesInRange(FowTilesType &, const int3 &, int, ETileVisibility, std::optional<PlayerColor>, int3::EDistanceFormula) const
 {
 	THROW_EDITOR_UNSUPPORTED;
 }
 
-void EditorCallback::getAllTiles(std::unordered_set<int3> &, std::optional<PlayerColor>, int, std::function<bool(const TerrainTile *)>) const
+void EditorCallback::getAllTiles(FowTilesType &, std::optional<PlayerColor>, int, const std::function<bool(const TerrainTile *)> &) const
 {
 	THROW_EDITOR_UNSUPPORTED;
 }
@@ -146,13 +156,6 @@ bool EditorCallback::isVisibleFor(const CGObjectInstance *obj, PlayerColor playe
 {
 	THROW_EDITOR_UNSUPPORTED;
 }
-
-#if SCRIPTING_ENABLED
-scripting::Pool * EditorCallback::getGlobalContextPool() const
-{
-	THROW_EDITOR_UNSUPPORTED;
-}
-#endif
 
 const TeamState * EditorCallback::getTeam(TeamID) const
 {

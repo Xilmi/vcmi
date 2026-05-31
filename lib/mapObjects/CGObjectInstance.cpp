@@ -1,5 +1,5 @@
 /*
- * CObjectHandler.cpp, part of VCMI engine
+ * CGObjectInstance.cpp, part of VCMI engine
  *
  * Authors: listed in file AUTHORS in main folder
  *
@@ -20,6 +20,8 @@
 #include "../texts/CGeneralTextHandler.h"
 #include "../constants/StringConstants.h"
 #include "../TerrainHandler.h"
+#include "../BattleFieldHandler.h"
+#include "../CRandomGenerator.h"
 #include "../mapObjectConstructors/AObjectTypeHandler.h"
 #include "../mapObjectConstructors/CObjectClassesHandler.h"
 #include "../mapping/CMap.h"
@@ -178,10 +180,6 @@ void CGObjectInstance::setProperty( ObjProperty what, ObjPropertyID identifier )
 	{
 	case ObjProperty::OWNER:
 		tempOwner = identifier.as<PlayerColor>();
-		break;
-	case ObjProperty::BLOCKVIS:
-		// Never actually used in code, but possible in ERM
-		blockVisit = identifier.getNum();
 		break;
 	case ObjProperty::ID:
 		ID = identifier.as<MapObjectID>();
@@ -367,6 +365,7 @@ void CGObjectInstance::serializeJson(JsonSerializeFormat & handler)
 
 		handler.serializeString("type", ourTypeName);
 		handler.serializeString("subtype", ourSubtypeName);
+		handler.serializeString("instanceName", instanceName);
 
 		handler.serializeInt("x", pos.x);
 		handler.serializeInt("y", pos.y);
@@ -394,7 +393,13 @@ void CGObjectInstance::serializeJsonOwner(JsonSerializeFormat & handler)
 
 BattleField CGObjectInstance::getBattlefield() const
 {
-	return LIBRARY->objtypeh->getHandlerFor(ID, subID)->getBattlefield();
+	auto currentLayer = cb->gameState().getMap().mapLayers.at(pos.z);
+	const auto & objectBattlefields = LIBRARY->objtypeh->getHandlerFor(ID, subID)->getBattlefields();
+
+	if (objectBattlefields.empty())
+		return BattleField::NONE;
+
+	return BattleFieldHandler::selectRandomBattlefield(objectBattlefields, currentLayer, CRandomGenerator::getDefault());
 }
 
 const IOwnableObject * CGObjectInstance::asOwnable() const

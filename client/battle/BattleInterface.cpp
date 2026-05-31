@@ -48,6 +48,7 @@
 #include "../../lib/gameState/InfoAboutArmy.h"
 #include "../../lib/mapObjects/CGTownInstance.h"
 #include "../../lib/networkPacks/PacksForClientBattle.h"
+#include "../../lib/spells/CSpell.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
 
 BattleInterface::BattleInterface(const BattleID & battleID, const CCreatureSet *army1, const CCreatureSet *army2,
@@ -267,6 +268,12 @@ void BattleInterface::newRound()
 
 void BattleInterface::giveCommand(EActionType action, const BattleHex & tile, SpellID spell)
 {
+	std::vector<BattleHex> tiles = {tile};
+	giveCommand(action, tiles, spell);
+}
+
+void BattleInterface::giveCommand(EActionType action, const std::vector<BattleHex> & tiles,  SpellID spell)
+{
 	const CStack * actor = nullptr;
 	if(action != EActionType::HERO_SPELL && action != EActionType::RETREAT && action != EActionType::SURRENDER)
 	{
@@ -283,7 +290,9 @@ void BattleInterface::giveCommand(EActionType action, const BattleHex & tile, Sp
 	BattleAction ba;
 	ba.side = side;
 	ba.actionType = action;
-	ba.aimToHex(tile);
+
+	for(auto & tile : tiles)
+		ba.aimToHex(tile);
 	ba.spell = spell;
 
 	sendCommand(ba, actor);
@@ -364,6 +373,8 @@ void BattleInterface::battleFinished(const BattleResult& br, QueryID queryID)
 
 void BattleInterface::spellCast(const BattleSpellCast * sc)
 {
+	waitForAnimations();
+
 	// Do not deactivate anything in tactics mode
 	// This is battlefield setup spells
 	if(!tacticsMode)
@@ -404,6 +415,14 @@ void BattleInterface::spellCast(const BattleSpellCast * sc)
 
 		if(casterStack != nullptr )
 		{
+			if (stacksController->shouldRotate(casterStack, casterStack->getPosition(), targetedTile))
+			{
+				addToAnimationStage(EAnimationEvents::MOVEMENT, [this, casterStack]()
+				{
+					stacksController->addNewAnim(new ReverseAnimation(*this, casterStack, casterStack->getPosition()));
+				});
+			}
+
 			addToAnimationStage(EAnimationEvents::BEFORE_HIT, [this, casterStack, targetedTile, spell]()
 			{
 				stacksController->addNewAnim(new CastAnimation(*this, casterStack, targetedTile, getBattle()->battleGetStackByPos(targetedTile), spell));
@@ -510,9 +529,9 @@ void BattleInterface::displayBattleLog(const std::vector<MetaString> & battleLog
 	}
 }
 
-void BattleInterface::displaySpellAnimationQueue(const CSpell * spell, const CSpell::TAnimationQueue & q, const BattleHex & destinationTile, bool isHit)
+void BattleInterface::displaySpellAnimationQueue(const CSpell * spell, const SpellAnimationQueue & q, const BattleHex & destinationTile, bool isHit)
 {
-	for(const CSpell::TAnimation & animation : q)
+	for(const auto & animation : q)
 	{
 		if(animation.pause > 0)
 			stacksController->addNewAnim(new DummyAnimation(*this, animation.pause));

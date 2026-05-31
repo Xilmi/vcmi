@@ -20,6 +20,8 @@ class TurnInfo;
 class CGTeleport;
 struct PathfinderOptions;
 
+using FowTilesType = std::set<int3>;
+
 // Optimized storage - tile can have 0-8 neighbour tiles
 // static_vector uses fixed, preallocated storage (capacity) and dynamic size
 // this avoid dynamic allocations on huge number of neighbour list queries
@@ -58,10 +60,10 @@ private:
 
 	void initializeGraph();
 
-	STRONG_INLINE
+	inline
 	void push(CGPathNode * node);
 
-	STRONG_INLINE
+	inline
 	CGPathNode * topAndPop();
 };
 
@@ -78,7 +80,7 @@ public:
 		PATROL_LOCKED = 1,
 		PATROL_RADIUS
 	} patrolState;
-	std::unordered_set<int3> patrolTiles;
+	FowTilesType patrolTiles;
 
 	int turn;
 	PlayerColor owner;
@@ -126,8 +128,8 @@ public:
 		const TerrainTile * dt,
 		const int remainingMovePoints = -1,
 		const bool checkLast = true,
-		boost::logic::tribool isDstSailLayer = boost::logic::indeterminate,
-		boost::logic::tribool isDstWaterLayer = boost::logic::indeterminate) const;
+		const EPathfindingLayer & srcLayer = EPathfindingLayer::AUTO,
+		const EPathfindingLayer & dstLayer = EPathfindingLayer::AUTO) const;
 
 	int getMovementCost(
 		const PathNodeInfo & src,

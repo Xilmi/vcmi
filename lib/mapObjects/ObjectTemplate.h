@@ -13,7 +13,7 @@
 #include "../int3.h"
 #include "../filesystem/ResourcePath.h"
 #include "../serializer/Serializeable.h"
-#include "../mapObjects/CompoundMapObjectID.h"
+#include "CompoundMapObjectID.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -116,10 +116,7 @@ public:
 		return anyLandTerrain;
 	};
 
-	const std::set<TerrainId>& getAllowedTerrains() const
-	{
-		return allowedTerrains;
-	}
+	int getTotalAllowedTerrains() const;
 
 	// Checks if object can be placed on specific terrain
 	bool canBePlacedAt(TerrainId terrain) const;

@@ -29,7 +29,6 @@ namespace GameConstants
 
 	constexpr int HERO_GOLD_COST = 2500;
 	constexpr int SPELLBOOK_GOLD_COST = 500;
-	constexpr int SKILL_GOLD_COST = 2000;
 	constexpr int BATTLE_SHOOTING_PENALTY_DISTANCE = 10; //if the distance is > than this, then shooting stack has distance penalty
 	constexpr int BATTLE_SHOOTING_RANGE_DISTANCE = std::numeric_limits<uint8_t>::max(); // used when shooting stack has no shooting range limit
 	constexpr int ARMY_SIZE = 7;
@@ -37,7 +36,7 @@ namespace GameConstants
 
 	constexpr int SKILL_QUANTITY=28;
 	constexpr int PRIMARY_SKILLS=4;
-	constexpr int RESOURCE_QUANTITY=8;
+	constexpr int RESOURCE_QUANTITY=7;
 	constexpr int HEROES_PER_TYPE=8; //amount of heroes of each type
 
 	// amounts of OH3 objects. Can be changed by mods, should be used only during H3 loading phase

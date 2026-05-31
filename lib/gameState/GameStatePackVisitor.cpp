@@ -30,6 +30,8 @@
 #include "../mapObjects/TownBuildingInstance.h"
 #include "../mapping/CMap.h"
 #include "../networkPacks/StackLocation.h"
+#include "../spells/CSpell.h"
+
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -123,6 +125,16 @@ void GameStatePackVisitor::visitChangeFormation(ChangeFormation & pack)
 	gs.getHero(pack.hid)->setFormation(pack.formation);
 }
 
+void GameStatePackVisitor::visitChangeTactics(ChangeTactics & pack)
+{
+	gs.getHero(pack.hid)->tacticFormationEnabled = pack.enabled;
+}
+
+void GameStatePackVisitor::visitChangeTownName(ChangeTownName & pack)
+{
+	gs.getTown(pack.tid)->setCustomName(pack.name);
+}
+
 void GameStatePackVisitor::visitHeroVisitCastle(HeroVisitCastle & pack)
 {
 	CGHeroInstance *h = gs.getHero(pack.hid);
@@ -156,7 +168,14 @@ void GameStatePackVisitor::visitSetResearchedSpells(SetResearchedSpells & pack)
 	town->spells[pack.level] = pack.spells;
 	town->spellResearchCounterDay++;
 	if(pack.accepted)
+	{
 		town->spellResearchAcceptedCounter++;
+		town->spellResearchPendingRerollsCounters[pack.level] = 0;
+	}
+	else
+	{
+		town->spellResearchPendingRerollsCounters[pack.level]++;
+	}
 }
 
 void GameStatePackVisitor::visitSetMana(SetMana & pack)
@@ -176,13 +195,8 @@ void GameStatePackVisitor::visitSetMana(SetMana & pack)
 void GameStatePackVisitor::visitSetMovePoints(SetMovePoints & pack)
 {
 	CGHeroInstance *hero = gs.getHero(pack.hid);
-
 	assert(hero);
-
-	if(pack.mode == ChangeValueMode::ABSOLUTE)
-		hero->setMovementPoints(pack.val);
-	else
-		hero->setMovementPoints(hero->movementPointsRemaining() + pack.val);
+	hero->setMovementPoints(pack.val);
 }
 
 void GameStatePackVisitor::visitFoWChange(FoWChange & pack)
@@ -190,11 +204,11 @@ void GameStatePackVisitor::visitFoWChange(FoWChange & pack)
 	TeamState * team = gs.getPlayerTeam(pack.player);
 	auto & fogOfWarMap = team->fogOfWarMap;
 	for(const int3 & t : pack.tiles)
-		fogOfWarMap[t.z][t.x][t.y] = pack.mode != ETileVisibility::HIDDEN;
+		fogOfWarMap[t] = pack.mode != ETileVisibility::HIDDEN;
 
 	if (pack.mode == ETileVisibility::HIDDEN) //do not hide too much
 	{
-		std::unordered_set<int3> tilesRevealed;
+		FowTilesType tilesRevealed;
 		for (auto & o : gs.getMap().getObjects())
 		{
 			if (o->asOwnable())
@@ -204,7 +218,7 @@ void GameStatePackVisitor::visitFoWChange(FoWChange & pack)
 			}
 		}
 		for(const int3 & t : tilesRevealed) //probably not the most optimal solution ever
-			fogOfWarMap[t.z][t.x][t.y] = 1;
+			fogOfWarMap[t] = 1;
 	}
 }
 
@@ -236,7 +250,7 @@ void GameStatePackVisitor::visitGiveBonus(GiveBonus & pack)
 	assert(cbsn);
 
 	if(Bonus::OneWeek(&pack.bonus))
-		pack.bonus.turnsRemain = 8 - gs.getDate(Date::DAY_OF_WEEK); // set correct number of days before adding bonus
+		pack.bonus.turnsRemain = (LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK) + 1) - gs.getDate(Date::DAY_OF_WEEK); // set correct number of days before adding bonus
 
 	auto b = std::make_shared<Bonus>(pack.bonus);
 	cbsn->addNewBonus(b);
@@ -326,19 +340,6 @@ void GameStatePackVisitor::visitPlayerEndsGame(PlayerEndsGame & pack)
 	gs.actingPlayers.erase(pack.player);
 }
 
-void GameStatePackVisitor::visitPlayerReinitInterface(PlayerReinitInterface & pack)
-{
-	if(!gs.getStartInfo())
-		return;
-
-	//TODO: what does mean if more that one player connected?
-	if(pack.playerConnectionId == PlayerSettings::PLAYER_AI)
-	{
-		for(const auto & player : pack.players)
-			gs.getStartInfo()->getIthPlayersSettings(player).connectedPlayerIDs.clear();
-	}
-}
-
 void GameStatePackVisitor::visitRemoveBonus(RemoveBonus & pack)
 {
 	CBonusSystemNode *node = nullptr;
@@ -425,8 +426,8 @@ void GameStatePackVisitor::visitRemoveObject(RemoveObject & pack)
 
 		if (town->getGarrisonHero())
 		{
-			town->setGarrisonedHero(nullptr);
 			gs.getMap().showObject(gs.getHero(town->getGarrisonHero()->id));
+			town->setGarrisonedHero(nullptr);
 		}
 	}
 
@@ -441,9 +442,12 @@ void GameStatePackVisitor::visitRemoveObject(RemoveObject & pack)
 		}
 	}
 
+	int3 objPosition = obj->anchorPos();
+	int3 objDimensions(obj->getWidth(), obj->getHeight(), 1);
+
 	obj->detachFromBonusSystem(gs);
 	gs.getMap().eraseObject(pack.objectID);
-	gs.getMap().calculateGuardingGreaturePositions();//FIXME: excessive, update only affected tiles
+	gs.getMap().calculateGuardingGreaturePositions(objPosition - objDimensions - int3(1,1,0), objPosition + int3(1,1,0));
 }
 
 static int getDir(const int3 & src, const int3 & dst)
@@ -538,7 +542,7 @@ void GameStatePackVisitor::visitTryMoveHero(TryMoveHero & pack)
 
 	auto & fogOfWarMap = gs.getPlayerTeam(h->getOwner())->fogOfWarMap;
 	for(const int3 & t : pack.fowRevealed)
-		fogOfWarMap[t.z][t.x][t.y] = 1;
+		fogOfWarMap[t] = 1;
 
 	if (fromTile.getTerrainID() != destTile.getTerrainID())
 		h->nodeHasChanged(); // update bonuses with terrain limiter
@@ -625,8 +629,12 @@ void GameStatePackVisitor::visitHeroRecruited(HeroRecruited & pack)
 	h->pos = pack.tile;
 	h->updateAppearance();
 
-	assert(h->id.hasValue());
+	// Generate unique instance name before adding to map
+	if (h->instanceName.empty())
+		gs.getMap().generateUniqueInstanceName(h.get());
+
 	gs.getMap().addNewObject(h);
+	assert(h->id.hasValue());
 
 	p->addOwnedObject(h.get());
 	h->attachToBonusSystem(gs);
@@ -659,9 +667,8 @@ void GameStatePackVisitor::visitGiveHero(GiveHero & pack)
 	h->updateAppearance();
 
 	h->setOwner(pack.player);
-	h->setMovementPoints(h->movementPointsLimit(true));
+	h->setMovementPoints(h->movementPointsLimit());
 	h->setAnchorPos(h->convertFromVisitablePos(oldVisitablePos));
-	gs.getMap().heroAddedToMap(h);
 	gs.getPlayerState(h->getOwner())->addOwnedObject(h);
 
 	gs.getMap().showObject(h);
@@ -670,8 +677,11 @@ void GameStatePackVisitor::visitGiveHero(GiveHero & pack)
 
 void GameStatePackVisitor::visitNewObject(NewObject & pack)
 {
+	int3 objPosition = pack.newObject->anchorPos();
+	int3 objDimensions(pack.newObject->getWidth(), pack.newObject->getHeight(), 1);
+
 	gs.getMap().addNewObject(pack.newObject);
-	gs.getMap().calculateGuardingGreaturePositions();
+	gs.getMap().calculateGuardingGreaturePositions(objPosition - objDimensions - int3(1,1,0), objPosition + int3(1,1,0));
 
 	// attach newly spawned wandering monster to global bonus system node
 	auto newArmy = std::dynamic_pointer_cast<CArmedInstance>(pack.newObject);
@@ -767,8 +777,8 @@ void GameStatePackVisitor::visitRebalanceStacks(RebalanceStacks & pack)
 			assert(dstType == srcType);
 			const auto srcHero = dynamic_cast<CGHeroInstance*>(srcObj);
 			const auto dstHero = dynamic_cast<CGHeroInstance*>(dstObj);
-			auto srcStack = const_cast<CStackInstance*>(srcObj->getStackPtr(src.slot));
-			auto dstStack = const_cast<CStackInstance*>(dstObj->getStackPtr(dst.slot));
+			auto srcStack = srcObj->getStackPtr(src.slot);
+			auto dstStack = dstObj->getStackPtr(dst.slot);
 			if(srcStack->getArt(ArtifactPosition::CREATURE_SLOT))
 			{
 				if(auto dstArt = dstStack->getArt(ArtifactPosition::CREATURE_SLOT))
@@ -850,7 +860,8 @@ void GameStatePackVisitor::visitPutArtifact(PutArtifact & pack)
 	assert(!art->getParentNodes().empty());
 	auto hero = gs.getHero(pack.al.artHolder);
 	assert(hero);
-	assert(art && art->canBePutAt(hero, pack.al.slot));
+	assert(art);
+	assert(art->canBePutAt(hero, pack.al.slot));
 	assert(ArtifactUtils::checkIfSlotValid(*hero, pack.al.slot));
 	gs.getMap().putArtifactInstance(*hero, art->getId(), pack.al.slot);
 }
@@ -951,6 +962,9 @@ void GameStatePackVisitor::visitDischargeArtifact(DischargeArtifact & pack)
 		ePack.posPack.push_back(pack.artLoc.value().slot);
 		ePack.visit(*this);
 	}
+	// Workaround to inform hero bonus node about changes. Obviously this has to be done somehow differently.
+	if(pack.artLoc.has_value())
+		gs.getHero(pack.artLoc.value().artHolder)->nodeHasChanged();
 }
 
 void GameStatePackVisitor::visitAssembledArtifact(AssembledArtifact & pack)
@@ -1178,15 +1192,24 @@ void GameStatePackVisitor::visitBattleStart(BattleStart & pack)
 	pack.info->battleID = gs.nextBattleID;
 	pack.info->localInit();
 
-	if (pack.info->getDefendedTown() && pack.info->getSideHero(BattleSide::DEFENDER))
+	if (pack.info->getDefendedTown() && pack.info->getSide(BattleSide::DEFENDER).heroID.hasValue())
 	{
 		CGTownInstance * town = gs.getTown(pack.info->townID);
 		CGHeroInstance * hero = gs.getHero(pack.info->getSideHero(BattleSide::DEFENDER)->id);
 
-		if (town->getVisitingHero() == hero)
+		if (hero)
 		{
 			hero->detachFrom(town->townAndVis);
 			hero->attachTo(*town);
+		}
+	}
+
+	for(auto i : {BattleSide::ATTACKER, BattleSide::DEFENDER})
+	{
+		if (pack.info->getSide(i).heroID.hasValue())
+		{
+			CGHeroInstance * hero = gs.getHero(pack.info->getSideHero(i)->id);
+			hero->mana = pack.info->getSide(i).initialMana + pack.info->getSide(i).additionalMana;
 		}
 	}
 
@@ -1272,7 +1295,7 @@ void GameStatePackVisitor::visitBattleAttack(BattleAttack & pack)
 	pack.attackerChanges.visit(*this);
 
 	for(BattleStackAttacked & stack : pack.bsa)
-		gs.getBattle(pack.battleID)->setUnitState(stack.newState.id, stack.newState.data, stack.newState.healthDelta);
+		gs.getBattle(pack.battleID)->updateUnit(stack.newState.id, stack.newState.data, stack.newState.healthDelta);
 
 	attacker->removeBonusesRecursive(Bonus::UntilAttack);
 
@@ -1313,13 +1336,28 @@ void GameStatePackVisitor::visitStartAction(StartAction & pack)
 				st->waiting = true;
 				st->waitedThisTurn = true;
 				break;
+			case EActionType::MONSTER_SPELL:
+			{
+				SpellID spellID = pack.ba.spell;
+				if (spellID.hasValue() && spellID.toSpell()->canCastWithoutSkip())
+				{
+					//state does not change
+				}
+				else
+				{
+					st->waiting = false;
+					st->defendingAnim = false;
+					st->movedThisRound = true;
+				}
+				st->castSpellThisTurn = true;
+				break;
+			}
 			case EActionType::HERO_SPELL: //no change in current stack state
 				break;
 			default: //any active stack action - attack, catapult, heal, spell...
 				st->waiting = false;
 				st->defendingAnim = false;
 				st->movedThisRound = true;
-				st->castSpellThisTurn = pack.ba.actionType == EActionType::MONSTER_SPELL;
 				break;
 		}
 	}
@@ -1345,6 +1383,11 @@ void GameStatePackVisitor::visitSetStackEffect(SetStackEffect & pack)
 void GameStatePackVisitor::visitStacksInjured(StacksInjured & pack)
 {
 	BattleStatePackVisitor battleVisitor(*gs.getBattle(pack.battleID));
+	for (auto attackInfo : pack.stacks)
+	{
+		auto injuredStack = gs.getBattle(pack.battleID)->getStack(attackInfo.stackAttacked);
+		injuredStack->removeBonusesRecursive(Bonus::UntilTakingIndirectDamage);
+	}
 	pack.visitTyped(battleVisitor);
 }
 
@@ -1368,7 +1411,7 @@ void GameStatePackVisitor::restorePreBattleState(BattleID battleID)
 		CGTownInstance * town = gs.getTown(currentBattle.townID);
 		CGHeroInstance * hero = gs.getHero(currentBattle.getSideHero(BattleSide::DEFENDER)->id);
 
-		if (town->getVisitingHero() == hero)
+		if (hero)
 		{
 			hero->detachFrom(*town);
 			hero->attachTo(town->townAndVis);
@@ -1385,6 +1428,17 @@ void GameStatePackVisitor::visitBattleCancelled(BattleCancelled & pack)
 		return battle->battleID == pack.battleID;
 	});
 
+	const auto & currentBattle = **battleIter;
+
+	for(auto i : {BattleSide::ATTACKER, BattleSide::DEFENDER})
+	{
+		if (currentBattle.getSide(i).heroID.hasValue())
+		{
+			CGHeroInstance * hero = gs.getHero(currentBattle.getSideHero(i)->id);
+			hero->mana = currentBattle.getSide(i).initialMana;
+		}
+	}
+
 	assert(battleIter != gs.currentBattles.end());
 	gs.currentBattles.erase(battleIter);
 }
@@ -1394,23 +1448,39 @@ void GameStatePackVisitor::visitBattleResultsApplied(BattleResultsApplied & pack
 	restorePreBattleState(pack.battleID);
 	pack.learnedSpells.visit(*this);
 
-	for(auto & discharging : pack.dischargingArtifacts)
-		discharging.visit(*this);
-
 	for(auto & growing : pack.growingArtifacts)
 		growing.visit(*this);
+
+	for(auto & discharging : pack.dischargingArtifacts)
+		discharging.visit(*this);
 
 	for(auto & movingPack : pack.movingArtifacts)
 		movingPack.visit(*this);
 
-	const auto currentBattle = std::find_if(gs.currentBattles.begin(), gs.currentBattles.end(),
-											[&](const auto & battle)
-											{
-												return battle->battleID == pack.battleID;
-											});
+	auto battleIter = boost::range::find_if(gs.currentBattles, [&](const auto & battle)
+	{
+		return battle->battleID == pack.battleID;
+	});
+	const auto & currentBattle = **battleIter;
 
-	assert(currentBattle != gs.currentBattles.end());
-	gs.currentBattles.erase(currentBattle);
+	for(auto i : {BattleSide::ATTACKER, BattleSide::DEFENDER})
+	{
+		if (currentBattle.getSide(i).heroID.hasValue())
+		{
+			CGHeroInstance * hero = gs.getHero(currentBattle.getSideHero(i)->id);
+			hero->mana = std::min(hero->mana, currentBattle.getSide(i).initialMana);
+		}
+	}
+}
+
+void GameStatePackVisitor::visitBattleEnded(BattleEnded & pack)
+{
+	auto battleIter = boost::range::find_if(gs.currentBattles, [&](const auto & battle)
+	{
+		return battle->battleID == pack.battleID;
+	});
+	assert(battleIter != gs.currentBattles.end());
+	gs.currentBattles.erase(battleIter);
 }
 
 void GameStatePackVisitor::visitBattleObstaclesChanged(BattleObstaclesChanged & pack)
@@ -1590,7 +1660,7 @@ void BattleStatePackVisitor::visitStacksInjured(StacksInjured & pack)
 {
 	for(const BattleStackAttacked & stack : pack.stacks)
 	{
-		battleState.setUnitState(stack.newState.id, stack.newState.data, stack.newState.healthDelta);
+		battleState.updateUnit(stack.newState.id, stack.newState.data, stack.newState.healthDelta);
 	}
 }
 
@@ -1600,17 +1670,14 @@ void BattleStatePackVisitor::visitBattleUnitsChanged(BattleUnitsChanged & pack)
 	{
 		switch(elem.operation)
 		{
-			case BattleChanges::EOperation::RESET_STATE:
-				battleState.setUnitState(elem.id, elem.data, elem.healthDelta);
+			case BattleChanges::EOperation::UPDATE:
+				battleState.updateUnit(elem.id, elem.data, elem.healthDelta);
 				break;
 			case BattleChanges::EOperation::REMOVE:
 				battleState.removeUnit(elem.id);
 				break;
 			case BattleChanges::EOperation::ADD:
 				battleState.addUnit(elem.id, elem.data);
-				break;
-			case BattleChanges::EOperation::UPDATE:
-				battleState.updateUnit(elem.id, elem.data);
 				break;
 			default:
 				throw std::runtime_error("Unknown unit operation");

@@ -14,7 +14,7 @@
 
 #include "../callback/IGameInfoCallback.h"
 #include "../mapObjects/CGHeroInstance.h"
-#include "../mapping/CMapDefines.h"
+#include "../mapping/TerrainTile.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -42,14 +42,29 @@ const CGPathNode & CGPath::lastNode() const
 	return nodes[0];
 }
 
+bool CGPath::hasNextNode() const
+{
+	return nodes.size() >= 2;
+}
+
 int3 CGPath::startPos() const
 {
-	return nodes[nodes.size()-1].coord;
+	return currNode().coord;
+}
+
+CGPath::ELayer CGPath::startLayer() const
+{
+	return nodes[nodes.size()-1].layer;
 }
 
 int3 CGPath::endPos() const
 {
-	return nodes[0].coord;
+	return lastNode().coord;
+}
+
+CGPath::ELayer CGPath::endLayer() const
+{
+	return nodes[0].layer;
 }
 
 CPathsInfo::CPathsInfo(const int3 & Sizes, const CGHeroInstance * hero_)
@@ -61,19 +76,21 @@ CPathsInfo::CPathsInfo(const int3 & Sizes, const CGHeroInstance * hero_)
 
 CPathsInfo::~CPathsInfo() = default;
 
-const CGPathNode * CPathsInfo::getPathInfo(const int3 & tile) const
+const CGPathNode * CPathsInfo::getPathInfo(const int3 & tile, const ELayer layer) const
 {
 	assert(vstd::iswithin(tile.x, 0, sizes.x));
 	assert(vstd::iswithin(tile.y, 0, sizes.y));
 	assert(vstd::iswithin(tile.z, 0, sizes.z));
-
-	return getNode(tile);
+	if (layer < ELayer::NUM_LAYERS)
+		return getNode(tile, layer);
+	else
+		return getNode(tile);
 }
 
-bool CPathsInfo::getPath(CGPath & out, const int3 & dst) const
+bool CPathsInfo::getPath(CGPath & out, const int3 & dst, const ELayer layer) const
 {
 	out.nodes.clear();
-	const CGPathNode * curnode = getNode(dst);
+	const CGPathNode * curnode = layer < ELayer::NUM_LAYERS ? getNode(dst, layer) : getNode(dst);
 	if(!curnode->theNodeBefore)
 		return false;
 

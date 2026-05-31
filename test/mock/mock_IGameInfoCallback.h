@@ -37,15 +37,15 @@ public:
 
 	//hero
 	MOCK_CONST_METHOD1(getHero, const CGHeroInstance *(ObjectInstanceID));
-	MOCK_CONST_METHOD1(getHeroWithSubid, const CGHeroInstance *(int));
 
 	//objects
 	MOCK_CONST_METHOD2(getObj, const CGObjectInstance *(ObjectInstanceID, bool));
 	MOCK_CONST_METHOD2(getVisitableObjs, std::vector<const CGObjectInstance*>(int3, bool));
 
-	CGameState & gameState() { throw std::runtime_error("not implemented");}
-	const CGameState & gameState() const { throw std::runtime_error("not implemented");}
-	const IGameSettings & getSettings() const { throw std::runtime_error("not implemented");}
+	const scripting::Pool & getScriptContextPool() const override { throw std::runtime_error("not implemented");}
+	CGameState & gameState() override { throw std::runtime_error("not implemented");}
+	const CGameState & gameState() const override { throw std::runtime_error("not implemented");}
+	const IGameSettings & getSettings() const override { throw std::runtime_error("not implemented");}
 
 	MOCK_CONST_METHOD2(isVisibleFor, bool(int3 pos, PlayerColor player));
 	MOCK_CONST_METHOD2(isVisibleFor, bool(const CGObjectInstance * obj, PlayerColor player));
@@ -66,8 +66,8 @@ public:
 	MOCK_CONST_METHOD1(getTopObj, const CGObjectInstance *(int3 pos));
 	MOCK_CONST_METHOD2(getTileDigStatus, EDiggingStatus(int3 tile, bool verbose));
 	MOCK_CONST_METHOD1(calculatePaths, void(const std::shared_ptr<PathfinderConfig> & config));
-	MOCK_CONST_METHOD6(getTilesInRange, void( std::unordered_set<int3> & tiles, const int3 & pos, int radius, ETileVisibility mode, std::optional<PlayerColor> player, int3::EDistanceFormula formula));
-	MOCK_CONST_METHOD4(getAllTiles, void(std::unordered_set<int3> & tiles, std::optional<PlayerColor> player, int level, std::function<bool(const TerrainTile *)> filter));
+	MOCK_CONST_METHOD6(getTilesInRange, void(FowTilesType & tiles, const int3 & pos, int radius, ETileVisibility mode, std::optional<PlayerColor> player, int3::EDistanceFormula formula));
+	MOCK_CONST_METHOD4(getAllTiles, void(FowTilesType & tiles, std::optional<PlayerColor> player, int level, const std::function<bool(const TerrainTile *)> & filter));
 	MOCK_CONST_METHOD2(getVisibleTeleportObjects, std::vector<ObjectInstanceID>(std::vector<ObjectInstanceID> ids, PlayerColor player));
 	MOCK_CONST_METHOD2(getTeleportChannelEntrances, std::vector<ObjectInstanceID>(TeleportChannelID id, PlayerColor Player));
 	MOCK_CONST_METHOD2(getTeleportChannelExits, std::vector<ObjectInstanceID>(TeleportChannelID id, PlayerColor Player));
@@ -78,10 +78,9 @@ public:
 	MOCK_CONST_METHOD1(guardingCreaturePosition, int3(int3 pos));
 	MOCK_CONST_METHOD2(checkForVisitableDir, bool(const int3 & src, const int3 & dst));
 	MOCK_CONST_METHOD1(getGuardingCreatures, std::vector<const CGObjectInstance *>(int3 pos));
+	MOCK_CONST_METHOD1(isTileGuardedUnchecked, bool(int3 pos));
 
 	MOCK_METHOD2(pickAllowedArtsSet, void(std::vector<ArtifactID> & out, vstd::RNG & rand));
 
-#if SCRIPTING_ENABLED
 	MOCK_CONST_METHOD0(getGlobalContextPool, scripting::Pool *());
-#endif
 };

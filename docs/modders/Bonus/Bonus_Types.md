@@ -27,6 +27,62 @@ Changes mastery level of spells of affected heroes and units. Examples are magic
 - subtype: school of magic
 - val: level
 
+### ON_COMBAT_EVENT
+
+Allows to execute an action when specific event happens with affected unit
+
+Subtypes:
+
+- combatEventBeforeAttack: executed before unit attack another unit
+- combatEventAfterAttack: executed after unit attack another unit
+- combatEventBeforeAttacked: executed before unit is attacked by another unit
+- combatEventAfterAttacked: executed after unit is attacked by another unit
+- combatEventWait: executed when unit waits
+- combatEventDefend: executed when unit defends
+- combatEventBeforeMove: executed before unit starts movement
+- combatEventAfterMove: executed after unit ends movement
+- combatEventCast: executed after unit casts a spell
+
+Bonus action:
+
+- `targetEnemy`: if set to true, bonus will be added to opponent unit, if exists
+- `bonus`: bonus to give. See bonus format. WARNING: make sure to correctly set bonus duration of such bonus
+
+Spell action:
+
+- `targetEnemy`: if set to true, spell will be casts on opponent unit, if exists
+- `spell`: identifier of spell to cast
+- `mastery`: mastery level with which to cast the spell
+
+Example:
+
+```json
+{
+    "type" : "ON_COMBAT_EVENT",
+	"subtype" : "combatEventDefend",
+	"addInfo" : {
+	    "effect" : [
+		    {
+			    "action" : "bonus"
+				"targetEnemy" : false,
+				"bonus" : {
+				    "type" : "STACKS_SPEED",
+					"val" : -1,
+					"duration" : "N_TURNS",
+					"turns" : 1
+				}				
+			},
+			{
+			    "action" : "spell",
+				"spell" : "bless",
+				"mastery" : 0,
+				"targetEnemy" : false
+			}
+		]
+	}
+}
+```
+
 ## Player bonuses
 
 Intended to be setup as global effect, AI cheat etc.
@@ -177,6 +233,18 @@ Allows affected heroes to learn spell cast by enemy hero after battle
 
 - val: maximal level of spell that can be learned
 
+### LEARN_BATTLE_SPELL_CHANCE_PRE_BATTLE
+
+Determines chance for affected heroes to learn spells from enemy hero spellbook at battle start (before first turn)
+
+- val: chance to learn each spell, percentage
+
+### LEARN_BATTLE_SPELL_LEVEL_LIMIT_PRE_BATTLE
+
+Allows affected heroes to learn spells from enemy hero spellbook at battle start (before first turn)
+
+- val: maximal level of spell that can be learned
+
 ### LEARN_MEETING_SPELL_LIMIT
 
 Allows affected heroes to learn spells from each other during hero exchange
@@ -263,6 +331,16 @@ Defines additional damage dealt for creatures affected by BONUS_DAMAGE_CHANCE bo
 Defines maximum level of spells than hero can learn from any source (Wisdom)
 
 - val: maximal level to learn
+
+### COMBAT_MANA_BONUS
+
+Grants affected hero additional mana for the duration of combat. Bonus may give total mana above mana limit. Any additional mana not spent during combat will be lost.
+
+- val: amount of additional mana
+
+### SPELL_CAST_COUNTER
+
+Internal bonus, do not use
 
 ## Hero specialties
 
@@ -397,6 +475,7 @@ In battle, army affected by this bonus will cast spell at the very start of the 
 
 - subtype: spell identifier
 - val: duration of the spell, in rounds
+- addInfo - spell mastery level (1 - Basic, 3 - Expert)
 
 ### FREE_SHIP_BOARDING
 
@@ -405,6 +484,14 @@ Heroes affected by this bonus will not lose all movement points when embarking o
 ### WHIRLPOOL_PROTECTION
 
 Heroes affected by this bonus won't lose army when moving through whirlpool
+
+### FORCE_NEUTRAL_ENCOUNTER_STACK_COUNT
+
+When the hero engages neutral creatures, this bonus forces the number of stacks that the neutral army will be split into.
+
+- val: the neutral army will be split into (0 – enable weighted mode using addInfo)
+- addInfo – [W1, W2, W3, W4, W5, W6, W7]
+- W1–W7 – weights for generating 1–7 stacks when val = 0; missing entries are treated as 0.
 
 ## Creature bonuses
 
@@ -486,6 +573,10 @@ Affected units can not receive good or bad luck
 
 Affected units can not receive good or bad morale
 
+### CPU_CONTROLLED
+
+Player cannot control the affected unit by default. Note: uses custom behavior logic that is not coming from battle AI.
+
 ## Combat abilities
 
 ### FLYING
@@ -536,8 +627,25 @@ When affected unit is attacked from behind, it will receive more damage when att
 
 Affected unit will deal more damage when attacking specific creature
 
-- subtype - identifier of hated creature, ie. "creature.genie"
+- subtype - identifier of hated creature, ie. `genie`
 - val - additional damage, percentage
+
+### HATES_TRAIT
+
+Affected unit will deal more damage when attacking unit that has specific bonus. Note that this bonus has no assigned description. To make it visible in creature window UI, make sure to provide custom description for such bonus.
+
+- subtype - identifier of hated bonus, ie. `UNDEAD`
+- val - additional damage, percentage
+
+Example: Unit deals 50% more damage to any target that has UNDEAD bonus
+
+```json
+	"hatesUndead" : {
+		"type" : "HATES_TRAIT",
+		"subtype" : "UNDEAD",
+		"val" : 50
+	}
+```
 
 ### SPELL_LIKE_ATTACK
 
@@ -569,6 +677,13 @@ Deprecated. Please use [MULTIHEX_UNIT_ATTACK](#multihex_unit_attack) instead wit
 
 Similar to `TWO_HEX_ATTACK_BREATH`, but affecting two additional hexes in a triangular formation from the target hex.
 Deprecated. Please use [MULTIHEX_UNIT_ATTACK](#multihex_unit_attack) instead with custom icon and description.
+
+### LONG_WEAPON
+
+The affected unit will always perform a melee attack from two hexes away as long as there is exactly one empty hex between attacker and target (`attacker -> empty hex -> victim`).
+
+- If attacker is adjacent to the defender, this bonus does **not** extend range and attack is resolved as normal melee.
+- Attacks performed at two-hex range do **not** allow retaliation.
 
 ### MULTIHEX_UNIT_ATTACK
 
@@ -623,6 +738,12 @@ Affected units will receive reduced damage from attacks by other units
   - damageTypeMelee: only melee damage will be reduced
   - damageTypeRanged: only ranged damage will be reduced
   - damageTypeAll: all damage will be reduced
+
+### DAMAGE_RECEIVED_CAP
+
+Limits maximal damage received by affected units based on max hp (HotA war machines)
+
+- val: maximal damage limit, percentage of max hp
 
 ### PERCENTAGE_DAMAGE_BOOST
 
@@ -882,7 +1003,7 @@ Affected unit will not use spellcast as default attack option
 
 ### SPELLCASTER
 
-Affected units can cast a spell as targeted action (Archangel, Faerie Dragon). Use CASTS bonus to specify how many times per combat creature can use spellcasting. Use SPECIFIC_SPELL_POWER, CREATURE_SPELL_POWER or CREATURE_ENCHANT_POWER bonuses to set spell power.
+Affected units can cast a spell as targeted action (Archangel, Faerie Dragon). Use CASTS bonus to specify how many times per combat creature can use spellcasting (counter is shared with other bonuses like ADJACENT_SPELLCASTER). Use SPECIFIC_SPELL_POWER, CREATURE_SPELL_POWER or CREATURE_ENCHANT_POWER bonuses to set spell power. SPECIFIC_SPELL_RANGE bonus can be used to limit range of spell.
 
 - subtype: spell identifier
 - val: spell mastery level
@@ -901,6 +1022,13 @@ Affected unit will cast specified spell before his turn (Enchanter)
 Affected unit can cast randomly selected beneficial spell on its turn (Master Genie)
 
 - val - spell mastery level
+
+### ADJACENT_SPELLCASTER
+
+Affected units can walk and cast spell at target unit (like HotA engineers). Empty hexes are not currently supported. Use CASTS bonus to specify how many times per combat creature can cast spell (counter is shared with other bonuses like SPELLCASTER). Use SPECIFIC_SPELL_POWER, CREATURE_SPELL_POWER or CREATURE_ENCHANT_POWER bonuses to set spell power.
+
+- subtype: spell identifier
+- val: spell mastery level
 
 ### CASTS
 
@@ -931,6 +1059,11 @@ Determines how many times per combat affected creature can cast its targeted spe
 ### SPECIFIC_SPELL_POWER
 
 - value: Used for Thunderbolt and Resurrection cast by units (multiplied by stack size). Also used for Healing secondary skill (for core:spell.firstAid used by First Aid tent)
+- subtype - spell id
+
+### SPECIFIC_SPELL_RANGE
+
+- value: Can be used to limit range of spells casted by creatures.
 - subtype - spell id
 
 ### CREATURE_SPELL_POWER
@@ -1136,4 +1269,21 @@ When a unit affected by this bonus dies, no corpse is left behind
 
 ### INVINCIBLE
 
-The unit affected by this bonus cannot be target of attacks or spells
+The unit affected by this bonus cannot be targeted by attacks or affected by negative spells.
+
+### UNIT_DEFENDING
+
+Bonus that is automatically granted to unit whenever unit uses defend action in battle. Has no gameplay effects, however mods can use presence of this bonus to provide abilities that are active while unit is defending using limiter
+
+### MARKETPLACE_ACCESS
+
+Increases amount of counted marketplaces when trading in town. You may want to use PLAYER_PROPAGATOR with this bonus to make its effect player wide.
+
+- val: additional number of 'marketplaces' to reduce costs
+
+### DEITYOFFIRE
+
+Enforce the "week of" to a special creature. If this bonus is existing multiple times, it's randomly selected from all bonus sources.
+
+- val: how many additional creatures should generated
+- subtype - id of creature

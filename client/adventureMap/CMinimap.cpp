@@ -30,7 +30,7 @@
 #include "../../lib/TerrainHandler.h"
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/mapObjects/CGHeroInstance.h"
-#include "../../lib/mapping/CMapDefines.h"
+#include "../../lib/mapping/TerrainTile.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
 
 ColorRGBA CMinimapInstance::getTileColor(const int3 & pos) const
@@ -45,15 +45,19 @@ ColorRGBA CMinimapInstance::getTileColor(const int3 & pos) const
 	for (const ObjectInstanceID objectID : tile->blockingObjects)
 	{
 		const auto * obj = GAME->interface()->cb->getObj(objectID);
-		PlayerColor player = obj->getOwner();
-		if(player == PlayerColor::NEUTRAL)
-			return graphics->neutralColor;
 
-		if (settings["adventure"]["minimapShowHeroes"].Bool() && obj->ID == MapObjectID::HERO)
-			continue;
+		if (obj)
+		{
+			PlayerColor player = obj->getOwner();
+			if(player == PlayerColor::NEUTRAL)
+				return graphics->neutralColor;
 
-		if (player.isValidPlayer())
-			return graphics->playerColors[player.getNum()];
+			if (settings["adventure"]["minimapShowHeroes"].Bool() && obj->ID == MapObjectID::HERO)
+				continue;
+
+			if (player.isValidPlayer())
+				return graphics->playerColors[player.getNum()];
+		}
 	}
 
 	if (tile->blocked() && !tile->visitable())
@@ -196,6 +200,8 @@ void CMinimap::showAll(Canvas & to)
 
 		if (settings["adventure"]["minimapShowHeroes"].Bool())
 		{
+			const auto & visibleHeroes = getVisibleHeroes();
+
 			for (const auto objectID : visibleHeroes)
 			{
 				const auto * object = GAME->interface()->cb->getObj(objectID);
@@ -227,7 +233,6 @@ void CMinimap::update()
 
 	OBJECT_CONSTRUCTION;
 	minimap = std::make_shared<CMinimapInstance>(Point(0,0), pos.dimensions(), level);
-	updateVisibleHeroes();
 	redraw();
 }
 
@@ -244,7 +249,10 @@ void CMinimap::onMapViewMoved(const Rect & visibleArea, int mapLevel)
 		update();
 	}
 	else
+	{
+		setRedrawParent(true); // needed for non square map to redraw black background when viewarea rectangle is moved
 		redraw();
+	}
 }
 
 void CMinimap::setAIRadar(bool on)
@@ -262,9 +270,9 @@ void CMinimap::setAIRadar(bool on)
 	redraw();
 }
 
-void CMinimap::updateVisibleHeroes()
+std::vector<ObjectInstanceID> CMinimap::getVisibleHeroes()
 {
-	visibleHeroes.clear();
+	std::vector<ObjectInstanceID> visibleHeroes;
 
 	for (const auto & player : PlayerColor::ALL_PLAYERS())
 	{
@@ -274,9 +282,11 @@ void CMinimap::updateVisibleHeroes()
 		for (const auto & hero : GAME->interface()->cb->getHeroes(player))
 			visibleHeroes.push_back(hero->id);
 	}
+
+	return visibleHeroes;
 }
 
-void CMinimap::updateTiles(const std::unordered_set<int3> & positions)
+void CMinimap::updateTiles(const FowTilesType & positions)
 {
 	if(minimap)
 	{
@@ -284,6 +294,5 @@ void CMinimap::updateTiles(const std::unordered_set<int3> & positions)
 			minimap->refreshTile(tile);
 	}
 
-	updateVisibleHeroes();
 	redraw();
 }

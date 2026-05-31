@@ -61,6 +61,9 @@ All parameters but type are optional.
 	// See Bonus Updaters list below for full list of supported updaters
 	"updater" :	    {Bonus Updater},
 	
+    // Multiple updaters are supported, however updaters that modify same property may overwrite effect of previous updater
+	"updater" : [ {Bonus Updater 1}, {Bonus Updater 2} ],
+	
 	// This is special type of propagator, that is only activated when bonus is being propagated upwards,
 	// using its propagator. It has no effect on bonuses without propagator
 	"propagationUpdater" :	{Bonus Updater, but works during propagation},
@@ -71,6 +74,9 @@ All parameters but type are optional.
 	
 	// Optional, path to custom icon that will be visible in creature window
 	"icon" : "",
+	
+	// Optional, hide bonus in creature window
+	"hidden" : true,
 	
 	// Stacking string allows to block stacking of bonuses from different entities
 	// For example, devils and archdevils (different entities) both have battle-wide debuff to luck

@@ -22,7 +22,7 @@
 VCMI_LIB_NAMESPACE_BEGIN
 
 PlayerState::PlayerState(IGameInfoCallback *cb)
-	: CBonusSystemNode(PLAYER)
+	: CBonusSystemNode(BonusNodeType::PLAYER)
 	, GameCallbackHolder(cb)
 	, color(-1)
 	, human(false)
@@ -98,7 +98,7 @@ const IBonusBearer * PlayerState::getBonusBearer() const
 
 int PlayerState::getResourceAmount(int type) const
 {
-	return vstd::atOrDefault(resources, static_cast<size_t>(type), 0);
+	return resources[type];
 }
 
 template<typename T>
@@ -122,7 +122,20 @@ std::vector<const CGHeroInstance *> PlayerState::getHeroes() const
 
 std::vector<const CGTownInstance *> PlayerState::getTowns() const
 {
-	return getObjectsOfType<const CGTownInstance *>();
+	// optimized due to numerous AI access
+	using T = const CGTownInstance *;
+	std::vector<T> result;
+	for (const ObjectInstanceID & objectID : ownedObjects)
+	{
+		const auto * objectPtr = cb->gameState().getObjInstance(objectID);
+		if (objectPtr->ID != MapObjectID::TOWN)
+			continue;
+
+		assert(dynamic_cast<T>(objectPtr) != nullptr);
+		auto casted = static_cast<T>(objectPtr);
+		result.push_back(casted);
+	}
+	return result;
 }
 
 std::vector<CGHeroInstance *> PlayerState::getHeroes()

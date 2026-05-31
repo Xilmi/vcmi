@@ -28,15 +28,15 @@ bool CCallback::teleportHero(const CGHeroInstance *who, const CGTownInstance *wh
 	return true;
 }
 
-void CCallback::moveHero(const CGHeroInstance *h, const int3 & destination, bool transit)
+void CCallback::moveHero(const CGHeroInstance *h, const int3 & destination, bool transit, const EPathfindingLayer & layer)
 {
-	MoveHero pack({destination}, h->id, transit);
+	MoveHero pack({destination}, layer, h->id, transit);
 	sendRequest(pack);
 }
 
-void CCallback::moveHero(const CGHeroInstance *h, const std::vector<int3> & path, bool transit)
+void CCallback::moveHero(const CGHeroInstance *h, const std::vector<int3> & path, bool transit, const EPathfindingLayer & layer)
 {
-	MoveHero pack(path, h->id, transit);
+	MoveHero pack(path, layer, h->id, transit);
 	sendRequest(pack);
 }
 
@@ -286,6 +286,18 @@ void CCallback::setFormation(const CGHeroInstance * hero, EArmyFormation mode)
 	sendRequest(pack);
 }
 
+void CCallback::setTactics(const CGHeroInstance * hero, bool enabled)
+{
+	SetTactics pack(hero->id, enabled);
+	sendRequest(pack);
+}
+
+void CCallback::setTownName(const CGTownInstance * town, std::string & name)
+{
+	SetTownName pack(town->id, name);
+	sendRequest(pack);
+}
+
 void CCallback::recruitHero(const CGObjectInstance *townOrTavern, const CGHeroInstance *hero, const HeroTypeID & nextHero)
 {
 	assert(townOrTavern);
@@ -305,9 +317,9 @@ void CCallback::saveLocalState(const JsonNode & data)
 	sendRequest(state);
 }
 
-void CCallback::save( const std::string &fname )
+void CCallback::save( const std::string &fname, bool notifySuccess )
 {
-	SaveGame save_game(fname);
+	SaveGame save_game(fname, notifySuccess);
 	sendRequest(save_game);
 }
 
@@ -367,7 +379,7 @@ int3 CCallback::getGuardingCreaturePosition(int3 tile)
 	if (!gameState().getMap().isInTheMap(tile))
 		return int3(-1,-1,-1);
 
-	return gameState().getMap().guardingCreaturePositions[tile.z][tile.x][tile.y];
+	return gameState().getMap().guardingCreaturePositions[tile];
 }
 
 void CCallback::dig( const CGObjectInstance *hero )
@@ -384,6 +396,12 @@ void CCallback::castSpell(const CGHeroInstance *hero, SpellID spellID, const int
 	cas.sid = spellID;
 	cas.pos = pos;
 	sendRequest(cas);
+}
+
+void CCallback::requestStatistic()
+{
+	RequestStatistic sr;
+	sendRequest(sr);
 }
 
 int CCallback::mergeOrSwapStacks(const CArmedInstance *s1, const CArmedInstance *s2, SlotID p1, SlotID p2)

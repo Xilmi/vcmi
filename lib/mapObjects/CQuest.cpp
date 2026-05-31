@@ -22,18 +22,19 @@
 #include "../callback/IGameRandomizer.h"
 #include "../entities/artifact/CArtifact.h"
 #include "../entities/hero/CHeroHandler.h"
+#include "../entities/ResourceTypeHandler.h"
 #include "../mapObjectConstructors/CObjectClassesHandler.h"
 #include "../serializer/JsonSerializeFormat.h"
+#include "../spells/CSpellHandler.h"
 #include "../GameConstants.h"
 #include "../constants/StringConstants.h"
 #include "../CPlayerState.h"
 #include "../CSkillHandler.h"
 #include "../mapping/CMap.h"
-#include "../mapObjects/CGHeroInstance.h"
+#include "CGHeroInstance.h"
 #include "../modding/ModScope.h"
 #include "../modding/ModUtility.h"
 #include "../networkPacks/PacksForClient.h"
-#include "../spells/CSpellHandler.h"
 
 #include <vstd/RNG.h>
 
@@ -127,32 +128,22 @@ void CQuest::completeQuest(IGameEventCallback & gameEvents, const CGHeroInstance
 
 	for(auto & elem : mission.artifacts)
 	{
-		if(h->hasArt(elem))
+		// hero does not have such artifact alone, but he might have it as part of assembled artifact
+		if(!h->hasArt(elem))
 		{
-			gameEvents.removeArtifact(ArtifactLocation(h->id, h->getArtPos(elem, false)));
-			continue;
-		}
-
-		// perhaps artifact is part of a combined artifact?
-		const auto * assembly = h->getCombinedArtWithPart(elem);
-		if (assembly)
-		{
-			auto parts = assembly->getPartsInfo();
-
-			// Remove the assembly
-			gameEvents.removeArtifact(ArtifactLocation(h->id, h->getArtPos(assembly)));
-
-			// Disassemble this backpack artifact
-			for(const auto & ci : parts)
+			const auto * assembly = h->getCombinedArtWithPart(elem);
+			if (assembly)
 			{
-				if(ci.getArtifact()->getTypeId() != elem)
-					gameEvents.giveHeroNewArtifact(h, ci.getArtifact()->getTypeId(), ArtifactPosition::BACKPACK_START);
+				DisassembledArtifact da;
+				da.al = ArtifactLocation(h->id, h->getArtPos(assembly));
+				gameEvents.sendAndApply(da);
 			}
-
-			continue;
 		}
 
-		logGlobal->error("Failed to find artifact %s in inventory of hero %s", elem.toEntity(LIBRARY)->getJsonKey(), h->getHeroTypeID());
+		if(h->hasArt(elem))
+			gameEvents.removeArtifact(ArtifactLocation(h->id, h->getArtPos(elem, false)));
+		else
+			logGlobal->error("Failed to find artifact %s in inventory of hero %s", elem.toEntity(LIBRARY)->getJsonKey(), h->getHeroTypeID());
 	}
 
 	gameEvents.takeCreatures(h->id, mission.creatures, allowFullArmyRemoval);
@@ -233,7 +224,7 @@ void CQuest::addTextReplacements(const IGameInfoCallback * cb, MetaString & text
 	if(mission.resources.nonZero())
 	{
 		MetaString loot;
-		for(auto i : GameResID::ALL_RESOURCES())
+		for(auto i : LIBRARY->resourceTypeHandler->getAllObjects())
 		{
 			if(mission.resources[i])
 			{
@@ -372,11 +363,9 @@ void CQuest::serializeJson(JsonSerializeFormat & handler, const std::string & fi
 		if(missionType == "Resources")
 		{
 			auto r = handler.enterStruct("resources");
-
-			for(size_t idx = 0; idx < (GameConstants::RESOURCE_QUANTITY - 1); idx++)
-			{
-				handler.serializeInt(GameConstants::RESOURCE_NAMES[idx], mission.resources[idx], 0);
-			}
+			
+			for(auto & idx : LIBRARY->resourceTypeHandler->getAllObjects())
+				handler.serializeInt(idx.toResource()->getJsonKey(), mission.resources[idx], 0);
 		}
 		
 		if(missionType == "Hero")

@@ -11,8 +11,10 @@
 
 #include <vcmi/spells/Caster.h>
 
-#include "CArmedInstance.h"
 #include "IOwnableObject.h"
+
+#include "army/CArmedInstance.h"
+#include "army/CCommanderInstance.h"
 
 #include "../bonuses/BonusCache.h"
 #include "../entities/hero/EHeroGender.h"
@@ -52,7 +54,7 @@ protected:
 };
 
 
-class DLL_LINKAGE CGHeroInstance : public CArmedInstance, public IBoatGenerator, public CArtifactSet, public spells::Caster, public AFactionMember, public ICreatureUpgrader, public IOwnableObject
+class DLL_LINKAGE CGHeroInstance : public CArmedInstance, public IBoatGenerator, public CArtifactSet, public spells::Caster, public AFactionMember, public ICreatureUpgrader, public IOwnableObject, public scripting::ApiRawPointer<CGHeroInstance>
 {
 	// We serialize heroes into JSON for crossover
 	friend class CampaignState;
@@ -80,7 +82,7 @@ public:
 	//          8 4
 	//          765
 	ui8 moveDir;
-	mutable ui8 tacticFormationEnabled;
+	bool tacticFormationEnabled;
 
 	//////////////////////////////////////////////////////////////////////////
 
@@ -126,6 +128,7 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 
 	BoatId getBoatType() const override; //0 - evil (if a ship can be evil...?), 1 - good, 2 - neutral
+	EPathfindingLayer getBoatLayer() const override;
 	void getOutOffsets(std::vector<int3> &offsets) const override; //offsets to obj pos when we boat can be placed
 	const IObjectInterface * getObject() const override;
 
@@ -148,12 +151,17 @@ public:
 	const CGBoat * getBoat() const;
 	void setBoat(CGBoat * getBoat);
 
+	/// Returns ID of existing war machine that will be replaced if hero were to purchase new war machine
+	/// If there is no replaced war machine (for example slot is empty), method will return empty ArtifactID
+	ArtifactID getReplacedWarMachine(ArtifactID newWarMachine) const;
 	bool hasSpellbook() const;
 	int maxSpellLevel() const;
 	void addSpellToSpellbook(const SpellID & spell);
 	void removeSpellFromSpellbook(const SpellID & spell);
 	bool spellbookContainsSpell(const SpellID & spell) const;
+	std::vector<BonusSourceID> getSourcesForSpell(const SpellID & spell) const;
 	void removeSpellbook();
+	void removeAllSpells();
 	const std::set<SpellID> & getSpellsInSpellbook() const;
 	EAlignment getAlignment() const;
 	bool needsLastStack()const override;
@@ -164,7 +172,7 @@ public:
 
 	//INativeTerrainProvider
 	FactionID getFactionID() const override;
-	TerrainId getNativeTerrain() const override;
+	bool isNativeTerrain(TerrainId terrain) const override;
 	int getLowestCreatureSpeed() const;
 	si32 manaRegain() const; //how many points of mana can hero regain "naturally" in one day
 	si32 getManaNewTurn() const; //calculate how much mana this hero is going to have the next day
@@ -183,9 +191,6 @@ public:
 	/// Returns true if hero has lower level than should upon his experience.
 	bool gainsLevel() const;
 
-	/// Selects 0-2 skills for player to select on levelup
-	std::vector<SecondarySkill> getLevelupSkillCandidates(IGameRandomizer & gameRandomizer) const;
-
 	ui8 getSecSkillLevel(const SecondarySkill & skill) const; //0 - no skill
 	int getPrimSkillLevel(PrimarySkill id) const;
 
@@ -200,9 +205,9 @@ public:
 
 	void setMovementPoints(int points);
 	int movementPointsRemaining() const;
-	int movementPointsLimit(bool onLand) const;
+	int movementPointsLimit() const;
 	//cached version is much faster, TurnInfo construction is costly
-	int movementPointsLimitCached(bool onLand, const TurnInfo * ti) const;
+	int movementPointsLimitCached(const EPathfindingLayer & layer, const TurnInfo * ti) const;
 
 	int movementPointsAfterEmbark(int MPsBefore, int basicCost, bool disembark, const TurnInfo * ti) const;
 
@@ -241,8 +246,8 @@ public:
 	CCommanderInstance * getCommander();
 
 	void initObj(IGameRandomizer & gameRandomizer) override;
-	void initHero(IGameRandomizer & gameRandomizer);
-	void initHero(IGameRandomizer & gameRandomizer, const HeroTypeID & SUBID);
+	void initHero(IGameRandomizer & gameRandomizer, bool isFake = false);
+	void initHero(IGameRandomizer & gameRandomizer, const HeroTypeID & SUBID, bool isFake = false);
 
 	ArtPlacementMap putArtifact(const ArtifactPosition & pos, const CArtifactInstance * art) override;
 	void removeArtifact(const ArtifactPosition & pos) override;
@@ -286,6 +291,7 @@ public:
 	int32_t getEffectPower(const spells::Spell * spell) const override;
 	int32_t getEnchantPower(const spells::Spell * spell) const override;
 	int64_t getEffectValue(const spells::Spell * spell) const override;
+	int64_t getEffectRange(const spells::Spell * spell) const override;
 
 	PlayerColor getCasterOwner() const override;
 	const CGHeroInstance * getHeroCaster() const override;
@@ -306,8 +312,6 @@ public:
 
 	void afterAddToMap(CMap * map) override;
 	void afterRemoveFromMap(CMap * map) override;
-	void attachToBonusSystem(CGameState & gs) override;
-	void detachFromBonusSystem(CGameState & gs) override;
 	void restoreBonusSystem(CGameState & gs) override;
 
 	void updateFrom(const JsonNode & data) override;
@@ -353,6 +357,8 @@ public:
 		h & spells;
 		h & patrol;
 		h & moveDir;
+		if (h.hasFeature(Handler::Version::DISABLE_TACTICS))
+			h & tacticFormationEnabled;
 		if (!h.hasFeature(Handler::Version::RANDOMIZATION_REWORK))
 		{
 			ui8 magicSchoolCounter = 0;

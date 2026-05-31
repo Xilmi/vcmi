@@ -22,7 +22,6 @@ TreasureSelector::TreasureSelector(std::vector<CTreasureInfo> & treasures) :
 	treasures(treasures)
 {
 	ui->setupUi(this);
-
 	setWindowTitle(tr("Treasure Selector"));
 	
 	setWindowModality(Qt::ApplicationModal);
@@ -33,21 +32,21 @@ TreasureSelector::TreasureSelector(std::vector<CTreasureInfo> & treasures) :
 
 	auto addRow = [this](int min, int max, int density, int row){
 		auto spinBoxMin = new QSpinBox();
-        spinBoxMin->setRange(0, 1000000);
-        spinBoxMin->setValue(min);
+		spinBoxMin->setRange(0, 1000000);
+		spinBoxMin->setValue(min);
 		ui->tableWidgetTreasures->setCellWidget(row, 0, spinBoxMin);
 
 		auto spinBoxMax = new QSpinBox();
-        spinBoxMax->setRange(0, 1000000);
-        spinBoxMax->setValue(max);
+		spinBoxMax->setRange(0, 1000000);
+		spinBoxMax->setValue(max);
 		ui->tableWidgetTreasures->setCellWidget(row, 1, spinBoxMax);
 
 		auto spinBoxDensity = new QSpinBox();
-        spinBoxDensity->setRange(0, 1000);
-        spinBoxDensity->setValue(density);
+		spinBoxDensity->setRange(0, 1000);
+		spinBoxDensity->setValue(density);
 		ui->tableWidgetTreasures->setCellWidget(row, 2, spinBoxDensity);
 
-		auto deleteButton = new QPushButton("Delete");
+		auto deleteButton = new QPushButton(tr("Delete"));
 		ui->tableWidgetTreasures->setCellWidget(row, 3, deleteButton);
 		connect(deleteButton, &QPushButton::clicked, this, [this, deleteButton]() {
 			for (int r = 0; r < ui->tableWidgetTreasures->rowCount(); ++r) {
@@ -62,7 +61,7 @@ TreasureSelector::TreasureSelector(std::vector<CTreasureInfo> & treasures) :
 	for (int row = 0; row < treasures.size(); ++row)
 		addRow(treasures[row].min, treasures[row].max, treasures[row].density, row);
 
-	auto addButton = new QPushButton("Add");
+	auto addButton = new QPushButton(tr("Add"));
 	ui->tableWidgetTreasures->setCellWidget(ui->tableWidgetTreasures->rowCount() - 1, 3, addButton);
 	connect(addButton, &QPushButton::clicked, this, [this, addRow, treasures]() {
 		ui->tableWidgetTreasures->insertRow(ui->tableWidgetTreasures->rowCount() - 1);
@@ -93,10 +92,10 @@ void TreasureSelector::on_buttonBoxResult_accepted()
 		treasures.push_back(info);
 	}
 
-    close();
+	close();
 }
 
 void TreasureSelector::on_buttonBoxResult_rejected()
 {
-    close();
+	close();
 }

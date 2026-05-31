@@ -19,8 +19,8 @@
 #include "../mapObjectConstructors/AObjectTypeHandler.h"
 #include "../mapObjectConstructors/CObjectClassesHandler.h"
 #include "../mapObjectConstructors/DwellingInstanceConstructor.h"
-#include "../mapObjects/CGHeroInstance.h"
-#include "../mapObjects/CGTownInstance.h"
+#include "CGHeroInstance.h"
+#include "CGTownInstance.h"
 #include "../networkPacks/StackLocation.h"
 #include "../networkPacks/PacksForClient.h"
 #include "../networkPacks/PacksForClientBattle.h"
@@ -50,7 +50,11 @@ void CGDwellingRandomizationInfo::serializeJson(JsonSerializeFormat & handler)
 }
 
 CGDwelling::CGDwelling(IGameInfoCallback *cb):
-	CArmedInstance(cb)
+	CGDwelling(cb, BonusNodeType::ARMY)
+{}
+
+CGDwelling::CGDwelling(IGameInfoCallback *cb, BonusNodeType nodeType):
+	CArmedInstance(cb, nodeType, false)
 {}
 
 CGDwelling::~CGDwelling() = default;
@@ -267,13 +271,15 @@ void CGDwelling::onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstan
 	bd.player = h->tempOwner;
 	if(ID == Obj::CREATURE_GENERATOR1 || ID == Obj::CREATURE_GENERATOR4)
 	{
-		const size_t count = std::min<size_t>(creatures.size(), 4);
+		const size_t count = std::min<size_t>(creatures.size(), 6);
 		constexpr std::array dwellingVisitTextID = {
 			"core.advevent.35", // 0 creatures, should not happen
 			"core.advevent.35",
 			"vcmi.adventureMap.dwelling2",
 			"vcmi.adventureMap.dwelling3",
-			"core.advevent.36"
+			"core.advevent.36",
+			"vcmi.adventureMap.dwelling5",
+			"vcmi.adventureMap.dwelling6"
 		};
 		bd.text.appendTextID(dwellingVisitTextID[count]);	
 		bd.text.replaceTextID(getObjectHandler()->getNameTextID());
@@ -580,6 +586,13 @@ const IOwnableObject * CGDwelling::asOwnable() const
 ResourceSet CGDwelling::dailyIncome() const
 {
 	return {};
+}
+
+AnimationPath CGDwelling::getKingdomOverviewImage() const
+{
+	const auto & baseHandler = getObjectHandler();
+	const auto & ourHandler = std::dynamic_pointer_cast<const DwellingInstanceConstructor>(baseHandler);
+	return ourHandler ? ourHandler->getKingdomOverviewImage() : AnimationPath{};
 }
 
 std::vector<CreatureID> CGDwelling::providedCreatures() const

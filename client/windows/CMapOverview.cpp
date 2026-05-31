@@ -18,8 +18,9 @@
 #include "../widgets/CComponent.h"
 #include "../widgets/MiscWidgets.h"
 #include "../widgets/TextControls.h"
-#include "../windows/GUIClasses.h"
-#include "../windows/InfoWindows.h"
+#include "../widgets/Slider.h"
+#include "GUIClasses.h"
+#include "InfoWindows.h"
 #include "../render/CanvasImage.h"
 #include "../render/IImage.h"
 #include "../render/IRenderHandler.h"
@@ -121,10 +122,24 @@ std::vector<std::shared_ptr<CanvasImage>> CMapOverviewWidget::createMinimaps(std
 {
 	std::vector<std::shared_ptr<CanvasImage>> ret;
 
-	for(int i = 0; i < (map->twoLevel ? 2 : 1); i++)
+	for(int i = 0; i < map->levels(); i++)
 		ret.push_back(createMinimapForLayer(map, i));
 
 	return ret;
+}
+
+void CMapOverviewWidget::resizeMinimaps(int size) const
+{
+	for(auto & minimap : minimaps)
+	{
+		Point minimapRect = minimap->dimensions();
+		double maxSideLengthSrc = std::max(minimapRect.x, minimapRect.y);
+		double maxSideLengthDst = size;
+		double resize = maxSideLengthSrc / maxSideLengthDst;
+		Point newMinimapSize(minimapRect.x / resize, minimapRect.y / resize);
+
+		minimap->scaleTo(newMinimapSize, EScalingAlgorithm::NEAREST); // for sharp-looking minimap
+	}
 }
 
 std::shared_ptr<CPicture> CMapOverviewWidget::buildDrawMinimap(const JsonNode & config) const
@@ -136,14 +151,6 @@ std::shared_ptr<CPicture> CMapOverviewWidget::buildDrawMinimap(const JsonNode & 
 
 	if(id >= minimaps.size())
 		return nullptr;
-
-	Point minimapRect = minimaps[id]->dimensions();
-	double maxSideLengthSrc = std::max(minimapRect.x, minimapRect.y);
-	double maxSideLengthDst = std::max(rect.w, rect.h);
-	double resize = maxSideLengthSrc / maxSideLengthDst;
-	Point newMinimapSize(minimapRect.x / resize, minimapRect.y / resize);
-
-	minimaps[id]->scaleTo(newMinimapSize, EScalingAlgorithm::NEAREST); // for sharp-looking minimap
 
 	return std::make_shared<CPicture>(minimaps[id], Point(rect.x, rect.y));
 }
@@ -175,9 +182,26 @@ CMapOverviewWidget::CMapOverviewWidget(CMapOverview& parent):
 			minimaps = createMinimaps(res);
 		else
 			minimaps = createMinimaps(campaignMap);
+		
+		resizeMinimaps(config["variables"]["minimapRenderSize"].Integer());
 	}
 
 	REGISTER_BUILDER("drawMinimap", &CMapOverviewWidget::buildDrawMinimap);
+
+	addCallback("mapLayerSliderChanged", [this](int index){
+		OBJECT_CONSTRUCTION;
+		for (int i = 0; i < 2; i++)
+		{
+			auto widgetName = "minimap" + std::to_string(i + 1);
+			auto wPos = widget<CPicture>(widgetName)->pos;
+			deleteWidget(widgetName);
+			auto newWidget = std::make_shared<CPicture>(minimaps[index + i], wPos.topLeft() - pos.topLeft());
+			addWidget(widgetName, newWidget);
+			addChild(newWidget.get());
+		}
+		setRedrawParent(true);
+		redraw();
+	});
 
 	build(config);
 
@@ -197,7 +221,8 @@ CMapOverviewWidget::CMapOverviewWidget(CMapOverview& parent):
 	{
 		if(p.date.empty())
 		{
-			std::time_t time = boost::filesystem::last_write_time(*CResourceHandler::get()->getResourceName(ResourcePath(p.resource.getName(), p.tabType == ESelectionScreen::campaignList ? EResType::CAMPAIGN : EResType::MAP)));
+			ResourcePath path(p.resource.getName(), p.tabType == ESelectionScreen::campaignList ? EResType::CAMPAIGN : EResType::MAP);
+			std::time_t time = CResourceHandler::get()->getLastWriteTime(path);
 			w->setText(TextOperations::getFormattedDateTimeLocal(time));
 		}
 		else
@@ -215,5 +240,12 @@ CMapOverviewWidget::CMapOverviewWidget(CMapOverview& parent):
 	{
 		if(minimaps.size() == 0)
 			w->setText("");
+	}
+	if(auto w = widget<CSlider>("mapLayerSlider"))
+	{
+		if(minimaps.size() <= 2)
+			w->disable();
+		else
+			w->setAmount(minimaps.size());
 	}
 }

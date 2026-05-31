@@ -64,6 +64,8 @@ Make animations seamless from one to another. To do this, you can draw the first
 
 Most of the time, you need to increase the resolution or the quality of your template image, so use *SUPIR*: <https://huggingface.co/spaces/Fabrice-TIERCELIN/SUPIR>
 
+If you need consistence between two sprites, I advise you to paste them in a single image and upscale at once.
+
 ## Battle sound effect
 
 To create the audio effects, I recommend to use *Tango 2*: <https://huggingface.co/spaces/declare-lab/tango2>
@@ -91,7 +93,7 @@ There are no strong rules in the original game about the angle of the shadows on
 Let's consider that the object is a vertical cone:
 
 | | | | | | | | | | |
-|---|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | ‍⬛ | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | ‍⬛ | 🟦 | 🟦 |
@@ -106,7 +108,7 @@ Let's consider that the object is a vertical cone:
 Locate the top and its projection to the ground:
 
 | | | | | | | | | | |
-|---|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟥 | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | ‍⬛ | 🟦 | 🟦 |
@@ -121,7 +123,7 @@ Locate the top and its projection to the ground:
 Then draw a rectangle triangle on the left:
 
 | | | | | | | | | | |
-|---|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 💟 | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 💟 | ‍⬛ | 🟦 | 🟦 |
@@ -136,7 +138,7 @@ Then draw a rectangle triangle on the left:
 The square top is the projection of the shadow of the top of the cone:
 
 | | | | | | | | | | |
-|---|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | ‍⬛ | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | ‍⬛ | 🟦 | 🟦 |
@@ -151,7 +153,7 @@ The square top is the projection of the shadow of the top of the cone:
 Then you can draw the rest of the shadow:
 
 | | | | | | | | | | |
-|---|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | ‍⬛ | 🟦 | 🟦 |
 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | 🟦 | ‍⬛ | 🟦 | 🟦 |

@@ -25,6 +25,7 @@
 #include "../mapObjects/MiscObjects.h"
 #include "../mapping/CMap.h"
 #include "../spells/CSpellHandler.h"
+#include "../spells/ISpellMechanics.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -119,7 +120,6 @@ void CPathfinder::calculatePaths()
 
 		source.setNode(gameInfo, initialNode);
 		auto * hlp = config->getOrCreatePathfinderHelper(source, gameInfo);
-
 		if(hlp->isHeroPatrolLocked())
 			continue;
 
@@ -141,7 +141,6 @@ void CPathfinder::calculatePaths()
 		float cost = source.node->getCost();
 
 		auto * hlp = config->getOrCreatePathfinderHelper(source, gameInfo);
-
 		hlp->updateTurnInfo(turn);
 		if(movement == 0)
 		{
@@ -346,6 +345,11 @@ bool CPathfinder::isLayerTransitionPossible() const
 			if(destination.tile->isWater())
 				return true;
 		}
+		else if(destLayer == ELayer::AVIATE)
+		{
+			// do not consider paths which include embarking on an airship
+			return false;
+		}
 		else
 			return true;
 
@@ -357,8 +361,13 @@ bool CPathfinder::isLayerTransitionPossible() const
 
 		break;
 
+	case ELayer::AVIATE:
+		if((destLayer == ELayer::LAND && !destination.tile->isWater()) || destLayer == ELayer::AIR)
+			return true;
+		break;
+
 	case ELayer::AIR:
-		if(destLayer == ELayer::LAND)
+		if(destLayer == ELayer::LAND || destLayer == ELayer::AVIATE)
 			return true;
 
 		break;
@@ -502,7 +511,9 @@ CPathfinderHelper::CPathfinderHelper(const IGameInfoCallback & gameInfo, const C
 	turn(-1),
 	owner(Hero->tempOwner),
 	hero(Hero),
-	options(Options)
+	options(Options),
+	canCastFly(false),
+	canCastWaterWalk(false)
 {
 	turnsInfo.reserve(16);
 	updateTurnInfo();
@@ -510,11 +521,20 @@ CPathfinderHelper::CPathfinderHelper(const IGameInfoCallback & gameInfo, const C
 
 	whirlpoolProtection = Hero->hasBonusOfType(BonusType::WHIRLPOOL_PROTECTION);
 
-	SpellID flySpell = SpellID::FLY;
-	canCastFly = Hero->canCastThisSpell(flySpell.toSpell());
+	if (options.canUseCast)
+	{
+		for (const auto & spell : LIBRARY->spellh->objects)
+		{
+			if (!spell || !spell->isAdventure())
+				continue;
 
-	SpellID waterWalk = SpellID::WATER_WALK;
-	canCastWaterWalk = Hero->canCastThisSpell(waterWalk.toSpell());
+			if(spell->getAdventureMechanics().givesBonus(hero, BonusType::WATER_WALKING) && hero->canCastThisSpell(spell.get()) && hero->mana >= hero->getSpellCost(spell.get()))
+				canCastWaterWalk = true;
+
+			if(spell->getAdventureMechanics().givesBonus(hero, BonusType::FLYING_MOVEMENT) && hero->canCastThisSpell(spell.get()) && hero->mana >= hero->getSpellCost(spell.get()))
+				canCastFly = true;
+		}
+	}
 }
 
 CPathfinderHelper::~CPathfinderHelper() = default;
@@ -620,8 +640,8 @@ int CPathfinderHelper::getMovementCost(
 		dst.tile,
 		remainingMovePoints,
 		checkLast,
-		dst.node->layer == EPathfindingLayer::SAIL,
-		dst.node->layer == EPathfindingLayer::WATER
+		src.node->layer,
+		dst.node->layer
 	);
 }
 
@@ -632,8 +652,8 @@ int CPathfinderHelper::getMovementCost(
 	const TerrainTile * dt,
 	const int remainingMovePoints,
 	const bool checkLast,
-	boost::logic::tribool isDstSailLayer,
-	boost::logic::tribool isDstWaterLayer) const
+	const EPathfindingLayer & srcLayer,
+	const EPathfindingLayer & dstLayer) const
 {
 	if(src == dst) //same tile
 		return 0;
@@ -645,6 +665,9 @@ int CPathfinderHelper::getMovementCost(
 		ct = hero->cb->getTile(src);
 		dt = hero->cb->getTile(dst);
 	}
+
+	boost::logic::tribool isDstSailLayer = dstLayer == EPathfindingLayer::SAIL;
+	boost::logic::tribool isDstWaterLayer = dstLayer == EPathfindingLayer::WATER;
 
 	bool isSailLayer;
 	if(indeterminate(isDstSailLayer))
@@ -660,6 +683,8 @@ int CPathfinderHelper::getMovementCost(
 	
 	bool isAirLayer = (hero->inBoat() && hero->getBoat()->layer == EPathfindingLayer::AIR) || ti->hasFlyingMovement();
 
+	bool isAviateLayer = hero->inBoat() && hero->getBoat()->layer == EPathfindingLayer::AVIATE;
+
 	int movementCost = getTileMovementCost(*dt, *ct, ti);
 	if(isSailLayer)
 	{
@@ -673,7 +698,11 @@ int CPathfinderHelper::getMovementCost(
 	}
 	else if(isWaterLayer && ti->hasWaterWalking())
 		movementCost = static_cast<int>(movementCost * (100.0 + ti->getWaterWalkingValue()) / 100.0);
-
+	else if(isAviateLayer)
+	{
+		int baseCost = gameInfo.getSettings().getInteger(EGameSettings::HEROES_MOVEMENT_COST_BASE);
+		movementCost = baseCost;
+	}
 	if(src.x != dst.x && src.y != dst.y) //it's diagonal move
 	{
 		int old = movementCost;
@@ -690,7 +719,7 @@ int CPathfinderHelper::getMovementCost(
 	const int pointsLeft = remainingMovePoints - movementCost;
 	if(checkLast && pointsLeft > 0)
 	{
-		int minimalNextMoveCost = getTileMovementCost(*dt, *ct, ti);
+		int minimalNextMoveCost = isAirLayer ? gameInfo.getSettings().getInteger(EGameSettings::HEROES_MOVEMENT_COST_BASE) : getTileMovementCost(*dt, *ct, ti);
 
 		if (pointsLeft < minimalNextMoveCost)
 			return remainingMovePoints;

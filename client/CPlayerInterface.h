@@ -10,8 +10,10 @@
 #pragma once
 
 #include "ArtifactsUIController.h"
+#include "GameChatHandler.h"
 
 #include "../lib/callback/CGameInterface.h"
+#include "../lib/gameState/GameStatistics.h"
 #include "../lib/FunctionList.h"
 #include "gui/CIntObject.h"
 
@@ -62,6 +64,8 @@ class CPlayerInterface : public CGameInterface
 	bool ignoreEvents;
 	int autosaveCount;
 
+	const std::string QUICKSAVE_PATH = "Saves/Quicksave";
+
 	std::list<std::shared_ptr<CInfoWindow>> dialogs; //queue of dialogs awaiting to be shown (not currently shown!)
 
 	std::unique_ptr<HeroMovementController> movementController;
@@ -82,6 +86,8 @@ public: // TODO: make private
 	CInGameConsole * cingconsole;
 
 	std::shared_ptr<CCallback> cb; //to communicate with engine
+
+	bool hasQuickSave;
 
 	//During battle is quick combat mode is used
 	std::shared_ptr<CBattleGameInterface> autofightingAI; //AI that makes decisions
@@ -120,14 +126,14 @@ protected: // Call-ins from server, should not be called directly, but only via 
 	void showRecruitmentDialog(const CGDwelling *dwelling, const CArmedInstance *dst, int level, QueryID queryID) override;
 	void showBlockingDialog(const std::string &text, const std::vector<Component> &components, QueryID askID, const int soundID, bool selection, bool cancel, bool safeToAutoaccept) override; //Show a dialog, player must take decision. If selection then he has to choose between one of given components, if cancel he is allowed to not choose. After making choice, CCallback::selectionMade should be called with number of selected component (1 - n) or 0 for cancel (if allowed) and askID.
 	void showTeleportDialog(const CGHeroInstance * hero, TeleportChannelID channel, TTeleportExitsList exits, bool impassable, QueryID askID) override;
-	void showGarrisonDialog(const CArmedInstance *up, const CGHeroInstance *down, bool removableUnits, QueryID queryID) override;
+	void showGarrisonDialog(const CArmedInstance *up, const CGHeroInstance *down, bool removableUnits, QueryID queryID, const MetaString & customTitle) override;
 	void showMapObjectSelectDialog(QueryID askID, const Component & icon, const MetaString & title, const MetaString & description, const std::vector<ObjectInstanceID> & objects) override;
 	void showMarketWindow(const IMarket * market, const CGHeroInstance * visitor, QueryID queryID) override;
 	void showUniversityWindow(const IMarket *market, const CGHeroInstance *visitor, QueryID queryID) override;
 	void showHillFortWindow(const CGObjectInstance *object, const CGHeroInstance *visitor) override;
 	void advmapSpellCast(const CGHeroInstance * caster, SpellID spellID) override; //called when a hero casts a spell
-	void tileHidden(const std::unordered_set<int3> &pos) override; //called when given tiles become hidden under fog of war
-	void tileRevealed(const std::unordered_set<int3> &pos) override; //called when fog of war disappears from given tiles
+	void tileHidden(const FowTilesType &pos) override; //called when given tiles become hidden under fog of war
+	void tileRevealed(const FowTilesType &pos) override; //called when fog of war disappears from given tiles
 	void newObject(const CGObjectInstance * obj) override;
 	void availableArtifactsChanged(const CGBlackMarket *bm = nullptr) override; //bm may be nullptr, then artifacts are changed in the global pool (used by merchants in towns)
 	void yourTurn(QueryID queryID) override;
@@ -147,6 +153,7 @@ protected: // Call-ins from server, should not be called directly, but only via 
 	void playerEndsTurn(PlayerColor player) override;
 	void showWorldViewEx(const std::vector<ObjectPosInfo> & objectPositions, bool showTerrain) override;
 	void setColorScheme(ColorScheme scheme) override;
+	void responseStatistic(StatisticDataSet & statistic) override;
 
 	//for battles
 	void actionFinished(const BattleID & battleID, const BattleAction& action) override;//occurs AFTER action taken by active stack or by the hero
@@ -198,6 +205,9 @@ public: // public interface for use by client via GAME->interface() access
 	void tryDigging(const CGHeroInstance *h);
 	void showShipyardDialogOrProblemPopup(const IShipyard *obj); //obj may be town or shipyard;
 	void proposeLoadingGame();
+	bool checkQuickLoadingGame(bool verbose = false);
+	void proposeQuickLoadingGame();
+	void quickSaveGame();
 	void performAutosave();
 	void gamePause(bool pause);
 	void endNetwork();
@@ -210,6 +220,8 @@ public: // public interface for use by client via GAME->interface() access
 
 	void registerBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);
 	void unregisterBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);
+
+	void prepareAutoFightingAI(const BattleID &bid, const CCreatureSet *army1, const CCreatureSet *army2, int3 tile, const CGHeroInstance *hero1, const CGHeroInstance *hero2, BattleSide side);
 
 	CPlayerInterface(PlayerColor Player);
 	~CPlayerInterface();

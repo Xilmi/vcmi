@@ -18,10 +18,10 @@
 #include "../mapObjects/CGHeroInstance.h"
 #include "../mapObjects/CGTownInstance.h"
 #include "../mapObjects/MiscObjects.h"
+#include "../spells/CSpell.h"
 #include "../StartInfo.h"
 #include "../battle/BattleInfo.h"
 #include "../IGameSettings.h"
-#include "../spells/CSpellHandler.h"
 #include "../mapping/CMap.h"
 #include "../CPlayerState.h"
 
@@ -111,17 +111,16 @@ TurnTimerInfo CGameInfoCallback::getPlayerTurnTime(PlayerColor color) const
 /*                                                                      */
 /************************************************************************/
 
-const CGObjectInstance* CGameInfoCallback::getObj(ObjectInstanceID objid, bool verbose) const
+const CGObjectInstance * CGameInfoCallback::getObj(const ObjectInstanceID objId, const bool verbose) const
 {
-	const CGObjectInstance * ret = MapInfoCallback::getObj(objid, verbose);
-
+	const CGObjectInstance * ret = MapInfoCallback::getObj(objId, verbose);
 	if(!ret)
 		return nullptr;
 
 	if(getPlayerID().has_value() && !isVisibleFor(ret, *getPlayerID()) && ret->tempOwner != getPlayerID())
 	{
 		if(verbose)
-			logGlobal->error("Cannot get object with id %d. Object is not visible.", objid.getNum());
+			logGlobal->error("Cannot get object with id %d. Object is not visible.", objId.getNum());
 		return nullptr;
 	}
 
@@ -172,6 +171,11 @@ const StartInfo * CGameInfoCallback::getStartInfo() const
 const StartInfo * CGameInfoCallback::getInitialStartInfo() const
 {
 	return gameState().getInitialStartInfo();
+}
+
+const scripting::Pool & CGameInfoCallback::getScriptContextPool() const
+{
+	return gameState().getScriptContextPool();
 }
 
 int32_t CGameInfoCallback::getSpellCost(const spells::Spell * sp, const CGHeroInstance * caster) const
@@ -246,7 +250,7 @@ bool CGameInfoCallback::getTownInfo(const CGObjectInstance * town, InfoAboutTown
 int3 CGameInfoCallback::guardingCreaturePosition (int3 pos) const
 {
 	ERROR_RET_VAL_IF(!isVisible(pos), "Tile is not visible!", int3(-1,-1,-1));
-	return gameState().getMap().guardingCreaturePositions[pos.z][pos.x][pos.y];
+	return gameState().getMap().guardingCreaturePositions[pos];
 }
 
 std::vector<const CGObjectInstance*> CGameInfoCallback::getGuardingCreatures (int3 pos) const
@@ -394,7 +398,12 @@ bool CGameInfoCallback::isVisibleFor(int3 pos, PlayerColor player) const
 bool CGameInfoCallback::isVisible(int3 pos) const
 {
 	if (!getPlayerID().has_value())
-		return true; // weird, but we do have such calls
+	{
+		// isVisibleFor calls isInTheMap internally, so we need to at least call that one to be consistent and to avoid array out of bounds,
+		// otherwise some requests (IBoatGenerator::bestLocation()) will trash when trying to access outsite the map array
+		return gameState().getMap().isInTheMap(pos);
+	}
+
 	return gameState().isVisibleFor(pos, *getPlayerID());
 }
 
@@ -403,10 +412,20 @@ bool CGameInfoCallback::isVisibleFor(const CGObjectInstance * obj, PlayerColor p
 	return gameState().isVisibleFor(obj, player);
 }
 
-bool CGameInfoCallback::isVisible(const CGObjectInstance *obj) const
+bool CGameInfoCallback::isVisible(const CGObjectInstance * obj) const
 {
-	if (!getPlayerID().has_value())
-		return true; // weird, but we do have such calls
+	if(!getPlayerID().has_value())
+	{
+		// isVisibleFor calls isInTheMap internally, so we need to at least call that one to be consistent and to avoid array out of bounds.
+		return CGameState::iteratePositionsUntilTrue(
+			obj,
+			[this](const int3 & pos) -> bool
+			{
+				return gameState().getMap().isInTheMap(pos);
+			}
+		);
+	}
+
 	return gameState().isVisibleFor(obj, *getPlayerID());
 }
 
@@ -487,7 +506,7 @@ const TerrainTile * CGameInfoCallback::getTile(int3 tile, bool verbose) const
 		return &gameState().getMap().getTile(tile);
 
 	if(verbose)
-		logGlobal->error("\r\n%s: %s\r\n", BOOST_CURRENT_FUNCTION, tile.toString() + " is not visible!");
+		logGlobal->error("%s: %s", BOOST_CURRENT_FUNCTION, tile.toString() + " is not visible!");
 	return nullptr;
 }
 
@@ -716,7 +735,7 @@ const TeamState * CGameInfoCallback::getPlayerTeam( PlayerColor color ) const
 	}
 }
 
-void CGameInfoCallback::getVisibleTilesInRange(std::unordered_set<int3> &tiles, int3 pos, int radious, int3::EDistanceFormula distanceFormula) const
+void CGameInfoCallback::getVisibleTilesInRange(FowTilesType &tiles, int3 pos, int radious, int3::EDistanceFormula distanceFormula) const
 {
 	gameState().getTilesInRange(tiles, pos, radious, ETileVisibility::REVEALED, *getPlayerID(),  distanceFormula);
 }
@@ -791,7 +810,7 @@ bool CGameInfoCallback::isTeleportEntrancePassable(const CGTeleport * obj, Playe
 	return obj && obj->isEntrance() && !isTeleportChannelImpassable(obj->channel, player);
 }
 
-void CGameInfoCallback::getFreeTiles(std::vector<int3> & tiles) const
+void CGameInfoCallback::getFreeTiles(std::vector<int3> & tiles, bool skipIfNearbyGuarded) const
 {
 	std::vector<int> floors;
 	floors.reserve(gameState().getMap().levels());
@@ -808,13 +827,27 @@ void CGameInfoCallback::getFreeTiles(std::vector<int3> & tiles) const
 			{
 				tinfo = getTile(int3 (xd,yd,zd));
 				if (tinfo->isLand() && tinfo->getTerrain()->isPassable() && !tinfo->blocked()) //land and free
+				{
+					// Ensure that CGameHandler::spawnWanderingMonsters won't set a random monster next to another monster
+					// because Nullkiller AI is not able to go to one monster without falling into the attack range of the nearby one
+					// See GraphPaths::addChainInfo if(node.linkDanger > 0) (no link between random monsters and map monsters)
+					// Ivan: When new monster spawns, AI should receive AIGateway::newObject call for each object visible to AI. Probably you need to invalidate
+					// that data for AI & force recalculation on next turn. New queries to gamestate, like getGuardingCreaturePosition that are done either
+					// from AIGateway::newObject method or at any point later should correctly include newly spawned monsters
+					// TODO: Ensure this linking issue is properly fixed, not just with the workaround below
+					if (skipIfNearbyGuarded && guardingCreaturePosition(int3 (xd,yd,zd)).isValid())
+					{
+						continue;
+					}
+
 					tiles.emplace_back(xd, yd, zd);
+				}
 			}
 		}
 	}
 }
 
-void CGameInfoCallback::getTilesInRange(std::unordered_set<int3> & tiles,
+void CGameInfoCallback::getTilesInRange(FowTilesType & tiles,
 											  const int3 & pos,
 											  int radious,
 											  ETileVisibility mode,
@@ -841,8 +874,8 @@ void CGameInfoCallback::getTilesInRange(std::unordered_set<int3> & tiles,
 				if(distance <= radious)
 				{
 					if(!player
-					   || (mode == ETileVisibility::HIDDEN  && team->fogOfWarMap[pos.z][xd][yd] == 0)
-					   || (mode == ETileVisibility::REVEALED && team->fogOfWarMap[pos.z][xd][yd] == 1)
+					   || (mode == ETileVisibility::HIDDEN  &&  team->fogOfWarMap[int3(xd,yd, pos.z)] == 0)
+					   || (mode == ETileVisibility::REVEALED && team->fogOfWarMap[int3(xd,yd, pos.z)] == 1)
 					   )
 						tiles.insert(int3(xd,yd,pos.z));
 				}
@@ -851,7 +884,7 @@ void CGameInfoCallback::getTilesInRange(std::unordered_set<int3> & tiles,
 	}
 }
 
-void CGameInfoCallback::getAllTiles(std::unordered_set<int3> & tiles, std::optional<PlayerColor> Player, int level, std::function<bool(const TerrainTile *)> filter) const
+void CGameInfoCallback::getAllTiles(FowTilesType & tiles, std::optional<PlayerColor> Player, int level, const std::function<bool(const TerrainTile *)> & filter) const
 {
 	if(Player.has_value() && !Player->isValidPlayer())
 	{
@@ -906,12 +939,5 @@ bool CGameInfoCallback::checkForVisitableDir(const int3 & src, const int3 & dst)
 	const TerrainTile * pom = &map.getTile(dst);
 	return map.checkForVisitableDir(src, pom, dst);
 }
-
-#if SCRIPTING_ENABLED
-scripting::Pool * CGameInfoCallback::getGlobalContextPool() const
-{
-	return nullptr; // TODO
-}
-#endif
 
 VCMI_LIB_NAMESPACE_END

@@ -21,6 +21,7 @@
 #include "../gameState/CGameState.h"
 #include "../serializer/JsonSerializeFormat.h"
 #include "../CSoundBase.h"
+#include "../entities/ResourceTypeHandler.h"
 
 #include <vstd/RNG.h>
 
@@ -43,6 +44,21 @@ uint32_t CGResource::getAmount() const
 	return amount;
 }
 
+void CGResource::setAmount(uint32_t value)
+{
+	amount = value;
+}
+
+const MetaString & CGResource::getMessage() const
+{
+	return message;
+}
+
+void CGResource::setMessage(MetaString && value)
+{
+	message = std::move(value);
+}
+
 GameResID CGResource::resourceID() const
 {
 	return getResourceHandler()->getResourceType();
@@ -50,7 +66,7 @@ GameResID CGResource::resourceID() const
 
 std::string CGResource::getHoverText(PlayerColor player) const
 {
-	return LIBRARY->generaltexth->restypes[resourceID().getNum()];
+	return resourceID().toResource()->getNameTranslated();
 }
 
 void CGResource::pickRandomObject(IGameRandomizer & gameRandomizer)
@@ -60,7 +76,7 @@ void CGResource::pickRandomObject(IGameRandomizer & gameRandomizer)
 	if (ID == Obj::RANDOM_RESOURCE)
 	{
 		ID = Obj::RESOURCE;
-		subID = gameRandomizer.getDefault().nextInt(EGameResID::WOOD, EGameResID::GOLD);
+		subID = gameRandomizer.getDefault().nextInt(EGameResID::WOOD, LIBRARY->resourceTypeHandler->getAllObjects().size() - 1);
 		setType(ID, subID);
 
 		amount *= getAmountMultiplier();

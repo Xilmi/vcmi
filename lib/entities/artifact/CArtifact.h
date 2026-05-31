@@ -83,6 +83,7 @@ public:
 	uint16_t getDefaultStartCharges() const;
 	DischargeArtifactCondition getDischargeCondition() const;
 	bool getRemoveOnDepletion() const;
+	std::optional<uint16_t> getChargeCost(const SpellID & id) const;
 };
 
 // Container for artifacts. Not for instances.
@@ -137,7 +138,6 @@ public:
 	const std::map<ArtBearer, std::vector<ArtifactPosition>> & getPossibleSlots() const;
 
 	virtual bool canBePutAt(const CArtifactSet * artSet, ArtifactPosition slot = ArtifactPosition::FIRST_AVAILABLE, bool assumeDestRemoved = false) const;
-	void updateFrom(const JsonNode & data);
 	// Is used for testing purposes only
 	void setImage(int32_t iconIndex, const std::string & image, const std::string & large);
 

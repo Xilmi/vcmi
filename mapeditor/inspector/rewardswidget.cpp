@@ -10,27 +10,29 @@
 #include "StdInc.h"
 #include "rewardswidget.h"
 #include "ui_rewardswidget.h"
-#include "../lib/GameLibrary.h"
-#include "../lib/CSkillHandler.h"
-#include "../lib/spells/CSpellHandler.h"
-#include "../lib/CBonusTypeHandler.h"
-#include "../lib/CCreatureHandler.h"
-#include "../lib/constants/StringConstants.h"
-#include "../lib/entities/artifact/CArtifact.h"
-#include "../lib/mapping/CMap.h"
-#include "../lib/modding/IdentifierStorage.h"
-#include "../lib/modding/ModScope.h"
-#include "../lib/rewardable/Configuration.h"
-#include "../lib/rewardable/Limiter.h"
-#include "../lib/rewardable/Reward.h"
-#include "../lib/mapObjects/CGPandoraBox.h"
-#include "../lib/mapObjects/CQuest.h"
+#include "../../lib/GameLibrary.h"
+#include "../../lib/CSkillHandler.h"
+#include "../../lib/CBonusTypeHandler.h"
+#include "../../lib/CCreatureHandler.h"
+#include "../../lib/constants/StringConstants.h"
+#include "../../lib/entities/artifact/CArtifact.h"
+#include "../../lib/entities/ResourceTypeHandler.h"
+#include "../../lib/mapping/CMap.h"
+#include "../../lib/modding/IdentifierStorage.h"
+#include "../../lib/modding/ModScope.h"
+#include "../../lib/rewardable/Configuration.h"
+#include "../../lib/rewardable/Limiter.h"
+#include "../../lib/rewardable/Reward.h"
+#include "../../lib/mapObjects/CGPandoraBox.h"
+#include "../../lib/mapObjects/CQuest.h"
 
 #include <vcmi/ArtifactService.h>
 #include <vcmi/HeroTypeService.h>
 #include <vcmi/HeroType.h>
 #include <vcmi/HeroClassService.h>
 #include <vcmi/HeroClass.h>
+#include <vcmi/spells/Service.h>
+#include <vcmi/spells/Spell.h>
 
 RewardsWidget::RewardsWidget(CMap & m, CRewardableObject & p, QWidget *parent) :
 	QDialog(parent),
@@ -39,7 +41,7 @@ RewardsWidget::RewardsWidget(CMap & m, CRewardableObject & p, QWidget *parent) :
 	ui(new Ui::RewardsWidget)
 {
 	ui->setupUi(this);
-	
+
 	//fill core elements
 	for(const auto & s : Rewardable::VisitModeString)
 		ui->visitMode->addItem(QString::fromUtf8(s.data(), s.size()));
@@ -55,16 +57,16 @@ RewardsWidget::RewardsWidget(CMap & m, CRewardableObject & p, QWidget *parent) :
 		ui->lDayOfWeek->addItem(tr("Day %1").arg(i));
 	
 	//fill resources
-	ui->rResources->setRowCount(GameConstants::RESOURCE_QUANTITY - 1);
-	ui->lResources->setRowCount(GameConstants::RESOURCE_QUANTITY - 1);
-	for(int i = 0; i < GameConstants::RESOURCE_QUANTITY - 1; ++i)
+	ui->rResources->setRowCount(LIBRARY->resourceTypeHandler->getAllObjects().size());
+	ui->lResources->setRowCount(LIBRARY->resourceTypeHandler->getAllObjects().size());
+	for(auto & i : LIBRARY->resourceTypeHandler->getAllObjects())
 	{
 		MetaString str;
 		str.appendName(GameResID(i));
 		for(auto * w : {ui->rResources, ui->lResources})
 		{
 			auto * item = new QTableWidgetItem(QString::fromStdString(str.toString()));
-			item->setData(Qt::UserRole, QVariant::fromValue(i));
+			item->setData(Qt::UserRole, QVariant::fromValue(i.getNum()));
 			w->setItem(i, 0, item);
 			auto * spinBox = new QSpinBox;
 			spinBox->setMaximum(i == GameResID::GOLD ? 999999 : 999);
@@ -458,7 +460,7 @@ void RewardsWidget::loadCurrentVisitInfo(int index)
 	for(auto i : vinfo.reward.grantedArtifacts)
 		ui->rArtifacts->item(LIBRARY->artifacts()->getById(i)->getIndex())->setCheckState(Qt::Checked);
 	for(auto i : vinfo.reward.spells)
-		ui->rArtifacts->item(LIBRARY->spells()->getById(i)->getIndex())->setCheckState(Qt::Checked);
+		ui->rSpells->item(LIBRARY->spells()->getById(i)->getIndex())->setCheckState(Qt::Checked);
 	for(auto & i : vinfo.reward.secondary)
 	{
 		int index = LIBRARY->skills()->getById(i.first)->getIndex();
@@ -779,8 +781,6 @@ void RewardsDelegate::updateModelData(QAbstractItemModel * model, const QModelIn
 		QStringList resourcesList;
 		for(GameResID resource = GameResID::WOOD; resource < GameResID::COUNT ; resource++)
 		{
-			if(resource == GameResID::MITHRIL)
-				continue; // translated as "Abandoned"?
 			if(vinfo.reward.resources[resource] == 0)
 				continue;
 			MetaString str;

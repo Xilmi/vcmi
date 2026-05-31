@@ -16,6 +16,8 @@
 #include "../../../lib/constants/EntityIdentifiers.h"
 #include "../../../lib/constants/StringConstants.h"
 #include "../../../lib/rmg/CRmgTemplate.h"
+#include "../../../lib/GameLibrary.h"
+#include "../../../lib/entities/ResourceTypeHandler.h"
 
 QDomElement CardItem::getElementById(const QDomDocument& doc, const QString& id)
 {
@@ -41,12 +43,12 @@ QDomElement CardItem::getElementById(const QDomDocument& doc, const QString& id)
 
 bool isBlackTextNeeded(const QColor& bg)
 {
-    int r = bg.red();
-    int g = bg.green();
-    int b = bg.blue();
+	int r = bg.red();
+	int g = bg.green();
+	int b = bg.blue();
 
-    double luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.5;
+	double luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+	return luminance > 0.5;
 }
 
 CardItem::CardItem():
@@ -55,10 +57,27 @@ CardItem::CardItem():
 	useBlackText(false),
 	mousePressed(false)
 {
-	QFile file(":/icons/templateSquare.svg");
-	file.open(QIODevice::ReadOnly);
-	QByteArray data = file.readAll();
-	doc.setContent(data);
+	static const QString templateSquarePath = ":/icons/templateSquare.svg";
+	QFile file(templateSquarePath);
+	if(!file.open(QIODevice::ReadOnly))
+	{
+		logGlobal->error("Failed to open template editor card SVG %s: %s", templateSquarePath.toStdString(), file.errorString().toStdString());
+	}
+	else
+	{
+		QByteArray data = file.readAll();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+		const auto parseResult = doc.setContent(data);
+		if(!parseResult)
+			logGlobal->error("Failed to parse template editor card SVG %s at %d:%d: %s", templateSquarePath.toStdString(), parseResult.errorLine, parseResult.errorColumn, parseResult.errorMessage.toStdString());
+#else
+		QString errorMessage;
+		int errorLine = 0;
+		int errorColumn = 0;
+		if(!doc.setContent(data, &errorMessage, &errorLine, &errorColumn))
+			logGlobal->error("Failed to parse template editor card SVG %s at %d:%d: %s", templateSquarePath.toStdString(), errorLine, errorColumn, errorMessage.toStdString());
+#endif
+	}
 
 	updateContent();
 }
@@ -149,11 +168,11 @@ int CardItem::getId()
 
 void CardItem::setResAmount(GameResID res, int val)
 {
-	auto textElem = getElementById(doc, "text" + QString::fromStdString(GameConstants::RESOURCE_NAMES[res]));
+	auto textElem = getElementById(doc, "text" + QString::fromStdString(res.toResource()->getJsonKey()));
 	textElem.setAttribute("style", textElem.attribute("style").replace(QRegularExpression("fill:.*?;"), "fill:" + QColor(useBlackText ? Qt::black : Qt::white).name() + ";"));
 	textElem.firstChild().setNodeValue(val ? QString::number(val) : "");
 
-	auto iconElem = getElementById(doc, "icon" + QString::fromStdString(GameConstants::RESOURCE_NAMES[res]));
+	auto iconElem = getElementById(doc, "icon" + QString::fromStdString(res.toResource()->getJsonKey()));
 	iconElem.setAttribute("opacity", val ? "1.0" : "0.1");
 }
 

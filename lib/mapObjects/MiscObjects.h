@@ -9,14 +9,16 @@
  */
 #pragma once
 
-#include "CArmedInstance.h"
 #include "IOwnableObject.h"
+#include "army/CArmedInstance.h"
+#include "../entities/artifact/CArtifactInstance.h"
 #include "../texts/MetaString.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
 class CMap;
 class UpgradeInfo;
+class MineInstanceConstructor;
 
 // This one teleport-specific, but has to be available everywhere in callbacks and netpacks
 // For now it's will be there till teleports code refactored and moved into own file
@@ -139,10 +141,28 @@ protected:
 class DLL_LINKAGE CGMine : public CArmedInstance, public IOwnableObject
 {
 public:
+	struct InitialGuards
+	{
+		CreatureID creature	= CreatureID::TROGLODYTES;
+		int minAmount = 100;
+		int maxAmount = 199;
+
+		template <typename Handler> void serialize(Handler &h)
+		{
+			h & creature;
+			h & minAmount;
+			h & maxAmount;
+		}
+	};
+
 	GameResID producedResource;
 	ui32 producedQuantity;
 	std::set<GameResID> abandonedMineResources;
+	InitialGuards abandonedMineGuards;
+
 	bool isAbandoned() const;
+	
+	std::shared_ptr<MineInstanceConstructor> getResourceHandler() const;
 private:
 	using CArmedInstance::CArmedInstance;
 
@@ -163,6 +183,8 @@ public:
 		h & producedResource;
 		h & producedQuantity;
 		h & abandonedMineResources;
+		if(h.version >= Handler::Version::HOTA_MAP_FORMAT_EXTENSIONS_2)
+			h & abandonedMineGuards;
 	}
 	ui32 defaultResProduction() const;
 	ui32 getProducedQuantity() const;
@@ -361,7 +383,8 @@ protected:
 
 public:
 	using CGObjectInstance::CGObjectInstance;
-
+	EPathfindingLayer getBoatLayer() const override;
+	void getBoatCost(ResourceSet & cost) const override;
 	template<typename Handler> void serialize(Handler & h)
 	{
 		h & static_cast<CGObjectInstance&>(*this);

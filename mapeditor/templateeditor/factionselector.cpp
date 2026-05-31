@@ -21,7 +21,6 @@ FactionSelector::FactionSelector(std::set<FactionID> & factions) :
 	factionsSelected(factions)
 {
 	ui->setupUi(this);
-
 	setWindowTitle(tr("Faction Selector"));
 	
 	setWindowModality(Qt::ApplicationModal);
@@ -55,10 +54,10 @@ void FactionSelector::on_buttonBoxResult_accepted()
 			factionsSelected.insert(FactionID(item->data(Qt::UserRole).toInt()));
 	}
 
-    close();
+	close();
 }
 
 void FactionSelector::on_buttonBoxResult_rejected()
 {
-    close();
+	close();
 }

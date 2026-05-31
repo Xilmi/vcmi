@@ -125,6 +125,8 @@ public:
 	void addChild(CIntObject *child, bool adjustPosition = false);
 	void removeChild(CIntObject *child, bool adjustPosition = false);
 
+protected:
+	Point adjustNegativeCoordinate(int x, int y);
 };
 
 /// Class for binding keys to left mouse button clicks
@@ -160,6 +162,12 @@ public:
 
 	virtual bool holdsGarrison(const CArmedInstance * army) = 0;
 	virtual void updateGarrisons() = 0;
+};
+
+class IArtifactsHolder
+{
+public:
+	virtual void updateArtifacts() = 0;
 };
 
 class IMarketHolder

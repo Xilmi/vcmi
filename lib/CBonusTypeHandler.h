@@ -38,6 +38,7 @@ private:
 
 	bool creatureNature = false;
 	bool hidden = true;
+	bool blockDescriptionPropagation = false;
 };
 
 class DLL_LINKAGE CBonusTypeHandler : public IBonusTypeHandler
@@ -48,6 +49,7 @@ public:
 	virtual ~CBonusTypeHandler();
 
 	std::string bonusToString(const std::shared_ptr<Bonus> & bonus, const IBonusBearer * bearer) const override;
+	std::string bonusToString(const std::shared_ptr<Bonus> & bonus) const;
 	ImagePath bonusToGraphics(const std::shared_ptr<Bonus> & bonus) const override;
 
 	std::vector<JsonNode> loadLegacyData() override;
@@ -57,9 +59,11 @@ public:
 	const std::string & bonusToString(BonusType bonus) const;
 
 	bool isCreatureNatureBonus(BonusType bonus) const;
+	bool shouldPropagateDescription(BonusType bonus) const;
 
 	std::vector<BonusType> getAllObjets() const;
 private:
+	std::string bonusToString(const std::shared_ptr<Bonus> & bonus, int bonusValue) const;
 	void loadItem(const JsonNode & source, CBonusType & dest, const std::string & name) const;
 
 	std::vector<std::shared_ptr<CBonusType> > bonusTypes; //index = BonusType

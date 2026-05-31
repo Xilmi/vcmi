@@ -47,8 +47,27 @@ enum class ESerializationVersion : int32_t
 	OPPOSITE_SIDE_LIMITER_OWNER, // opposite side limiter no longer stores owner in itself
 	UNIVERSITY_CONFIG, // town university is configurable
 	CAMPAIGN_BONUSES, // new format for scenario bonuses in campaigns
+	BONUS_HIDDEN, // hidden bonus
+	MORE_MAP_LAYERS, // more map layers
+	CONFIGURABLE_RESOURCES, // configurable resources
+	CUSTOM_NAMES, // custom names
+	BATTLE_ONLY, // battle only mode
+	CAMPAIGN_VIDEO, // second video for prolog/epilog in campaigns
+	HOTA_MAP_STACK_COUNT, // support Hota 1.7 stack count feature
+	HOTA_MAP_FORMAT_EXTENSIONS, // support multiple Hota 1.7 map format features
+	SPELL_RESEARCH_IMPROVEMENTS, // support counting past spell rerolls
+	NAME_MAP_LAYERS, // name map layers
+	HOTA_MAP_FORMAT_EXTENSIONS_2, // more Hota 1.7 map format features
+	TIMER_MOVEMENT_POINTS, // movement points for timer
+	DISABLE_TACTICS, // disable tactics
+	REWARDABLE_EXTENSIONS_2, // movement points limiter for rewardables
+	BONUS_TRIGGER, // bonus that allows triggered effects in combat
+	CUSTOM_GARRISON_TITLE, // GarrisonDialog pack now has custom title parameter
+	LUA_SCRIPTS,
 
-	CURRENT = CAMPAIGN_BONUSES,
+	RELEASE_170 = HOTA_MAP_STACK_COUNT,
+	RELEASE_174 = CUSTOM_GARRISON_TITLE,
+	CURRENT = LUA_SCRIPTS,
 };
 
 static_assert(ESerializationVersion::MINIMAL <= ESerializationVersion::CURRENT, "Invalid serialization version definition!");

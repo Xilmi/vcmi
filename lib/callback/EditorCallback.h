@@ -9,7 +9,7 @@
  */
 #pragma once
 
-#include "../lib/callback/MapInfoCallback.h"
+#include "MapInfoCallback.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -25,6 +25,7 @@ public:
 	// Access to full game state — not available in editor
 	CGameState & gameState() override;
 	const CGameState & gameState() const override;
+	const scripting::Pool & getScriptContextPool() const override;
 
 	// Unused in editor — return null or dummy
 	const StartInfo * getStartInfo() const override;
@@ -32,6 +33,7 @@ public:
 
 	const TerrainTile * getTile(int3 tile, bool verbose) const override;
 	const TerrainTile * getTileUnchecked(int3 tile) const override;
+	bool isTileGuardedUnchecked(int3 tile) const override;
 	const CGObjectInstance * getTopObj(int3 pos) const override;
 	EDiggingStatus getTileDigStatus(int3 tile, bool verbose) const override;
 	void calculatePaths(const std::shared_ptr<PathfinderConfig> & config) const override;
@@ -39,8 +41,8 @@ public:
 	bool checkForVisitableDir(const int3 & src, const int3 & dst) const override;
 	std::vector<const CGObjectInstance*> getGuardingCreatures(int3 pos) const override;
 
-	void getTilesInRange(std::unordered_set<int3> & tiles, const int3 & pos, int radius, ETileVisibility mode, std::optional<PlayerColor> player, int3::EDistanceFormula formula) const override;
-	void getAllTiles(std::unordered_set<int3> &tiles, std::optional<PlayerColor> player, int level, std::function<bool(const TerrainTile *)> filter) const override;
+	void getTilesInRange(FowTilesType & tiles, const int3 & pos, int radius, ETileVisibility mode, std::optional<PlayerColor> player, int3::EDistanceFormula formula) const override;
+	void getAllTiles(FowTilesType &tiles, std::optional<PlayerColor> player, int level, const std::function<bool(const TerrainTile *)> & filter) const override;
 
 	std::vector<ObjectInstanceID> getVisibleTeleportObjects(std::vector<ObjectInstanceID> ids, PlayerColor player) const override;
 	std::vector<ObjectInstanceID> getTeleportChannelEntrances(TeleportChannelID id, PlayerColor player) const override;
@@ -52,11 +54,6 @@ public:
 
 	bool isVisibleFor(int3 pos, PlayerColor player) const override;
 	bool isVisibleFor(const CGObjectInstance * obj, PlayerColor player) const override;
-
-// Optional scripting
-#if SCRIPTING_ENABLED
-	scripting::Pool * getGlobalContextPool() const override;
-#endif
 
 	// Player-related (stub or throw)
 	const TeamState * getTeam(TeamID teamID) const override;

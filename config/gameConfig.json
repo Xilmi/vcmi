@@ -103,6 +103,10 @@
 	[
 		"config/spellSchools.json"
 	],
+	"spellEffects" :
+	[
+		"config/spellEffects.json"
+	],
 	"skills" :
 	[
 		"config/skills.json"
@@ -110,6 +114,10 @@
 	"terrains":
 	[
 		"config/terrains.json"
+	],
+	"resources" :
+	[
+		"config/resources.json"
 	],
 	"roads":
 	[
@@ -131,7 +139,10 @@
 	[
 		"config/campaignRegions.json"
 	],
-	
+	"mapLayers":
+	[
+		"config/mapLayers.json"
+	],
 	
 	"settings":
 	{
@@ -154,6 +165,11 @@
 			"restorationOfErathia" : { 
 				"supported" : true,
 				"iconIndex" : 0,
+				"settings": {
+					"spells": {
+						"tomesGrantBannedSpells" : true
+					}
+				},
 				"buildingsCommon": {
 					"townHall"       : 0,
 					"cityHall"       : 1,
@@ -316,6 +332,7 @@
 					"GOOD2D.SMK" : 12,
 					"EVIL2A.SMK" : 13,
 					"EVIL2AP1.SMK" : 14,
+					"EVIL2AP2.SMK" : 14, // looped
 					"EVIL2B.SMK" : 15,
 					"EVIL2C.SMK" : 16,
 					"EVIL2D.SMK" : 17,
@@ -374,6 +391,7 @@
 					"H3ABdb2.smk" : 34,
 					"H3ABdb3.smk" : 35,
 					"H3ABdb4.smk" : 36,
+					"H3ABdb4b.smk" : 36, // looped
 					"H3ABdb5.smk" : 37,
 					"H3ABds1.smk" : 38,
 					"H3ABds2.smk" : 39,
@@ -447,6 +465,7 @@
 					"H3x2_RNc.smk" : 80,
 					"H3x2_RNd.smk" : 81,
 					"H3x2_RNe1.smk": 82,
+					"H3x2_RNe2.smk": 82, // looped
 					"H3x2_SPa.smk" : 83,
 					"H3x2_SPb.smk" : 84,
 					"H3x2_SPc.smk" : 85,
@@ -476,7 +495,12 @@
 				"iconIndex" : 3
 			},
 			"hornOfTheAbyss" : { 
-				"supported" : false
+				"supported" : false,
+				"settings": {
+					"spells": {
+						"tomesGrantBannedSpells" : false
+					}
+				}
 			},
 			"inTheWakeOfGods" : { 
 				"supported" : false
@@ -517,7 +541,12 @@
 			/// Strength of generic secondary skill specialties ( "secondary" : "skillName" ) per level
 			"specialtySecondarySkillGrowth" : 5,
 			/// Strength of generic creature specialties ( "creature" : "creatureName" ) per level
-			"specialtyCreatureGrowth" : 5
+			"specialtyCreatureGrowth" : 5,
+
+			/// Maximum amount of skills that can be offered to hero on levelup
+			"levelupTotalSkillsAmount" : 2,
+			/// Maximum amount of advanced or expert skills that can be offered to hero on levelup
+			"levelupUpgradedSkillsAmount" : 1
 		},
 
 		"towns":
@@ -530,16 +559,18 @@
 			"spellResearch": false,
 			// Cost for an spell research (array index is spell tier)
 			"spellResearchCost": [
-				{ "gold": 1000, "wood" : 2, "mercury": 2, "ore": 2, "sulfur": 2, "crystal": 2, "gems": 2 },
-				{ "gold": 1000, "wood" : 4, "mercury": 4, "ore": 4, "sulfur": 4, "crystal": 4, "gems": 4 },
-				{ "gold": 1000, "wood" : 6, "mercury": 6, "ore": 6, "sulfur": 6, "crystal": 6, "gems": 6 },
-				{ "gold": 1000, "wood" : 8, "mercury": 8, "ore": 8, "sulfur": 8, "crystal": 8, "gems": 8 },
-				{ "gold": 1000, "wood" : 10, "mercury": 10, "ore": 10, "sulfur": 10, "crystal": 10, "gems": 10 }
+				{ "gold": 1000, "mercury": 2, "sulfur": 2, "crystal": 2, "gems": 2 },
+				{ "gold": 1000, "mercury": 3, "sulfur": 3, "crystal": 3, "gems": 3 },
+				{ "gold": 1000, "mercury": 4, "sulfur": 4, "crystal": 4, "gems": 4 },
+				{ "gold": 1000, "mercury": 5, "sulfur": 5, "crystal": 5, "gems": 5 },
+				{ "gold": 1000, "mercury": 6, "sulfur": 6, "crystal": 6, "gems": 6 }
 			],
 			// How much researchs/skips per day are possible? (array index is spell tier)
 			"spellResearchPerDay": [ 2, 2, 2, 2, 1 ],
-			// Exponent for increasing cost for each research (factor 1 disables this; array index is spell tier)
-			"spellResearchCostExponentPerResearch": [ 1.25, 1.25, 1.25, 1.25, 1.25 ],
+			// Multiplier for increasing/decreasing cost for each accept/reroll on 2nd/3rd etc. slot after accepting spell on the previous slot (factor 1 disables this; array index is spell tier)
+			"spellResearchCostMultiplierPerResearch": [ 1, 1, 1, 1, 1 ],
+			// Multiplier for increasing/decreasing cost of research actions after each reroll - resets on accepting spell (factor 1 disables this; array index is spell tier)
+			"spellResearchCostMultiplierPerReroll": [ 1, 1, 1, 1, 1 ],
 			
 			// Base scouting range for town without any range modifiers
 			"baseScoutingRange" : 5
@@ -586,6 +617,8 @@
 			"oneHexTriggersObstacles": false,
 			// Allow area shooters with SPELL_LIKE_ATTACK bonus such as liches or magogs to target empty hexes
 			"areaShotCanTargetEmptyHex" : false,
+			// Amount of first rounds since battle start which disallow fleeing/surrendering as attacker after casting spell - part of established H3 PvP standard rules, HotA default is 1
+			"noSpellHitAndRunRounds" : 0,
 			
 			// Positions of units on start of the combat
 			// If battle does not defines specific configuration, 'default' configuration will be used
@@ -640,7 +673,7 @@
 				"creatureBankNarrow" : {
 					"tacticsAllowed" : false,
 					"obstaclesAllowed" : false,
-					"attackerCommander" : 95,
+					"attackerCommander" : 94,
 					"defenderCommander" : 8,
 					"attackerUnits": [ 57, 61, 90, 93, 96, 125, 129 ],
 					"defenderUnits": [ 15, 185, 172, 2, 100, 87, 8 ]
@@ -649,7 +682,7 @@
 				"creatureBankWide" : {
 					"tacticsAllowed" : false,
 					"obstaclesAllowed" : false,
-					"attackerCommander" : 95,
+					"attackerCommander" : 94,
 					"defenderCommander" : 8,
 					"attackerUnits": [ 57, 61, 90, 93, 96, 125, 129 ],
 					"defenderUnits": [ 15, 185, 171, 1, 100, 86, 8 ]
@@ -663,6 +696,14 @@
 			"weeklyGrowthPercent" : 10,
 			// creatures on map will not grow if their quantity is greater than this value
 			"weeklyGrowthCap" : 4000,
+			// additional growth applied during special growth weeks
+			"additionalWeeklyGrowthSpecialWeek" : 5,
+			// probability (in percent) for double growth month
+			"monthDoubleGrowthProbability" : 40,
+			// probability (in percent) for plague month
+			"monthPlagueProbability" : 10,
+			// probability (in percent) for special week
+			"weekSpecialProbability" : 25,
 			// if stack experience is on, creatures on map will get specified amount of experience daily 
 			"dailyStackExperience" : 100,
 			// if enabled, double growth, plague and creature weeks can happen randomly. Has no effect on weeks by "Deity of Fire" 
@@ -673,6 +714,7 @@
 			// if enabled creatures may join player for free, disabling it removes free joining globally unless creature is set to join in map editor
 			"allowJoiningForFree" : true,
 			// percent of stack amount that joins player per each successful join (does not decrease cost when joining for gold), if 0 or lower creatures never join for free or gold
+			// NOTE: on HotA maps this setting has no effect on units placed in map editor, preset value from h3m will be used instead
 			"joiningPercentage" : 100
 		},
 		
@@ -697,7 +739,10 @@
 		"markets" : 
 		{
 			// period between restocking of "Black Market" object found on adventure map
-			"blackMarketRestockPeriod" : 0
+			"blackMarketRestockPeriod" : 0,
+			
+			// Cost in gold of buying skill in on-map University or in University of Magic in Conflux
+			"universityGoldCost" : 2000
 		},
 		
 		"banks" : 
@@ -712,6 +757,8 @@
 			"stackExperience": false,
 			// if enabled, certain artifacts can be granted to creatures (WoG feature)
 			"stackArtifact": false,
+			// if enabled, equipped creature artifacts are displayed as an icon on stack slots
+			"stackArtifactIndication": false,
 			// if enabled, all heroes gain commander creature in battle (WoG feature)
 			"commanders": false
 		},
@@ -750,16 +797,12 @@
 
 		"spells":
 		{
-			// if enabled, dimension work doesn't work into tiles under Fog of War
-			"dimensionDoorOnlyToUncoveredTiles" : false,
-			// if enabled, dimension door will hint regarding tile being incompatible terrain type, unlike H3 (water/land)
-			"dimensionDoorExposesTerrainType" : false,
-			// if enabled, attempt to use dimension door on incompatible terrain (water/land) will result in spending of mana, movement and casts per day (H3 behavior)
-			"dimensionDoorFailureSpendsPoints" : true,
 			// if enabled, dimension door will initiate a fight upon landing on tile adjacent to neutral creature
 			"dimensionDoorTriggersGuards" : false,
-			// if enabled, dimension door can be used 1x per day, exception being 2x per day for XL+U or bigger maps (41472 tiles) + hero having expert air magic
-			"dimensionDoorTournamentRulesLimit" : false
+			// if enabled, SPELLS_OF_SCHOOL bonus (Tomes of Water/Air/Earth/Fire Magic) 
+			// and SPELLS_OF_LEVEL bonus (Spellbinder Hat) will grant spells that are banned on map (SoD behavior)
+			// NOTE: this value only affects random maps and .vmap's. For h3m's value is loaded from map format configuration
+			"tomesGrantBannedSpells" : false
 		},
 		
 		"bonuses" : 
@@ -777,6 +820,12 @@
 				{
 					"type" : "MAX_LEARNABLE_SPELL_LEVEL", //Hero can always learn level 1 and 2 spells
 					"val" : 2,
+					"valueType" : "BASE_NUMBER"
+				},
+				"spellCastsPerTurn" :
+				{
+					"type" : "HERO_SPELL_CASTS_PER_COMBAT_TURN", //1 spell can be cast by hero per turn during combat
+					"val" : 1,
 					"valueType" : "BASE_NUMBER"
 				}
 			},
@@ -799,12 +848,6 @@
 					"type" : "MANA_PER_KNOWLEDGE_PERCENTAGE", //1000% mana per knowledge
 					"val" : 1000,
 					"valueType" : "BASE_NUMBER"
-				},
-				"spellCastsPerTurn" :
-				{
-					"type" : "HERO_SPELL_CASTS_PER_COMBAT_TURN", //1 spell can be cast by hero per turn during combat
-					"val" : 1,
-					"valueType" : "BASE_NUMBER"
 				}
 			}
 		},
@@ -823,6 +866,25 @@
 				"teal" :   [ -0.13,  0.23,  0.23,  0.90, 1.20, 2.20 ],
 				"pink" :   [  0.44,  0.15,  0.25,  1.00, 1.00, 1.75 ]
 			}
+		},
+
+		"campaign" :
+		{
+			// Unlock all campaigns
+			"unlockAll" : false
+		},
+
+		"cheats" :
+		{
+			// build town cheat without grail
+			"buildWithoutGrail" : false
+		},
+
+		"general" :
+		{
+			// adjusting day and month length; not fully supported yet (e.g. weekly-visitable buildings, AI actions, dayOfWeek limiter, ...)
+			"daysPerWeek"  :  7,
+			"weeksPerMonth" : 4
 		}
 	}
 }

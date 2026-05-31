@@ -25,12 +25,16 @@ class CHero;
 class CHeroClass;
 class HeroClass;
 class HeroTypeService;
+class Resource;
+class ResourceType;
+class ResourceTypeService;
 class CFaction;
 class Faction;
 class Skill;
 class RoadType;
 class RiverType;
 class TerrainType;
+class MapLayerType;
 
 namespace spells
 {
@@ -51,6 +55,8 @@ class ArtifactInstanceID : public StaticIdentifier<ArtifactInstanceID>
 {
 public:
 	using StaticIdentifier<ArtifactInstanceID>::StaticIdentifier;
+
+	DLL_LINKAGE static std::string encode(const si32 index);
 };
 
 class QueryID : public StaticIdentifier<QueryID>
@@ -287,7 +293,7 @@ public:
 class BuildingIDBase : public IdentifierBase
 {
 public:
-	//Quite useful as long as most of building mechanics hardcoded
+	// Quite useful as long as most of building mechanics hardcoded
 	// NOTE: all building with completely configurable mechanics will be removed from list
 	enum Type
 	{
@@ -367,19 +373,16 @@ public:
 		throw std::runtime_error("Call to getMageGuildLevel with building '" + std::to_string(getNum()) +"' that is not mages guild!");
 	}
 
-	static BuildingID getDwellingFromLevel(int level, int upgradeIndex)
+	static BuildingID getDwellingFromLevel(const int levelIndex, const int upgradeIndex)
 	{
-		try
-		{
-			return getDwellings().at(upgradeIndex).at(level);
-		}
-		catch (const std::out_of_range &)
-		{
+		if (upgradeIndex >= getDwellings().size() || levelIndex >= getDwellings()[upgradeIndex].size())
 			return Type::NONE;
-		}
+
+		return getDwellings().at(upgradeIndex).at(levelIndex);
 	}
 
-	static int getLevelFromDwelling(BuildingID dwelling)
+	/// @return 0 for the first one, going up to the supported no. of dwellings - 1
+	static int getLevelIndexFromDwelling(BuildingID dwelling)
 	{
 		for (const auto & level : getDwellings())
 		{
@@ -391,7 +394,8 @@ public:
 		throw std::runtime_error("Call to getLevelFromDwelling with building '" + std::to_string(dwelling.num) +"' that is not dwelling!");
 	}
 
-	static int getUpgradedFromDwelling(BuildingID dwelling)
+	/// @return 0 for no upgrade, 1 for the first one, going up to the supported no. of upgrades
+	static int getUpgradeNoFromDwelling(BuildingID dwelling)
 	{
 		const auto & dwellings = getDwellings();
 
@@ -406,10 +410,9 @@ public:
 
 	static void advanceDwelling(BuildingID & dwelling)
 	{
-		int level =	getLevelFromDwelling(dwelling);
-		int upgrade = getUpgradedFromDwelling(dwelling);
-
-		dwelling = getDwellingFromLevel(level, upgrade + 1);
+		int levelIndex = getLevelIndexFromDwelling(dwelling);
+		int upgradeNo = getUpgradeNoFromDwelling(dwelling);
+		dwelling = getDwellingFromLevel(levelIndex, upgradeNo + 1);
 	}
 
 	bool isDwelling() const
@@ -569,6 +572,7 @@ public:
 		PINE_TREES = 137,
 		PLANT = 138,
 		RIVER_DELTA = 143,
+		HOTA_CUSTOM_OBJECT_3 = 144,
 		HOTA_CUSTOM_OBJECT_1 = 145,
 		HOTA_CUSTOM_OBJECT_2 = 146,
 		ROCK = 147,
@@ -625,6 +629,8 @@ public:
 	{
 		return num;
 	}
+
+	static bool isRandomArtifact(MapObjectBaseID id);
 };
 
 class DLL_LINKAGE MapObjectSubID : public Identifier<MapObjectSubID>
@@ -673,6 +679,22 @@ public:
 	}
 };
 
+class DLL_LINKAGE MapLayerId : public EntityIdentifier<MapLayerId>
+{
+public:
+	using EntityIdentifier<MapLayerId>::EntityIdentifier;
+	static si32 decode(const std::string & identifier);
+	static std::string encode(const si32 index);
+	static std::string entityType();
+
+	static const MapLayerId NONE;
+	static const MapLayerId SURFACE;
+	static const MapLayerId UNDERGROUND;
+	static const MapLayerId UNKNOWN;
+
+	const MapLayerType * toEntity(const Services * service) const;
+};
+
 class DLL_LINKAGE RoadId : public EntityIdentifier<RoadId>
 {
 public:
@@ -711,7 +733,7 @@ class DLL_LINKAGE EPathfindingLayerBase : public IdentifierBase
 public:
 	enum Type : int32_t
 	{
-		LAND = 0, SAIL = 1, WATER, AIR, NUM_LAYERS, WRONG, AUTO
+		LAND = 0, SAIL = 1, WATER, AVIATE, AIR, NUM_LAYERS, WRONG, AUTO
 	};
 };
 
@@ -729,7 +751,7 @@ public:
 		TRANSITION_POS = -3,
 		FIRST_AVAILABLE = -2,
 		PRE_FIRST = -1, //sometimes used as error, sometimes as first free in backpack
-		
+
 		// Hero
 		HEAD, SHOULDERS, NECK, RIGHT_HAND, LEFT_HAND, TORSO, //5
 		RIGHT_RING, LEFT_RING, FEET, //8
@@ -737,10 +759,10 @@ public:
 		MACH1, MACH2, MACH3, MACH4, //16
 		SPELLBOOK, MISC5, //18
 		BACKPACK_START = 19,
-		
+
 		// Creatures
 		CREATURE_SLOT = 0,
-		
+
 		// Commander
 		COMMANDER1 = 0, COMMANDER2, COMMANDER3, COMMANDER4, COMMANDER5, COMMANDER6, COMMANDER7, COMMANDER8, COMMANDER9,
 
@@ -854,16 +876,16 @@ public:
 		NONE = -1,
 
 		// Adventure map spells
-		SUMMON_BOAT = 0,
-		SCUTTLE_BOAT = 1,
-		VISIONS = 2,
-		VIEW_EARTH = 3,
-		DISGUISE = 4,
-		VIEW_AIR = 5,
-		FLY = 6,
-		WATER_WALK = 7,
-		DIMENSION_DOOR = 8,
-		TOWN_PORTAL = 9,
+		SUMMON_BOAT [[deprecated("check for spell mechanics instead of spell ID")]] = 0,
+		SCUTTLE_BOAT [[deprecated("check for spell mechanics instead of spell ID")]] = 1,
+		VISIONS [[deprecated("check for spell mechanics instead of spell ID")]] = 2,
+		VIEW_EARTH [[deprecated("check for spell mechanics instead of spell ID")]] = 3,
+		DISGUISE [[deprecated("check for spell mechanics instead of spell ID")]] = 4,
+		VIEW_AIR [[deprecated("check for spell mechanics instead of spell ID")]] = 5,
+		FLY [[deprecated("check for spell mechanics instead of spell ID")]] = 6,
+		WATER_WALK [[deprecated("check for spell mechanics instead of spell ID")]] = 7,
+		DIMENSION_DOOR [[deprecated("check for spell mechanics instead of spell ID")]] = 8,
+		TOWN_PORTAL [[deprecated("check for spell mechanics instead of spell ID")]] = 9,
 
 		// Combat spells
 		QUICKSAND = 10,
@@ -1047,6 +1069,15 @@ public:
 	static std::string entityType();
 };
 
+class DLL_LINKAGE SpellEffectID : public StaticIdentifier<SpellEffectID>
+{
+public:
+	using StaticIdentifier<SpellEffectID>::StaticIdentifier;
+
+	static const SpellEffectID NONE;
+};
+
+
 class GameResIDBase : public IdentifierBase
 {
 public:
@@ -1059,7 +1090,6 @@ public:
 		CRYSTAL,
 		GEMS,
 		GOLD,
-		MITHRIL,
 		COUNT,
 
 		WOOD_AND_ORE = -4,  // special case for town bonus resource
@@ -1078,7 +1108,8 @@ public:
 	static std::string encode(const si32 index);
 	static std::string entityType();
 
-	static const std::array<GameResID, 7> & ALL_RESOURCES();
+	const Resource * toResource() const;
+	const ResourceType * toEntity(const Services * services) const;
 };
 
 class DLL_LINKAGE BuildingTypeUniqueID : public Identifier<BuildingTypeUniqueID>

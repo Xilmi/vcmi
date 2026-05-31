@@ -22,7 +22,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 
 class IBattleEventsReceiver;
 
-class DLL_LINKAGE CCallback : public CPlayerSpecificInfoCallback, public CBattleCallback, public IGameActionCallback
+class DLL_LINKAGE CCallback final : public CPlayerSpecificInfoCallback, public CBattleCallback, public IGameActionCallback
 {
 	std::shared_ptr<CGameState> gamestate;
 
@@ -40,8 +40,8 @@ public:
 	std::optional<PlayerColor> getPlayerID() const override;
 
 //commands
-	void moveHero(const CGHeroInstance *h, const std::vector<int3> & path, bool transit) override;
-	void moveHero(const CGHeroInstance *h, const int3 & destination, bool transit) override;
+	void moveHero(const CGHeroInstance *h, const std::vector<int3> & path, bool transit, const EPathfindingLayer & layer) override;
+	void moveHero(const CGHeroInstance *h, const int3 & destination, bool transit, const EPathfindingLayer & layer = EPathfindingLayer::AUTO) override;
 	bool teleportHero(const CGHeroInstance *who, const CGTownInstance *where);
 	int selectionMade(int selection, QueryID queryID) override;
 	int sendQueryReply(std::optional<int32_t> reply, QueryID queryID) override;
@@ -76,13 +76,16 @@ public:
 	void trade(const ObjectInstanceID marketId, EMarketMode mode, TradeItemSell id1, TradeItemBuy id2, ui32 val1, const CGHeroInstance * hero = nullptr) override;
 	void trade(const ObjectInstanceID marketId, EMarketMode mode, const std::vector<TradeItemSell> & id1, const std::vector<TradeItemBuy> & id2, const std::vector<ui32> & val1, const CGHeroInstance * hero = nullptr) override;
 	void setFormation(const CGHeroInstance * hero, EArmyFormation mode) override;
+	void setTactics(const CGHeroInstance * hero, bool enabled) override;
+	void setTownName(const CGTownInstance * town, std::string & name) override;
 	void recruitHero(const CGObjectInstance *townOrTavern, const CGHeroInstance *hero, const HeroTypeID & nextHero=HeroTypeID::NONE) override;
-	void save(const std::string &fname) override;
+	void save(const std::string &fname, bool notifySuccess) override;
 	void sendMessage(const std::string &mess, const CGObjectInstance * currentObject = nullptr) override;
 	void gamePause(bool pause) override;
 	void buildBoat(const IShipyard *obj) override;
 	void dig(const CGObjectInstance *hero) override;
 	void castSpell(const CGHeroInstance *hero, SpellID spellID, const int3 &pos = int3(-1, -1, -1)) override;
+	void requestStatistic() override;
 
 //friends
 	friend class CClient;

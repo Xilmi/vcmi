@@ -72,8 +72,9 @@ std::optional<CampaignScenarioID> CGameStateCampaign::getHeroesSourceScenario() 
 	return campaignState->lastScenario();
 }
 
-void CGameStateCampaign::trimCrossoverHeroesParameters(vstd::RNG & randomGenerator, const CampaignTravel & travelOptions)
+void CGameStateCampaign::trimCrossoverHeroesParameters(vstd::RNG & randomGenerator, const CampaignState & campaignState)
 {
+	const CampaignTravel travelOptions = campaignState.scenario(*campaignState.currentScenario()).travelOptions;
 	// TODO this logic (what should be kept) should be part of CScenarioTravel and be exposed via some clean set of methods
 	if(!travelOptions.whatHeroKeeps.experience)
 	{
@@ -180,10 +181,11 @@ void CGameStateCampaign::trimCrossoverHeroesParameters(vstd::RNG & randomGenerat
 	//trimming creatures
 	for(auto & hero : campaignHeroReplacements)
 	{
-		auto shouldSlotBeErased = [&](CStackInstance & j) -> bool
+		// a special case: only the second mission should allow transfering stacks, but the player can choose two alternative missions after the first
+		bool isThirdDragonSlayerMission = boost::starts_with(campaignState.getFilename(), "DATA/SLAYER") && campaignState.conqueredScenarios().size() == 2;
+		auto shouldSlotBeErased = [&](CStackInstance & j) -> bool		//here slots are erased
 		{
-			CreatureID crid = j.getCreatureID();
-			return !travelOptions.monstersKeptByHero.count(crid);
+			return isThirdDragonSlayerMission || !travelOptions.monstersKeptByHero.count(j.getCreatureID());
 		};
 
 		//generate list of slots without removing anything first to avoid iterator invalidation
@@ -196,6 +198,10 @@ void CGameStateCampaign::trimCrossoverHeroesParameters(vstd::RNG & randomGenerat
 		for (const auto slotID : slotsToErase)
 			hero.hero->eraseStack(slotID);
 	}
+
+	// Add spell flag to ensure that hero without spellbook won't receive one as part of initHero call
+	for(auto & hero : campaignHeroReplacements)
+		hero.hero->addSpellToSpellbook(SpellID::SPELLBOOK_PRESET);
 
 	// Removing short-term bonuses
 	for(auto & hero : campaignHeroReplacements)
@@ -228,7 +234,10 @@ void CGameStateCampaign::placeCampaignHeroes(vstd::RNG & randomGenerator)
 				heroTypeId = gameState->pickUnusedHeroTypeRandomly(randomGenerator, playerColor);
 			}
 
-			gameState->placeStartingHero(playerColor, HeroTypeID(heroTypeId), gameState->map->players[playerColor.getNum()].posOfMainTown);
+			int3 posOfMainTown = gameState->map->players[playerColor.getNum()].posOfMainTown;
+
+			if (posOfMainTown.isValid())
+				gameState->placeStartingHero(playerColor, HeroTypeID(heroTypeId), posOfMainTown);
 		}
 	}
 
@@ -236,7 +245,8 @@ void CGameStateCampaign::placeCampaignHeroes(vstd::RNG & randomGenerator)
 	generateCampaignHeroesToReplace();
 
 	logGlobal->debug("\tPrepare crossover heroes");
-	trimCrossoverHeroesParameters(randomGenerator, campaignState->scenario(*campaignState->currentScenario()).travelOptions);
+	trimCrossoverHeroesParameters(randomGenerator, *campaignState);
+
 
 	// remove same heroes on the map which will be added through crossover heroes
 	// INFO: we will remove heroes because later it may be possible that the API doesn't allow having heroes
@@ -297,7 +307,9 @@ void CGameStateCampaign::placeCampaignHeroes(vstd::RNG & randomGenerator)
 		}
 
 		hero->setHeroType(heroTypeId);
-		gameState->map->getEditManager()->insertObject(object);
+		gameState->map->generateUniqueInstanceName(object.get());
+		gameState->map->addNewObject(object);
+		assert(hero->pos.isValid());
 	}
 }
 
@@ -389,6 +401,7 @@ void CGameStateCampaign::replaceHeroesPlaceholders()
 		heroToPlace->setAnchorPos(heroPlaceholder->anchorPos());
 		heroToPlace->setHeroType(heroToPlace->getHeroTypeID());
 		heroToPlace->appearance = heroToPlace->getObjectHandler()->getTemplates().front();
+		heroToPlace->instanceName = heroPlaceholder->instanceName;
 
 		gameState->map->replaceObject(campaignHeroReplacement.heroPlaceholderId, heroToPlace);
 	}

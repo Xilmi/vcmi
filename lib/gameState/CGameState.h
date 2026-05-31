@@ -15,8 +15,11 @@
 #include "../entities/artifact/EArtifactClass.h"
 #include "../LoadProgress.h"
 
-#include "RumorState.h"
 #include "GameStatistics.h"
+#include "RumorState.h"
+#include "mapObjects/CGObjectInstance.h"
+
+#include <vcmi/Environment.h>
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -42,6 +45,19 @@ class UpgradeInfo;
 
 DLL_LINKAGE std::ostream & operator<<(std::ostream & os, const EVictoryLossCheckResult & victoryLossCheckResult);
 
+class GameStateEnvironment final : public Environment
+{
+	CGameState & owner;
+public:
+	explicit GameStateEnvironment(CGameState & owner)
+		:owner(owner)
+	{}
+
+	const Services * services() const final;
+	const BattleCb * battle(const BattleID & battleID) const final;
+	const GameCb * game() const final;
+};
+
 class DLL_LINKAGE CGameState : public CNonConstInfoCallback, public Serializeable
 {
 	friend class CGameStateCampaign;
@@ -49,6 +65,9 @@ class DLL_LINKAGE CGameState : public CNonConstInfoCallback, public Serializeabl
 	std::shared_ptr<StartInfo> initialOpts; //copy of settings received from pregame (not randomized)
 	std::shared_ptr<StartInfo> scenarioOps;
 	std::unique_ptr<CMap> map;
+
+	std::unique_ptr<GameStateEnvironment> scriptingEnvironment;
+	std::unique_ptr<scripting::Pool> scriptingPool;
 
 	void saveCompatibilityRegisterMissingArtifacts();
 public:
@@ -75,7 +94,7 @@ public:
 	void preInit(Services * services);
 
 	void init(const IMapService * mapService, StartInfo * si, IGameRandomizer & gameRandomizer, Load::ProgressAccumulator &, bool allowSavingRandomMap = true);
-	void updateOnLoad(StartInfo * si);
+	void updateOnLoad(const StartInfo & si);
 
 	ui32 day; //total number of days in game
 	std::map<PlayerColor, PlayerState> players;
@@ -149,13 +168,25 @@ public:
 
 	bool isVisibleFor(int3 pos, const PlayerColor player) const override;
 	bool isVisibleFor(const CGObjectInstance * obj, const PlayerColor player) const override;
+	template<class BoolPredicate>
+	static bool iteratePositionsUntilTrue(const CGObjectInstance * obj, BoolPredicate && boolPredicate)
+	{
+		for(int fy = 0; fy < obj->getHeight(); ++fy)
+		{
+			for(int fx = 0; fx < obj->getWidth(); ++fx)
+			{
+				int3 pos = obj->anchorPos() + int3(-fx, -fy, 0);
+				if(boolPredicate(pos))
+					return true;
+			}
+		}
+		return false;
+	}
 
 	static int getDate(int day, Date mode);
 	int getDate(Date mode=Date::DAY) const override; //mode=0 - total days in game, mode=1 - day of week, mode=2 - current week, mode=3 - current month
 
-#if SCRIPTING_ENABLED
-	scripting::Pool * getGlobalContextPool() const override;
-#endif
+	const scripting::Pool & getScriptContextPool() const final;
 
 	void saveGame(CSaveFile & file) const;
 	void loadGame(CLoadFile & file);
@@ -228,6 +259,7 @@ private:
 	bool isUsedHero(const HeroTypeID & hid) const; //looks in heroes and prisons
 	std::set<HeroTypeID> getUnusedAllowedHeroes(bool alsoIncludeNotAllowed = false) const;
 	HeroTypeID pickUnusedHeroTypeRandomly(vstd::RNG & randomGenerator, const PlayerColor & owner); // picks a unused hero type randomly
+	bool isHeroAllowedForPlayer(const HeroTypeID & hid, const PlayerColor & owner);
 
 	// ---- data -----
 	Services * services;

@@ -22,7 +22,7 @@
 #include "../render/Graphics.h"
 #include "../windows/CMessage.h"
 #include "../windows/InfoWindows.h"
-#include "../widgets/TextControls.h"
+#include "TextControls.h"
 
 #include "../../lib/entities/artifact/ArtifactUtils.h"
 #include "../../lib/entities/artifact/CArtHandler.h"
@@ -31,7 +31,6 @@
 #include "../../lib/entities/faction/CTown.h"
 #include "../../lib/entities/faction/CTownHandler.h"
 #include "../../lib/networkPacks/Component.h"
-#include "../../lib/spells/CSpellHandler.h"
 #include "../../lib/CCreatureHandler.h"
 #include "../../lib/CSkillHandler.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
@@ -96,14 +95,29 @@ void CComponent::init(ComponentType Type, ComponentSubType Subtype, std::optiona
 	if(Type == ComponentType::RESOURCE && !ValText.empty())
 		max = 80;
 
-	std::vector<std::string> textLines = CMessage::breakText(getSubtitle(), std::max<int>(max, pos.w), font);
 	const auto & fontPtr = ENGINE->renderHandler().loadFont(font);
+	{
+		std::string s = getSubtitle();
+
+		// remove color markup: "{color|"
+		s = std::regex_replace(s, std::regex("\\{[^|}]*\\|"), "");
+		// remove closing braces "}"
+		s.erase(std::remove(s.begin(), s.end(), '}'), s.end());
+
+		size_t longestWordLen = 0;
+		for(std::istringstream iss(s); iss >> s; )
+			longestWordLen = std::max(longestWordLen, fontPtr->getStringWidth(s));
+
+		max = std::min<int>(max, longestWordLen + 8);
+	}
+
+	std::vector<std::string> textLines = CMessage::breakText(getSubtitle(), std::max<int>(max, pos.w), font);
+
 	const int height = static_cast<int>(fontPtr->getLineHeight());
 
 	for(auto & line : textLines)
 	{
 		auto label = std::make_shared<CLabel>(pos.w/2, pos.h + height/2, font, ETextAlignment::CENTER, Colors::WHITE, line);
-
 		pos.h += height;
 		if(label->pos.w > pos.w)
 		{
@@ -119,9 +133,9 @@ std::vector<AnimationPath> CComponent::getFileName() const
 	static const std::array<std::string, 4>  primSkillsArr = {"PSKIL32",        "PSKIL32",        "PSKIL42",        "PSKILL"};
 	static const std::array<std::string, 4>  secSkillsArr =  {"SECSK32",        "SECSK32",        "SECSKILL",       "SECSK82"};
 	static const std::array<std::string, 4>  resourceArr =   {"SMALRES",        "RESOURCE",       "RESOURCE",       "RESOUR82"};
-	static const std::array<std::string, 4>  creatureArr =   {"CPRSMALL",       "CPRSMALL",       "CPRSMALL",       "TWCRPORT"};
+	static const std::array<std::string, 4>  creatureArr =   {"CPRSMALL",       "CPRSMALL",       "TWCRPORT",       "TWCRPORT"};
 	static const std::array<std::string, 4>  artifactArr =   {"Artifact",       "Artifact",       "Artifact",       "Artifact"};
-	static const std::array<std::string, 4>  spellsArr =     {"SpellInt",       "SpellInt",       "SpellInt",       "SPELLSCR"};
+	static const std::array<std::string, 4>  spellsArr =     {"SpellInt",       "SpellInt",       "SPELLSCR",       "SPELLSCR"};
 	static const std::array<std::string, 4>  moraleArr =     {"IMRL22",         "IMRL30",         "IMRL42",         "imrl82"};
 	static const std::array<std::string, 4>  luckArr =       {"ILCK22",         "ILCK30",         "ILCK42",         "ilck82"};
 	static const std::array<std::string, 4>  heroArr =       {"PortraitsSmall", "PortraitsSmall", "PortraitsSmall", "PortraitsLarge"};
@@ -192,7 +206,7 @@ size_t CComponent::getIndex() const
 			return LIBRARY->artifacts()->getById(data.subType.as<ArtifactID>())->getIconIndex();
 		case ComponentType::SPELL_SCROLL:
 		case ComponentType::SPELL:
-			return (size < large) ? data.subType.getNum() + 1 : data.subType.getNum();
+			return (size < medium) ? data.subType.getNum() + 1 : data.subType.getNum();
 		case ComponentType::MORALE:
 			return std::clamp(data.value.value_or(0) + 3, 0, 6);
 		case ComponentType::LUCK:

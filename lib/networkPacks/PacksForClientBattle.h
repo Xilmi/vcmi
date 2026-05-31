@@ -16,6 +16,7 @@
 #include "../battle/BattleInfo.h"
 #include "../battle/BattleHexArray.h"
 #include "../battle/BattleUnitTurnReason.h"
+#include "../mapObjects/army/CStackBasicDescriptor.h"
 #include "../texts/MetaString.h"
 
 class CClient;
@@ -120,7 +121,8 @@ struct DLL_LINKAGE BattleResult : public Query
 {
 	BattleID battleID = BattleID::NONE;
 	EBattleResult result = EBattleResult::NORMAL;
-	BattleSide winner = BattleSide::NONE; //0 - attacker, 1 - defender, [2 - draw (should be possible?)]
+	BattleSide winner = BattleSide::NONE; //0 - attacker, 1 - defender, 2 - draw
+	PlayerColor attacker; //used in case of a draw
 	BattleSideArray<std::map<CreatureID, si32>> casualties; //first => casualties of attackers - map crid => number
 	BattleSideArray<TExpType> exp{0,0}; //exp for attacker and defender
 
@@ -138,7 +140,7 @@ struct DLL_LINKAGE BattleResult : public Query
 	}
 };
 
-struct DLL_LINKAGE BattleLogMessage : public CPackForClient
+struct DLL_LINKAGE BattleLogMessage : public CPackForClient, public scripting::ApiSharedPointer<BattleLogMessage>
 {
 	BattleID battleID = BattleID::NONE;
 	std::vector<MetaString> lines;
@@ -153,7 +155,7 @@ struct DLL_LINKAGE BattleLogMessage : public CPackForClient
 	}
 };
 
-struct DLL_LINKAGE BattleStackMoved : public CPackForClient
+struct DLL_LINKAGE BattleStackMoved : public CPackForClient, public scripting::ApiSharedPointer<BattleStackMoved>
 {
 	BattleID battleID = BattleID::NONE;
 	ui32 stack = 0;
@@ -174,7 +176,7 @@ struct DLL_LINKAGE BattleStackMoved : public CPackForClient
 	}
 };
 
-struct DLL_LINKAGE BattleUnitsChanged : public CPackForClient
+struct DLL_LINKAGE BattleUnitsChanged : public CPackForClient, public scripting::ApiSharedPointer<BattleUnitsChanged>
 {
 	BattleID battleID = BattleID::NONE;
 	std::vector<UnitChanges> changedStacks;
@@ -409,6 +411,22 @@ struct DLL_LINKAGE BattleResultsApplied : public CPackForClient
 		h & growingArtifacts;
 		h & dischargingArtifacts;
 		h & raisedStack;
+		assert(battleID != BattleID::NONE);
+	}
+};
+
+struct DLL_LINKAGE BattleEnded : public CPackForClient
+{
+	BattleID battleID = BattleID::NONE;
+	PlayerColor victor;
+	PlayerColor loser;
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & battleID;
+		h & victor;
+		h & loser;
 		assert(battleID != BattleID::NONE);
 	}
 };

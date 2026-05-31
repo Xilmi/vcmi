@@ -19,6 +19,7 @@
 #include <vcmi/HeroTypeService.h>
 #include <vcmi/SkillService.h>
 #include <vcmi/spells/Service.h>
+#include <vcmi/ResourceTypeService.h>
 
 #include "../lib/filesystem/Filesystem.h"
 #include "../lib/filesystem/CBinaryReader.h"
@@ -33,6 +34,10 @@
 #include "../lib/mapObjectConstructors/CObjectClassesHandler.h"
 #include "../lib/mapObjects/CGObjectInstance.h"
 #include "../lib/mapObjects/ObjectTemplate.h"
+
+#ifdef ENABLE_SINGLE_APP_BUILD
+namespace MapEditor {
+#endif
 
 Graphics * graphics = nullptr;
 
@@ -342,4 +347,9 @@ void Graphics::initializeImageLists()
 	addImageListEntries(LIBRARY->factions());
 	addImageListEntries(LIBRARY->spells());
 	addImageListEntries(LIBRARY->skills());
+	addImageListEntries(LIBRARY->resources());
 }
+
+#ifdef ENABLE_SINGLE_APP_BUILD
+} // namespace MapEditor
+#endif

@@ -61,7 +61,7 @@ std::vector<JsonNode> CArtHandler::loadLegacyData()
 	h3Data.reserve(dataSize);
 
 	#define ART_POS(x) #x ,
-	const std::vector<std::string> artSlots = { ART_POS_LIST };
+	std::vector<std::string> artSlots = { ART_POS_LIST };
 	#undef ART_POS
 
 	static const std::map<char, std::string> classes =
@@ -71,11 +71,30 @@ std::vector<JsonNode> CArtHandler::loadLegacyData()
 	CLegacyConfigParser events(TextPath::builtin("DATA/ARTEVENT.TXT"));
 
 	parser.endLine(); // header
+	for(int i = 0; i < 7; i++)
+		parser.readString();
+	bool isRoe = parser.readString() != "Misc 5";
 	parser.endLine();
+
+	if(isRoe)
+		artSlots.erase(artSlots.begin() + 5);
+
+	JsonNode roeMapping;
+	if(isRoe)
+		roeMapping = JsonNode(JsonPath::builtin("config/roeStringMapping.json"));
+	const JsonVector & artNewLines = roeMapping["newLines"]["DATA/ARTRAITS.TXT"].Vector();
 
 	for (size_t i = 0; i < dataSize; i++)
 	{
 		JsonNode artData;
+
+		if(isRoe && vstd::contains_if(artNewLines, [i](const JsonNode & item) -> bool {
+			return item.Integer() == static_cast<int64_t>(i);
+		}))
+		{
+			h3Data.push_back(artData);
+			continue;
+		}
 
 		artData["text"]["name"].String() = parser.readString();
 		artData["text"]["event"].String() = events.readString();
@@ -112,7 +131,7 @@ void CArtHandler::loadObject(std::string scope, std::string name, const JsonNode
 
 	objects.emplace_back(object);
 
-	registerObject(scope, "artifact", name, object->id.getNum());
+	registerObject(scope, "artifact", name, data, object->id.getNum());
 }
 
 void CArtHandler::loadObject(std::string scope, std::string name, const JsonNode & data, size_t index)
@@ -124,7 +143,7 @@ void CArtHandler::loadObject(std::string scope, std::string name, const JsonNode
 	assert(objects[index] == nullptr); // ensure that this id was not loaded before
 	objects[index] = object;
 
-	registerObject(scope, "artifact", name, object->id.getNum());
+	registerObject(scope, "artifact", name, data, object->id.getNum());
 }
 
 const std::vector<std::string> & CArtHandler::getTypeNames() const
@@ -181,6 +200,7 @@ std::shared_ptr<CArtifact> CArtHandler::loadFromJson(const std::string & scope, 
 		for(const auto & b : node["bonuses"].Vector())
 		{
 			auto bonus = JsonUtils::parseBonus(b);
+			bonus->sid = art->getId();
 			art->addNewBonus(bonus);
 		}
 	}
@@ -191,6 +211,7 @@ std::shared_ptr<CArtifact> CArtHandler::loadFromJson(const std::string & scope, 
 			if (b.second.isNull())
 				continue;
 			auto bonus = JsonUtils::parseBonus(b.second, art->getBonusTextID(b.first));
+			bonus->sid = art->getId();
 			art->addNewBonus(bonus);
 		}
 	}
@@ -200,6 +221,7 @@ std::shared_ptr<CArtifact> CArtHandler::loadFromJson(const std::string & scope, 
 		if (b.second.isNull())
 			continue;
 		auto bonus = JsonUtils::parseBonus(b.second, art->getBonusTextID(b.first));
+		bonus->sid = art->getId();
 		bonus->source = BonusSource::ARTIFACT;
 		bonus->duration = BonusDuration::PERMANENT;
 		bonus->description.appendTextID(art->getNameTextID());
@@ -254,8 +276,20 @@ std::shared_ptr<CArtifact> CArtHandler::loadFromJson(const std::string & scope, 
 			else
 				art->setDefaultStartCharges(charges);
 		}
-		if(art->getDischargeCondition() == DischargeArtifactCondition::SPELLCAST && art->getBonusesOfType(BonusType::SPELL)->size() == 0)
-			logMod->warn("Warning! %s condition of discharge is \"SPELLCAST\", but there is not a single spell.", art->getNameTranslated());
+	}
+
+	// Some bonuses must be located in the instance.
+	for(const auto & b : art->getExportedBonusList())
+	{
+		if(std::dynamic_pointer_cast<const HasChargesLimiter>(b->limiter))
+		{
+			b->source = BonusSource::ARTIFACT;
+			b->duration = BonusDuration::PERMANENT;
+			b->description.appendTextID(art->getNameTextID());
+			b->description.appendRawString(" %+d");
+			art->instanceBonuses.push_back(b);
+			art->removeBonus(b);
+		}
 	}
 
 	return art;

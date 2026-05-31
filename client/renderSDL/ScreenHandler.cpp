@@ -16,15 +16,23 @@
 #include "../CMT.h"
 #include "../eventsSDL/NotificationHandler.h"
 #include "../GameEngine.h"
+#include "../GameInstance.h"
+#include "../CServerHandler.h"
+#include "../GameChatHandler.h"
 #include "../gui/CursorHandler.h"
 #include "../gui/WindowHandler.h"
 #include "../render/Canvas.h"
+#include "SDLImage.h"
 
 #include "../../lib/CConfigHandler.h"
 #include "../../lib/constants/StringConstants.h"
+#include "../../lib/VCMIDirs.h"
+#include "../../lib/texts/MetaString.h"
+
+#include <vstd/DateUtils.h>
 
 #ifdef VCMI_ANDROID
-#include "../lib/CAndroidVMHelper.h"
+#include "../../lib/CAndroidVMHelper.h"
 #endif
 
 #ifdef VCMI_IOS
@@ -48,6 +56,8 @@ std::tuple<int, int> ScreenHandler::getSupportedScalingRange() const
 	Point renderResolution = getRenderResolution();
 	double reservedAreaWidth = settings["video"]["reservedWidth"].Float();
 	Point availableResolution = Point(renderResolution.x * (1 - reservedAreaWidth), renderResolution.y);
+	if(renderResolution.x < renderResolution.y) // reserved in portrait mode
+		availableResolution = Point(renderResolution.x, renderResolution.y * (1 - reservedAreaWidth));
 
 	double maximalScalingWidth = 100.0 * availableResolution.x / minResolution.x;
 	double maximalScalingHeight = 100.0 * availableResolution.y / minResolution.y;
@@ -114,6 +124,8 @@ Point ScreenHandler::getPreferredLogicalResolution() const
 
 	int scaling = getInterfaceScalingPercentage();
 	Point availableResolution = Point(renderResolution.x * (1 - reservedAreaWidth), renderResolution.y);
+	if(renderResolution.x < renderResolution.y) // reserved in portrait mode
+		availableResolution = Point(renderResolution.x, renderResolution.y * (1 - reservedAreaWidth));
 	Point logicalResolution = availableResolution * 100.0 / scaling;
 	return logicalResolution;
 }
@@ -298,7 +310,6 @@ void ScreenHandler::updateWindowState()
 			Point resolution = getPreferredWindowResolution();
 			SDL_SetWindowFullscreen(mainWindow, 0);
 			SDL_SetWindowSize(mainWindow, resolution.x, resolution.y);
-			SDL_SetWindowPosition(mainWindow, SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex));
 			return;
 		}
 	}
@@ -480,9 +491,34 @@ SDL_Window * ScreenHandler::createWindow()
 #endif
 }
 
-void ScreenHandler::onScreenResize()
+bool ScreenHandler::onScreenResize(bool keepWindowResolution)
 {
-	recreateWindowAndScreenBuffers();
+	if (keepWindowResolution)
+	{
+		// Only allowed in windowed mode
+		if (getPreferredWindowMode() != EWindowMode::WINDOWED)
+			return false;
+
+		auto res = getRenderResolution();
+
+		if (res.x < heroes3Resolution.x || res.y < heroes3Resolution.y)
+			return false;
+
+		Settings video = settings.write["video"];
+		video["resolution"]["width"].Integer() = res.x;
+		video["resolution"]["height"].Integer() = res.y;
+
+		// Only recreate buffers (no window changes!)
+		destroyScreenBuffers();
+		initializeScreenBuffers();
+	}
+	else
+	{
+		// Apply settings change (may resize window / change fullscreen)
+		recreateWindowAndScreenBuffers();
+	}
+
+	return true;
 }
 
 void ScreenHandler::validateSettings()
@@ -692,4 +728,18 @@ bool ScreenHandler::hasFocus()
 void ScreenHandler::setColorScheme(ColorScheme scheme)
 {
 	colorScheme = scheme;
+}
+
+void ScreenHandler::screenShot() const
+{
+	const boost::filesystem::path outPath = VCMIDirs::get().userExtractedPath() / "screenshots";
+	boost::filesystem::create_directories(outPath);
+	const boost::filesystem::path filePath = outPath / ("screenshot-" + vstd::getDateTimeISO8601Basic(std::time(nullptr)) + ".png");
+	auto img = std::make_shared<SDLImageShared>(screen);
+	img->exportBitmap(filePath, nullptr);
+	MetaString txt;
+	txt.appendTextID("vcmi.client.screenShot");
+	txt.replaceRawString(filePath.string());
+	if(GAME->interface())
+		GAME->server().getGameChat().sendMessageGameplay(txt.toString());
 }

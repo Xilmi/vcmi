@@ -10,7 +10,8 @@
 #pragma once
 
 #include "../mapObjects/CGObjectInstance.h"
-#include "../mapping/CMapDefines.h"
+#include "../mapping/TerrainTile.h"
+#include "../mapping/MapTilesStorage.h"
 #include "../callback/IGameInfoCallback.h"
 #include "CGPathNode.h"
 
@@ -18,13 +19,13 @@ VCMI_LIB_NAMESPACE_BEGIN
 
 namespace PathfinderUtil
 {
-	using FoW = boost::multi_array<ui8, 3>;
+	using FoW = MapTilesStorage<uint8_t>;
 	using ELayer = EPathfindingLayer;
 
 	template<EPathfindingLayer::Type layer>
 	EPathAccessibility evaluateAccessibility(const int3 & pos, const TerrainTile & tinfo, const FoW & fow, const PlayerColor player, const IGameInfoCallback & gameInfo)
 	{
-		if(!fow[pos.z][pos.x][pos.y])
+		if(!fow[pos])
 			return EPathAccessibility::BLOCKED;
 
 		switch(layer)
@@ -33,12 +34,14 @@ namespace PathfinderUtil
 		case ELayer::SAIL:
 			if(tinfo.visitable())
 			{
-				auto frontVisitable = gameInfo.getObjInstance(tinfo.visitableObjects.front());
-				auto backVisitable = gameInfo.getObjInstance(tinfo.visitableObjects.front());
-
-				if(frontVisitable->ID == Obj::SANCTUARY && backVisitable->ID == Obj::HERO && backVisitable->getOwner() != player) //non-owned hero stands on Sanctuary
+				if (tinfo.visitableObjects.size() > 1)
 				{
-					return EPathAccessibility::BLOCKED;
+					auto frontVisitable = gameInfo.getObjInstance(tinfo.visitableObjects.front());
+					auto backVisitable = gameInfo.getObjInstance(tinfo.visitableObjects.back());
+					if(frontVisitable->ID == Obj::SANCTUARY && backVisitable->ID == Obj::HERO && backVisitable->getOwner() != player)
+					{
+						return EPathAccessibility::BLOCKED;
+					}
 				}
 				else
 				{
@@ -79,6 +82,13 @@ namespace PathfinderUtil
 			if(tinfo.blocked() || tinfo.isLand())
 				return EPathAccessibility::BLOCKED;
 
+			break;
+
+		case ELayer::AVIATE:
+			//cannot aviate over blocked and visitable tiles (use FLY layer instead)
+			if(tinfo.blocked() || tinfo.visitable())
+				return EPathAccessibility::BLOCKED;
+			return EPathAccessibility::ACCESSIBLE;
 			break;
 
 		case ELayer::AIR:

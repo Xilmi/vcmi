@@ -14,12 +14,23 @@
 
 #include "../VCMIDirs.h"
 
+#include <vcmi/scripting/Service.h>
+
 #ifdef STATIC_AI
-# include "../../AI/VCAI/VCAI.h"
-# include "../../AI/Nullkiller/AIGateway.h"
-# include "../../AI/BattleAI/BattleAI.h"
-# include "../../AI/StupidAI/StupidAI.h"
-# include "../../AI/EmptyAI/CEmptyAI.h"
+#  include "../../luascript/LuaModule.h"
+#  ifdef ENABLE_NULLKILLER2_AI
+#    include "../../AI/Nullkiller2/AIGateway.h"
+#  endif
+#  ifdef ENABLE_BATTLE_AI
+#    include "../../AI/BattleAI/BattleAI.h"
+#  endif
+#  ifdef ENABLE_STUPID_AI
+#    include "../../AI/StupidAI/StupidAI.h"
+#  endif
+#  ifdef ENABLE_MMAI
+#    include "../../AI/MMAI/MMAI.h"
+#  endif
+#  include "../../AI/EmptyAI/CEmptyAI.h"
 #else
 # ifdef VCMI_WINDOWS
 #  include <windows.h> //for .dll libs
@@ -30,15 +41,15 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-	template<typename rett>
-	std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const std::string & methodName)
+template<typename rett>
+rett createAny(const boost::filesystem::path & libpath, const std::string & methodName)
 {
 #ifdef STATIC_AI
 	// android currently doesn't support loading libs dynamically, so the access to the known libraries
 	// is possible only via specializations of this template
 	throw std::runtime_error("Could not resolve ai library " + libpath.generic_string());
 #else
-	using TGetAIFun = void (*)(std::shared_ptr<rett> &);
+	using TGetAIFun = void (*)(rett &);
 	using TGetNameFun = void (*)(char *);
 
 	char temp[150];
@@ -51,7 +62,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-function-type"
 #endif
-	HMODULE dll = LoadLibraryW(libpath.c_str());
+	HMODULE dll = LoadLibraryExW(libpath.c_str(), NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
 	if (dll)
 	{
 		getName = reinterpret_cast<TGetNameFun>(GetProcAddress(dll, "GetAiName"));
@@ -66,6 +77,10 @@ VCMI_LIB_NAMESPACE_BEGIN
 	{
 		getName = reinterpret_cast<TGetNameFun>(dlsym(dll, "GetAiName"));
 		getAI = reinterpret_cast<TGetAIFun>(dlsym(dll, methodName.c_str()));
+	}
+	else
+	{
+		logGlobal->error("Cannot open dynamic library '%s'. Reason: %s", libpath.string(), dlerror());
 	}
 #endif // VCMI_WINDOWS
 
@@ -88,7 +103,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 	getName(temp);
 	logGlobal->info("Loaded %s", temp);
 
-	std::shared_ptr<rett> ret;
+	rett ret;
 	getAI(ret);
 	if(!ret)
 		logGlobal->error("Cannot get AI!");
@@ -102,23 +117,44 @@ VCMI_LIB_NAMESPACE_BEGIN
 template<>
 std::shared_ptr<CGlobalAI> createAny(const boost::filesystem::path & libpath, const std::string & methodName)
 {
-	if(libpath.stem() == "libNullkiller") {
-		return std::make_shared<NKAI::AIGateway>();
-	}
-	else{
-		return std::make_shared<VCAI>();
-	}
+#ifdef ENABLE_NULLKILLER2_AI
+	if(libpath.stem() == "libNullkiller2")
+		return std::make_shared<NK2AI::AIGateway>();
+#endif
+
+	return std::make_shared<CEmptyAI>();
 }
 
 template<>
 std::shared_ptr<CBattleGameInterface> createAny(const boost::filesystem::path & libpath, const std::string & methodName)
 {
+#ifdef ENABLE_BATTLE_AI
 	if(libpath.stem() == "libBattleAI")
 		return std::make_shared<CBattleAI>();
-	else if(libpath.stem() == "libStupidAI")
+#endif
+
+#ifdef ENABLE_STUPID_AI
+	if(libpath.stem() == "libStupidAI")
 		return std::make_shared<CStupidAI>();
+#endif
+
+#ifdef ENABLE_MMAI
+	if(libpath.stem() == "libMMAI")
+		return std::make_shared<MMAI::BAI::Router>();
+#endif
+
 	return std::make_shared<CEmptyAI>();
 }
+
+template<>
+std::unique_ptr<scripting::Service> createAny(const boost::filesystem::path & libpath, const std::string & methodName)
+{
+	if(libpath.stem() == "libvcmiLua")
+		return std::make_unique<scripting::LuaModule>();
+
+	throw std::runtime_error("Unknown scripting library: " + libpath.string());
+}
+
 
 #endif // STATIC_AI
 
@@ -128,7 +164,7 @@ std::shared_ptr<rett> createAnyAI(const std::string & dllname, const std::string
 	logGlobal->info("Opening %s", dllname);
 
 	const boost::filesystem::path filePath = VCMIDirs::get().fullLibraryPath("AI", dllname);
-	auto ret = createAny<rett>(filePath, methodName);
+	auto ret = createAny<std::shared_ptr<rett>>(filePath, methodName);
 	ret->dllName = dllname;
 	return ret;
 }
@@ -143,11 +179,9 @@ std::shared_ptr<CBattleGameInterface> CDynLibHandler::getNewBattleAI(const std::
 	return createAnyAI<CBattleGameInterface>(dllname, "GetNewBattleAI");
 }
 
-#if SCRIPTING_ENABLED
-std::shared_ptr<scripting::Module> CDynLibHandler::getNewScriptingModule(const boost::filesystem::path & dllname)
+std::unique_ptr<scripting::Service> CDynLibHandler::getNewScriptingModule(const boost::filesystem::path & dllname)
 {
-	return createAny<scripting::Module>(dllname, "GetNewModule");
+	return createAny<std::unique_ptr<scripting::Service>>(dllname, "GetNewModule");
 }
-#endif
 
 VCMI_LIB_NAMESPACE_END

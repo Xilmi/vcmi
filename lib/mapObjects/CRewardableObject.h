@@ -9,7 +9,8 @@
  */
 #pragma once
 
-#include "CArmedInstance.h"
+#include "army/CArmedInstance.h"
+
 #include "../rewardable/Interface.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
@@ -40,6 +41,8 @@ protected:
 	void serializeJsonOptions(JsonSerializeFormat & handler) override;
 	
 	std::string getDisplayTextImpl(PlayerColor player, const CGHeroInstance * hero, bool includeDescription) const;
+	std::string getScoutedDescriptionMessage(const CGHeroInstance * hero) const;
+	std::string getGenericDescriptionMessage() const;
 	std::string getDescriptionMessage(PlayerColor player, const CGHeroInstance * hero) const;
 	std::vector<Component> getPopupComponentsImpl(PlayerColor player, const CGHeroInstance * hero) const;
 

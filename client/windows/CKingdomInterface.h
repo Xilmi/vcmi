@@ -11,6 +11,8 @@
 
 #include "CWindowWithArtifacts.h"
 
+#include "../../lib/mapObjectConstructors/CommonConstructors.h"
+
 VCMI_LIB_NAMESPACE_BEGIN
 class CGObjectInstance;
 VCMI_LIB_NAMESPACE_END
@@ -207,6 +209,7 @@ private:
 	struct OwnedObjectInfo
 	{
 		int imageID;
+		AnimationPath imagePath;
 		ui32 count;
 		std::string hoverText;
 		OwnedObjectInfo():
@@ -231,6 +234,7 @@ private:
 	std::shared_ptr<CButton> dwellBottom;
 
 	std::array<std::shared_ptr<InfoBox>, 7> minesBox;
+	std::shared_ptr<CSlider> minesSlider;
 
 	std::shared_ptr<CHoverableArea> incomeArea;
 	std::shared_ptr<CLabel> incomeAmount;
@@ -240,10 +244,12 @@ private:
 
 	void activateTab(size_t which);
 
+	std::shared_ptr<MineInstanceConstructor> getMineHandler(const GameResID & res);
+
 	//Internal functions used during construction
 	void generateButtons();
 	void generateObjectsList(const std::vector<const CGObjectInstance * > &ownedObjects);
-	void generateMinesList(const std::vector<const CGObjectInstance * > &ownedObjects);
+	void generateMinesList(const std::vector<const CGObjectInstance * > &ownedObjects, int line);
 
 	std::shared_ptr<CIntObject> createOwnedObject(size_t index);
 	std::shared_ptr<CIntObject> createMainTab(size_t index);
@@ -282,7 +288,6 @@ class CTownItem : public CIntObject, public IGarrisonHolder
 	std::shared_ptr<CButton> fastTownHall;
 	std::shared_ptr<CButton> fastArmyPurchase;
 	std::shared_ptr<LRClickableArea> fastMarket;
-	std::shared_ptr<LRClickableArea> fastTavern;
 	std::shared_ptr<LRClickableArea> fastTown;
 
 public:
@@ -327,6 +332,8 @@ public:
 
 	void updateGarrisons() override;
 	bool holdsGarrison(const CArmedInstance * army) override;
+
+	void redraw() override;
 
 	CHeroItem(const CGHeroInstance * hero);
 };

@@ -18,6 +18,7 @@ class PlayerState;
 class CGameState;
 class CGHeroInstance;
 class CGMine;
+struct TeamState;
 
 struct DLL_LINKAGE StatisticDataSetEntry
 {
@@ -56,6 +57,8 @@ struct DLL_LINKAGE StatisticDataSetEntry
 	bool eventCapturedTown;
 	bool eventDefeatedStrongestHero;
 	si64 movementPointsUsed;
+
+	void serializeJson(JsonSerializeFormat & handler);
 
 	template <typename Handler> void serialize(Handler &h)
 	{
@@ -105,6 +108,8 @@ public:
 	std::string toCsv(std::string sep) const;
 	std::string writeCsv() const;
 
+	void serializeJson(JsonSerializeFormat & handler);
+
 	struct PlayerAccumulatedValueStorage // holds some actual values needed for stats
 	{
 		int numBattlesNeutral;
@@ -119,6 +124,8 @@ public:
 		si64 movementPointsUsed;
 		int lastCapturedTownDay;
 		int lastDefeatedStrongestHeroDay;
+
+		void serializeJson(JsonSerializeFormat & handler);
 
 		template <typename Handler> void serialize(Handler &h)
 		{
@@ -137,8 +144,16 @@ public:
 		}
 	};
 	std::vector<StatisticDataSetEntry> data;
+
+	PlayerAccumulatedValueStorage & getPlayerAccumulator(PlayerColor player);
+	const PlayerAccumulatedValueStorage & getPlayerAccumulator(PlayerColor player) const;
+
+	void filterByTeam(const TeamState * team);
+
+private:
 	std::map<PlayerColor, PlayerAccumulatedValueStorage> accumulatedValues;
 
+public:
 	template <typename Handler> void serialize(Handler &h)
 	{
 		h & data;

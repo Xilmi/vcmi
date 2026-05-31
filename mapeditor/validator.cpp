@@ -17,7 +17,10 @@
 #include "../lib/mapObjects/MapObjects.h"
 #include "../lib/modding/CModHandler.h"
 #include "../lib/modding/ModDescription.h"
-#include "../lib/spells/CSpellHandler.h"
+
+#include <vcmi/spells/Spell.h>
+
+#include "../lib/json/JsonKeyExtractor.h"
 
 Validator::Validator(const CMap * map, QWidget *parent) :
 	QDialog(parent),
@@ -40,6 +43,7 @@ Validator::~Validator()
 std::set<Validator::Issue> Validator::validate(const CMap * map)
 {
 	std::set<Validator::Issue> issues;
+	JsonKeyExtractor keyExtractor(map->cb);
 	
 	if(!map)
 	{
@@ -79,6 +83,8 @@ std::set<Validator::Issue> Validator::validate(const CMap * map)
 		//checking all objects in the map
 		for(auto o : map->objects)
 		{
+			if(!o)
+				continue;
 			//owners for objects
 			if(o->getOwner() == PlayerColor::UNFLAGGABLE)
 			{
@@ -142,6 +148,20 @@ std::set<Validator::Issue> Validator::validate(const CMap * map)
 					if(ins->ID == Obj::ARTIFACT && map->allowedArtifact.count(ins->getArtifactType()) == 0)
 					{
 						issues.insert({ tr("Artifact %1 is prohibited by map settings").arg(ins->getObjectName().c_str()), false });
+					}
+				}
+			}
+			if(o->ID == MapObjectID::WITCH_HUT)
+			{
+				CRewardableObject * hut = static_cast<CRewardableObject *>(o.get());
+				JsonNode preset = hut->configuration.getPresetVariable("secondarySkill", "gainedSkill");
+				if(!preset.isNull())
+				{
+					auto presetAbilities = keyExtractor.filterKeys(preset, map->allowedAbilities);
+					if(presetAbilities.empty())
+					{
+						issues.insert({tr("A customized witch hut at x: %1 y: %2 on %3 layer does not hold a valid secondary skill")
+                            .arg(hut->pos.x).arg(hut->pos.y).arg(hut->pos.z), true});
 					}
 				}
 			}

@@ -480,9 +480,17 @@ static bool testFilePresence(const std::string & scope, const ResourcePath & res
 
 	for(const auto & entry : allowedScopes)
 	{
-		if (CResourceHandler::get(entry)->existsResource(resource))
-			return true;
+		try
+		{
+			if (CResourceHandler::get(entry)->existsResource(resource))
+				return true;
+		}
+		catch (const std::out_of_range &)
+		{
+			throw std::out_of_range("Failed to find filesystem of mod '" + entry + "' when testing file '" + resource.getOriginalName() + "' for mod '" + scope + "'");
+		}
 	}
+
 #endif
 	return false;
 }
@@ -539,6 +547,7 @@ static std::string videoFile(const JsonNode & node)
 }
 #undef TEST_FILE
 
+#ifndef ENABLE_MINIMAL_LIB
 static std::string version(const JsonNode & node)
 {
 	auto version = CModVersion::fromString(node.String());
@@ -546,6 +555,7 @@ static std::string version(const JsonNode & node)
 		return "Failed to parse mod version: " + node.toCompactString() + ". Expected format X.Y.Z, where X, Y, Z are non-negative numbers";
 	return "";
 }
+#endif
 
 JsonValidator::TValidatorMap createCommonFields()
 {
@@ -638,8 +648,9 @@ JsonValidator::TFormatMap createFormatMap()
 	ret["animationFile"] = animationFile;
 	ret["imageFile"]     = imageFile;
 	ret["videoFile"]     = videoFile;
+#ifndef ENABLE_MINIMAL_LIB
 	ret["version"]     = version;
-
+#endif
 	//TODO:
 	// uri-reference
 	// uri-template

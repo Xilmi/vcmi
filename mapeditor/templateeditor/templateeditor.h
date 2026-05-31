@@ -15,13 +15,10 @@
 #include "../StdInc.h"
 #include "../../lib/constants/EntityIdentifiers.h"
 #include "../../lib/GameConstants.h"
+#include "../../lib/rmg/CRmgTemplate.h"
 
-class CRmgTemplate;
 class CardItem;
 class LineItem;
-namespace rmg {
-class ZoneOptions;
-}
 
 namespace Ui {
 class TemplateEditor;
@@ -35,7 +32,7 @@ public:
 	explicit TemplateEditor();
 	~TemplateEditor();
 
-	static void showTemplateEditor();
+	static void showTemplateEditor(QWidget *parent);
 
 private slots:
 	void on_actionOpen_triggered();
@@ -58,6 +55,7 @@ private slots:
 	void on_doubleSpinBoxZoneVisSize_valueChanged();
 	void on_comboBoxZoneType_currentTextChanged(const QString &text);
 	void on_comboBoxZoneOwner_currentTextChanged(const QString &text);
+	void on_comboBoxForcedLevel_currentTextChanged(const QString &text);
 	void on_spinBoxZoneSize_valueChanged();
 	void on_spinBoxTownCountPlayer_valueChanged();
 	void on_spinBoxCastleCountPlayer_valueChanged();
@@ -95,18 +93,26 @@ private slots:
 	void on_pushButtonTreasure_clicked();
 	void on_pushButtonMines_clicked();
 	void on_pushButtonCustomObjects_clicked();
+	void on_pushButtonEntitiesBannedSpells_clicked();
+	void on_pushButtonEntitiesBannedArtifacts_clicked();
+	void on_pushButtonEntitiesBannedSkills_clicked();
+	void on_pushButtonEntitiesBannedHeroes_clicked();
 	
 private:
 	bool getAnswerAboutUnsavedChanges();
 	void setTitle();
 	void changed();
+	bool validate();
 	void saveTemplate();
 	void initContent();
+	void setDefaultContent(std::shared_ptr<CRmgTemplate> tpl);
+	void setDefaultContentZone(std::shared_ptr<rmg::ZoneOptions> zone, TRmgTemplateZoneId id);
 	void loadContent(bool autoPosition = false);
 	void saveContent();
 	void loadZoneMenuContent(bool onlyPosition = false);
 	void saveZoneMenuContent();
 	void loadZoneConnectionMenuContent();
+	void updateConnectionAddButton();
 	void updateConnectionLines(bool recreate = false);
 	void autoPositionZones();
 	void updateZonePositions();
@@ -114,6 +120,7 @@ private:
 	void updateZoneCards(TRmgTemplateZoneId id = -1);
 
 	void closeEvent(QCloseEvent *event) override;
+	void changeEvent(QEvent *event) override;
 
 	Ui::TemplateEditor *ui;
 

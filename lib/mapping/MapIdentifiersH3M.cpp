@@ -14,7 +14,9 @@
 #include "../GameLibrary.h"
 #include "../entities/faction/CFaction.h"
 #include "../entities/faction/CTownHandler.h"
+#include "../entities/faction/CTown.h"
 #include "../filesystem/Filesystem.h"
+#include "../json/JsonUtils.h"
 #include "../mapObjectConstructors/AObjectTypeHandler.h"
 #include "../mapObjectConstructors/CObjectClassesHandler.h"
 #include "../mapObjects/ObjectTemplate.h"
@@ -39,6 +41,10 @@ void MapIdentifiersH3M::loadMapping(const JsonNode & mapping)
 	if (!mapping["supported"].Bool())
 		throw std::runtime_error("Unsupported map format!");
 
+	formatSettings.Struct(); // change type
+	if (!mapping["settings"].isNull())
+		JsonUtils::inherit(formatSettings, mapping["settings"]);
+
 	for (auto entryFaction : mapping["buildings"].Struct())
 	{
 		FactionID factionID (*LIBRARY->identifiers()->getIdentifier(entryFaction.second.getModScope(), "faction", entryFaction.first));
@@ -58,7 +64,8 @@ void MapIdentifiersH3M::loadMapping(const JsonNode & mapping)
 		AnimationPath h3mName = AnimationPath::builtinTODO(entryTemplate.second.String());
 		AnimationPath vcmiName = AnimationPath::builtinTODO(entryTemplate.first);
 
-		if (!CResourceHandler::get()->existsResource(vcmiName.addPrefix("SPRITES/")))
+		if (!CResourceHandler::get()->existsResource(vcmiName.addPrefix("SPRITES/")) &&
+		   !CResourceHandler::get()->existsResource(vcmiName.addPrefix("SPRITES/").toType<EResType::JSON>()))
 			logMod->warn("Template animation file %s was not found!", vcmiName.getOriginalName());
 
 		mappingObjectTemplate[h3mName] = vcmiName;
@@ -90,7 +97,12 @@ void MapIdentifiersH3M::loadMapping(const JsonNode & mapping)
 	}
 
 	for (auto entry : mapping["campaignVideo"].Struct())
-		mappingCampaignVideo[entry.second.Integer()] = VideoPath::builtinTODO(entry.first);
+	{
+		if(mappingCampaignVideo[entry.second.Integer()].first.empty())
+			mappingCampaignVideo[entry.second.Integer()].first = VideoPath::builtinTODO(entry.first);
+		else
+			mappingCampaignVideo[entry.second.Integer()].second = VideoPath::builtinTODO(entry.first);
+	}
 
 	for (auto entry : mapping["campaignMusic"].Struct())
 		mappingCampaignMusic[entry.second.Integer()] = AudioPath::builtinTODO(entry.first);
@@ -134,7 +146,7 @@ void MapIdentifiersH3M::remapTemplate(ObjectTemplate & objectTemplate)
 
 	if (LIBRARY->objtypeh->knownObjects().count(objectTemplate.id) == 0)
 	{
-		logGlobal->warn("Unknown object found: %d | %d", objectTemplate.id, objectTemplate.subid);
+		logGlobal->warn("Unknown object found: %d | %d (%s)", objectTemplate.id, objectTemplate.subid, objectTemplate.animationFile.getName());
 
 		objectTemplate.id = Obj::NOTHING;
 		objectTemplate.subid = {};
@@ -157,6 +169,22 @@ BuildingID MapIdentifiersH3M::remapBuilding(std::optional<FactionID> owner, Buil
 
 		if (submap.count(input))
 			return submap.at(input);
+
+		constexpr std::array hordes = { BuildingID::HORDE_PLACEHOLDER1, BuildingID::HORDE_PLACEHOLDER2, BuildingID::HORDE_PLACEHOLDER3, BuildingID::HORDE_PLACEHOLDER4, BuildingID::HORDE_PLACEHOLDER5, BuildingID::HORDE_PLACEHOLDER6, BuildingID::HORDE_PLACEHOLDER7, BuildingID::HORDE_PLACEHOLDER8 };
+
+		if (mappingBuilding.count(input))
+		{
+			int hordeLevel = vstd::find_pos(hordes, mappingBuilding.at(input));
+
+			if (hordeLevel != -1)
+			{
+				const auto & town = owner->toFaction()->town;
+				if (town->hordeLvl.at(0) == hordeLevel)
+					return BuildingID::HORDE_1;
+				if (town->hordeLvl.at(1) == hordeLevel)
+					return BuildingID::HORDE_2;
+			}
+		}
 	}
 
 	if (mappingBuilding.count(input))
@@ -228,7 +256,7 @@ CampaignRegionID MapIdentifiersH3M::remap(CampaignRegionID input) const
 	return mappingCampaignRegions.at(input);
 }
 
-VideoPath MapIdentifiersH3M::remapCampaignVideo(int input) const
+std::pair<VideoPath, VideoPath> MapIdentifiersH3M::remapCampaignVideo(int input) const
 {
 	if (!mappingCampaignVideo.count(input))
 		throw std::out_of_range("Campaign video with ID " + std::to_string(input) + " is not defined");

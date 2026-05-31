@@ -20,9 +20,9 @@
 #include "GameLibrary.h"
 #include "modding/ModScope.h"
 #include "modding/IdentifierStorage.h"
-#include "spells/CSpellHandler.h"
 #include "texts/CGeneralTextHandler.h"
 #include "json/JsonUtils.h"
+#include "spells/CSpellHandler.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -39,6 +39,10 @@ CBonusTypeHandler::CBonusTypeHandler()
 {
 	//register predefined bonus types
 
+	// MOD COMPATIBILITY FOR 1.6
+	registerObject(ModScope::scopeBuiltin(), "bonus", "FEAR", JsonNode(), 0);
+	registerObject(ModScope::scopeBuiltin(), "bonus", "FEARLESS", JsonNode(), 0);
+
 #define BONUS_NAME(x) { #x },
 	builtinBonusNames = {
 		BONUS_LIST
@@ -49,15 +53,27 @@ CBonusTypeHandler::CBonusTypeHandler()
 		bonusTypes.push_back(std::make_shared<CBonusType>());
 
 	for (int i = 0; i < builtinBonusNames.size(); ++i)
-		registerObject(ModScope::scopeBuiltin(), "bonus", builtinBonusNames[i], i);
+		registerObject(ModScope::scopeBuiltin(), "bonus", builtinBonusNames[i], JsonNode(), i);
 }
 
 CBonusTypeHandler::~CBonusTypeHandler() = default;
 
 std::string CBonusTypeHandler::bonusToString(const std::shared_ptr<Bonus> & bonus, const IBonusBearer * bearer) const
 {
+	if(!bearer)
+		throw std::runtime_error("CBonusTypeHandler::bonusToString: invalid bonus system node!"); 
+
+	return bonusToString(bonus, bearer->valOfBonuses(bonus->type, bonus->subtype));
+}
+
+std::string CBonusTypeHandler::bonusToString(const std::shared_ptr<Bonus> & bonus) const
+{
+	return bonusToString(bonus, bonus->val);
+}
+
+std::string CBonusTypeHandler::bonusToString(const std::shared_ptr<Bonus> & bonus, int bonusValue) const
+{
 	const CBonusType & bt = *bonusTypes.at(vstd::to_underlying(bonus->type));
-	int bonusValue = bearer->valOfBonuses(bonus->type, bonus->subtype);
 	if(bt.hidden)
 		return "";
 
@@ -125,7 +141,7 @@ void CBonusTypeHandler::loadObject(std::string scope, std::string name, const Js
 	else
 	{
 		// new bonus
-		registerObject(scope, "bonus", name, bonusTypes.size());
+		registerObject(scope, "bonus", name, data, bonusTypes.size());
 		bonusTypes.push_back(std::make_shared<CBonusType>());
 		loadItem(data, *bonusTypes.back(), name);
 		logBonus->trace("New bonus type %s", name);
@@ -142,6 +158,7 @@ void CBonusTypeHandler::loadItem(const JsonNode & source, CBonusType & dest, con
 	dest.identifier = name;
 	dest.hidden = source["hidden"].Bool(); //Null -> false
 	dest.creatureNature = source["creatureNature"].Bool(); //Null -> false
+	dest.blockDescriptionPropagation = source["blockDescriptionPropagation"].Bool(); //Null -> false
 
 	if (!dest.hidden)
 		LIBRARY->generaltexth->registerString( "vcmi", dest.getDescriptionTextID(), source["description"]);
@@ -195,6 +212,12 @@ bool CBonusTypeHandler::isCreatureNatureBonus(BonusType bonus) const
 {
 	return bonusTypes.at(static_cast<int>(bonus))->creatureNature;
 }
+
+bool CBonusTypeHandler::shouldPropagateDescription(BonusType bonus) const
+{
+	return !bonusTypes.at(static_cast<int>(bonus))->blockDescriptionPropagation;
+}
+
 
 std::vector<BonusType> CBonusTypeHandler::getAllObjets() const
 {

@@ -18,10 +18,10 @@
 #include "../constants/StringConstants.h"
 #include "../entities/artifact/ArtifactUtils.h"
 #include "../entities/artifact/CArtifact.h"
+#include "../entities/ResourceTypeHandler.h"
 #include "../CConfigHandler.h"
 #include "../texts/CGeneralTextHandler.h"
 #include "../CSkillHandler.h"
-#include "../spells/CSpellHandler.h"
 #include "../gameState/CGameState.h"
 #include "../mapping/CMap.h"
 #include "../CPlayerState.h"
@@ -29,11 +29,12 @@
 #include "../serializer/JsonSerializeFormat.h"
 #include "../mapObjectConstructors/AObjectTypeHandler.h"
 #include "../mapObjectConstructors/CObjectClassesHandler.h"
-#include "../mapObjects/CGHeroInstance.h"
+#include "../mapObjectConstructors/CommonConstructors.h"
+#include "CGHeroInstance.h"
 #include "../networkPacks/PacksForClient.h"
 #include "../networkPacks/PacksForClientBattle.h"
 #include "../networkPacks/StackLocation.h"
-#include "../lib/gameState/UpgradeInfo.h"
+#include "../gameState/UpgradeInfo.h"
 
 #include <vstd/RNG.h>
 
@@ -73,13 +74,20 @@ bool CTeamVisited::wasVisited(const TeamID & team) const
 }
 
 //CGMine
+std::shared_ptr<MineInstanceConstructor> CGMine::getResourceHandler() const
+{
+	const auto & baseHandler = getObjectHandler();
+	const auto & ourHandler = std::dynamic_pointer_cast<MineInstanceConstructor>(baseHandler);
+	return ourHandler;
+}
+
 void CGMine::onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstance * h) const
 {
 	auto relations = cb->getPlayerRelations(h->tempOwner, tempOwner);
 
 	if(relations == PlayerRelations::SAME_PLAYER) //we're visiting our mine
 	{
-		gameEvents.showGarrisonDialog(id,h->id,true);
+		gameEvents.showGarrisonDialog(id, h->id, true, MetaString());
 		return;
 	}
 	else if (relations == PlayerRelations::ALLIES)//ally
@@ -89,7 +97,14 @@ void CGMine::onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstance *
 	{
 		BlockingDialog ynd(true,false);
 		ynd.player = h->tempOwner;
-		ynd.text.appendLocalString(EMetaText::ADVOB_TXT, isAbandoned() ? 84 : 187);
+		// ownedGuardedMessage applies to any owned mine with guards.
+		const bool useOwnedGuardedMessage = tempOwner != PlayerColor::NEUTRAL;
+		const std::string guardedMessageTextID = useOwnedGuardedMessage ? getResourceHandler()->getOwnedGuardedMessageTextID() : getResourceHandler()->getOnGuardedMessageTextID();
+		if(!guardedMessageTextID.empty())
+			ynd.text.appendTextID(guardedMessageTextID);
+		else
+			ynd.text.appendLocalString(EMetaText::ADVOB_TXT, 187);
+
 		gameEvents.showBlockingDialog(this, &ynd);
 		return;
 	}
@@ -99,13 +114,18 @@ void CGMine::onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstance *
 
 void CGMine::initObj(IGameRandomizer & gameRandomizer)
 {
+	const auto configuredGuards = getResourceHandler()->getGuards(cb, gameRandomizer);
+	if(!configuredGuards.empty())
+	{
+		for(const auto & stack : configuredGuards)
+		{
+			auto guards = std::make_unique<CStackInstance>(cb, stack.getId(), stack.getCount());
+			putStack(SlotID(stacksCount()), std::move(guards));
+		}
+	}
+
 	if(isAbandoned())
 	{
-		//set guardians
-		int howManyTroglodytes = gameRandomizer.getDefault().nextInt(100, 199);
-		auto troglodytes = std::make_unique<CStackInstance>(cb, CreatureID::TROGLODYTES, howManyTroglodytes);
-		putStack(SlotID(0), std::move(troglodytes));
-
 		assert(!abandonedMineResources.empty());
 		if (!abandonedMineResources.empty())
 		{
@@ -119,14 +139,17 @@ void CGMine::initObj(IGameRandomizer & gameRandomizer)
 	}
 	else
 	{
-		producedResource = GameResID(getObjTypeIndex().getNum());
+		if(getResourceHandler()->getResourceType() == GameResID::NONE) // fallback
+			producedResource = GameResID(getObjTypeIndex().getNum());
+		else
+			producedResource = getResourceHandler()->getResourceType();
 	}
 	producedQuantity = defaultResProduction();
 }
 
 bool CGMine::isAbandoned() const
 {
-	return subID.getNum() >= 7;
+	return subID.getNum() >= 7 && getResourceHandler()->getResourceType() == GameResID::NONE;
 }
 
 const IOwnableObject * CGMine::asOwnable() const
@@ -142,6 +165,10 @@ std::vector<CreatureID> CGMine::providedCreatures() const
 ResourceSet CGMine::dailyIncome() const
 {
 	ResourceSet result;
+
+	for (GameResID k : LIBRARY->resourceTypeHandler->getAllObjects())
+		result[k] += valOfBonuses(BonusType::GENERATE_RESOURCE, BonusSubtypeID(k));
+
 	result[producedResource] += defaultResProduction();
 
 	const auto & playerSettings = cb->getPlayerSettings(getOwner());
@@ -152,7 +179,10 @@ ResourceSet CGMine::dailyIncome() const
 
 std::string CGMine::getObjectName() const
 {
-	return LIBRARY->generaltexth->translate("core.minename", getObjTypeIndex());
+	if(getResourceHandler()->getResourceType() == GameResID::NONE || getObjTypeIndex() < GameConstants::RESOURCE_QUANTITY)
+		return LIBRARY->generaltexth->translate("core.minename", getObjTypeIndex());
+	else
+		return getResourceHandler()->getNameTranslated();
 }
 
 std::string CGMine::getHoverText(PlayerColor player) const
@@ -160,7 +190,7 @@ std::string CGMine::getHoverText(PlayerColor player) const
 	std::string hoverName = CArmedInstance::getHoverText(player);
 
 	if (tempOwner != PlayerColor::NEUTRAL)
-		hoverName += "\n(" + LIBRARY->generaltexth->restypes[producedResource.getNum()] + ")";
+		hoverName += "\n(" + producedResource.toResource()->getNameTranslated() + ")";
 
 	if(stacksCount())
 	{
@@ -179,7 +209,11 @@ void CGMine::flagMine(IGameEventCallback & gameEvents, const PlayerColor & playe
 
 	InfoWindow iw;
 	iw.type = EInfoWindowMode::AUTO;
-	iw.text.appendTextID(TextIdentifier("core.mineevnt", producedResource.getNum()).get()); //not use subID, abandoned mines uses default mine texts
+	const auto descriptionTextID = getResourceHandler()->getDescriptionTextID();
+	if(!descriptionTextID.empty())
+		iw.text.appendTextID(descriptionTextID);
+	else
+		iw.text.appendTextID(TextIdentifier("core.mineevnt", producedResource.getNum()).get());
 	iw.player = player;
 	iw.components.emplace_back(ComponentType::RESOURCE_PER_DAY, producedResource, getProducedQuantity());
 	gameEvents.showInfoDialog(&iw);
@@ -187,16 +221,20 @@ void CGMine::flagMine(IGameEventCallback & gameEvents, const PlayerColor & playe
 
 ui32 CGMine::defaultResProduction() const
 {
-	switch(producedResource.toEnum())
+	if(isAbandoned())
 	{
-	case EGameResID::WOOD:
-	case EGameResID::ORE:
-		return 2;
-	case EGameResID::GOLD:
-		return 1000;
-	default:
-		return 1;
+		switch(producedResource.toEnum())
+		{
+		case EGameResID::WOOD:
+		case EGameResID::ORE:
+			return 2;
+		case EGameResID::GOLD:
+			return 1000;
+		default:
+			return 1;
+		}
 	}
+	return getResourceHandler()->getDefaultQuantity();
 }
 
 ui32 CGMine::getProducedQuantity() const
@@ -212,7 +250,15 @@ void CGMine::battleFinished(IGameEventCallback & gameEvents, const CGHeroInstanc
 	{
 		if(isAbandoned())
 		{
-			hero->showInfoDialog(gameEvents, 85);
+			const auto onCaptureMessageTextID = getResourceHandler()->getOnCaptureMessageTextID();
+			if(!onCaptureMessageTextID.empty())
+			{
+				InfoWindow iw;
+				iw.type = EInfoWindowMode::AUTO;
+				iw.player = hero->tempOwner;
+				iw.text.appendTextID(onCaptureMessageTextID);
+				gameEvents.showInfoDialog(&iw);
+			}
 		}
 		flagMine(gameEvents, hero->tempOwner);
 	}
@@ -229,32 +275,7 @@ void CGMine::serializeJsonOptions(JsonSerializeFormat & handler)
 	CArmedInstance::serializeJsonOptions(handler);
 	serializeJsonOwner(handler);
 	if(isAbandoned())
-	{
-		if(handler.saving)
-		{
-			JsonNode node;
-			for(const auto & resID : abandonedMineResources)
-				node.Vector().emplace_back(GameConstants::RESOURCE_NAMES[resID.getNum()]);
-
-			handler.serializeRaw("possibleResources", node, std::nullopt);
-		}
-		else
-		{
-			auto guard = handler.enterArray("possibleResources");
-			const JsonNode & node = handler.getCurrent();
-
-			auto names = node.convertTo<std::vector<std::string>>();
-
-			for(const std::string & s : names)
-			{
-				int raw_res = vstd::find_pos(GameConstants::RESOURCE_NAMES, s);
-				if(raw_res < 0)
-					logGlobal->error("Invalid resource name: %s", s);
-				else
-					abandonedMineResources.emplace(raw_res);
-			}
-		}
-	}
+		handler.serializeIdArray<GameResID>("possibleResources", abandonedMineResources);
 }
 
 bool CGTeleport::isEntrance() const
@@ -484,15 +505,12 @@ void CGSubterraneanGate::initObj(IGameRandomizer & gameRandomizer)
 
 void CGSubterraneanGate::postInit(IGameInfoCallback * cb) //matches subterranean gates into pairs
 {
-	//split on underground and surface gates
-	std::vector<CGSubterraneanGate *> gatesSplit[2]; //surface and underground gates
-	for(auto gate : cb->gameState().getMap().getObjects<CGSubterraneanGate>())
-	{
-		gatesSplit[gate->visitablePos().z].push_back(gate);
-	}
+	// for > 2 layers it's still choosing the nearest in x/y axis independent from level
+	// collect all gates
+	auto allGates = cb->gameState().getMap().getObjects<CGSubterraneanGate>();
 
-	//sort by position
-	std::sort(gatesSplit[0].begin(), gatesSplit[0].end(), [](const CGObjectInstance * a, const CGObjectInstance * b)
+	// sort by position for deterministic behavior
+	std::sort(allGates.begin(), allGates.end(), [](const CGObjectInstance * a, const CGObjectInstance * b)
 	{
 		return a->visitablePos() < b->visitablePos();
 	});
@@ -506,21 +524,36 @@ void CGSubterraneanGate::postInit(IGameInfoCallback * cb) //matches subterranean
 		}
 	};
 
-	for(size_t i = 0; i < gatesSplit[0].size(); i++)
+	for(size_t i = 0; i < allGates.size(); i++)
 	{
-		CGSubterraneanGate * objCurrent = gatesSplit[0][i];
+		CGSubterraneanGate * objCurrent = allGates[i];
 
-		//find nearest underground exit
+		if(objCurrent->channel != TeleportChannelID())
+			continue;
+
+		// find nearest gate on any other layer
 		std::pair<int, si32> best(-1, std::numeric_limits<si32>::max()); //pair<pos_in_vector, distance^2>
-		for(int j = 0; j < gatesSplit[1].size(); j++)
+		for(size_t j = 0; j < allGates.size(); j++)
 		{
-			CGSubterraneanGate *checked = gatesSplit[1][j];
+			if(i == j)
+				continue;
+
+			CGSubterraneanGate * checked = allGates[j];
+
 			if(checked->channel != TeleportChannelID())
 				continue;
+
+			// Prefer pairing surface → underground
+			if(objCurrent->visitablePos().z > checked->visitablePos().z)
+				continue;
+
+			if(checked->visitablePos().z == objCurrent->visitablePos().z)
+				continue;
+
 			si32 hlp = checked->visitablePos().dist2dSQ(objCurrent->visitablePos());
 			if(hlp < best.second)
 			{
-				best.first = j;
+				best.first = static_cast<int>(j);
 				best.second = hlp;
 			}
 		}
@@ -528,13 +561,13 @@ void CGSubterraneanGate::postInit(IGameInfoCallback * cb) //matches subterranean
 		assignToChannel(objCurrent);
 		if(best.first >= 0) //found pair
 		{
-			gatesSplit[1][best.first]->channel = objCurrent->channel;
-			addToChannel(cb->gameState().getMap().teleportChannels, gatesSplit[1][best.first]);
+			allGates[best.first]->channel = objCurrent->channel;
+			addToChannel(cb->gameState().getMap().teleportChannels, allGates[best.first]);
 		}
 	}
 
-	// we should assign empty channels to underground gates if they don't have matching overground gates
-	for(auto & i : gatesSplit[1])
+	// assign empty channels to any remaining unpaired gates
+	for(auto & i : allGates)
 		assignToChannel(i);
 }
 
@@ -615,6 +648,9 @@ bool CGWhirlpool::isProtected(const CGHeroInstance * h)
 
 const CArtifactInstance * CGArtifact::getArtifactInstance() const
 {
+	if(!storedArtifact.hasValue())
+		return nullptr;
+
 	return cb->getArtInstance(storedArtifact);
 }
 
@@ -622,8 +658,9 @@ ArtifactID CGArtifact::getArtifactType() const
 {
 	if(ID == Obj::SPELL_SCROLL)
 		return ArtifactID::SPELL_SCROLL;
-	else
-		return getObjTypeIndex().getNum();
+
+	assert(ID == Obj::ARTIFACT);
+	return getObjTypeIndex().getNum();
 }
 
 void CGArtifact::pickRandomObject(IGameRandomizer & gameRandomizer)
@@ -663,6 +700,7 @@ void CGArtifact::setArtifactInstance(const CArtifactInstance * instance)
 
 void CGArtifact::initObj(IGameRandomizer & gameRandomizer)
 {
+	assert(ID == Obj::ARTIFACT || ID == Obj::SPELL_SCROLL);
 	blockVisit = true;
 	if(ID == Obj::ARTIFACT)
 	{
@@ -680,7 +718,11 @@ void CGArtifact::initObj(IGameRandomizer & gameRandomizer)
 
 std::string CGArtifact::getObjectName() const
 {
-	return getArtifactType().toEntity(LIBRARY)->getNameTranslated();
+	if(ID == Obj::SPELL_SCROLL || ID == Obj::ARTIFACT)
+		return getArtifactType().toEntity(LIBRARY)->getNameTranslated();
+
+	// random artifact
+	return CGObjectInstance::getObjectName();
 }
 
 std::string CGArtifact::getPopupText(PlayerColor player) const
@@ -867,7 +909,11 @@ const IOwnableObject * CGGarrison::asOwnable() const
 
 ResourceSet CGGarrison::dailyIncome() const
 {
-	return {};
+	ResourceSet result;
+	for (GameResID k : LIBRARY->resourceTypeHandler->getAllObjects())
+		result[k] += valOfBonuses(BonusType::GENERATE_RESOURCE, BonusSubtypeID(k));
+
+	return result;
 }
 
 std::vector<CreatureID> CGGarrison::providedCreatures() const
@@ -888,7 +934,7 @@ void CGGarrison::onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstan
 	if (relations == PlayerRelations::ENEMIES)
 		gameEvents.setOwner(this, h->tempOwner);
 
-	gameEvents.showGarrisonDialog(id, h->id, removableUnits);
+	gameEvents.showGarrisonDialog(id, h->id, removableUnits, MetaString());
 }
 
 bool CGGarrison::passableFor(PlayerColor player) const
@@ -930,7 +976,7 @@ void CGGarrison::addAntimagicGarrisonBonus()
 	bonus->type = BonusType::BLOCK_ALL_MAGIC;
 	bonus->source = BonusSource::OBJECT_TYPE;
 	bonus->sid = BonusSourceID(this->ID);
-	bonus->propagator = std::make_shared<CPropagatorNodeType>(CBonusSystemNode::BATTLE);
+	bonus->propagator = std::make_shared<CPropagatorNodeType>(BonusNodeType::BATTLE_WIDE);
 	bonus->duration = BonusDuration::PERMANENT;
 	this->addNewBonus(bonus);
 }
@@ -987,6 +1033,7 @@ void CGMagi::onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstance *
 
 CGBoat::CGBoat(IGameInfoCallback * cb)
 	: CGObjectInstance(cb)
+	, CBonusSystemNode(BonusNodeType::BOAT)
 {
 	direction = 4;
 	layer = EPathfindingLayer::SAIL;
@@ -1121,6 +1168,26 @@ void CGShipyard::serializeJsonOptions(JsonSerializeFormat& handler)
 BoatId CGShipyard::getBoatType() const
 {
 	return createdBoat;
+}
+
+EPathfindingLayer CGShipyard::getBoatLayer() const
+{
+	auto handler = LIBRARY->objtypeh->getHandlerFor(Obj::BOAT, getBoatType());
+	auto boatConstructor = std::dynamic_pointer_cast<const BoatInstanceConstructor>(handler);
+	return boatConstructor->getLayer();
+}
+
+void CGShipyard::getBoatCost(ResourceSet & cost) const
+{
+	if (getBoatLayer() == EPathfindingLayer::AVIATE)
+	{
+		cost[EGameResID::WOOD] = 20;
+		cost[EGameResID::GOLD] = 5000;
+	}
+	else
+	{
+		IShipyard::getBoatCost(cost);
+	}
 }
 
 const IOwnableObject * CGShipyard::asOwnable() const

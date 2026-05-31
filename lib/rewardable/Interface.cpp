@@ -18,11 +18,10 @@
 #include "../callback/IGameEventCallback.h"
 #include "../entities/hero/CHeroHandler.h"
 #include "../gameState/CGameState.h"
-#include "../spells/CSpellHandler.h"
 #include "../spells/ISpellMechanics.h"
 #include "../mapObjects/CGHeroInstance.h"
 #include "../mapObjects/MiscObjects.h"
-#include "../mapping/CMapDefines.h"
+#include "../mapping/TerrainTile.h"
 #include "../networkPacks/StackLocation.h"
 #include "../networkPacks/PacksForClient.h"
 
@@ -76,7 +75,7 @@ void Rewardable::Interface::grantRewardBeforeLevelup(IGameEventCallback & gameEv
 			return score > 0;
 		};
 
-		std::unordered_set<int3> tiles;
+		FowTilesType tiles;
 		if (props.radius > 0)
 		{
 			cb->getTilesInRange(tiles, hero->getSightCenter(), props.radius, ETileVisibility::HIDDEN, hero->getOwner());
@@ -111,8 +110,9 @@ void Rewardable::Interface::grantRewardBeforeLevelup(IGameEventCallback & gameEv
 		int currentLevel = hero->getSecSkillLevel(entry.first);
 		int newLevel = currentLevel + entry.second;
 		int newLevelClamped = std::clamp<int>(newLevel, MasteryLevel::NONE, MasteryLevel::EXPERT);
+		bool canLearn = hero->getSecSkillLevel(entry.first) != 0 || hero->canLearnSkill();
 
-		if(currentLevel != newLevelClamped)
+		if(currentLevel != newLevelClamped && canLearn)
 			gameEvents.changeSecSkill(hero, entry.first, newLevelClamped, ChangeValueMode::ABSOLUTE);
 	}
 
@@ -139,18 +139,8 @@ void Rewardable::Interface::grantRewardAfterLevelup(IGameEventCallback & gameEve
 	if(info.reward.manaDiff || info.reward.manaPercentage >= 0)
 		gameEvents.setManaPoints(hero->id, info.reward.calculateManaPoints(hero));
 
-	if(info.reward.movePoints || info.reward.movePercentage >= 0)
-	{
-		SetMovePoints smp;
-		smp.hid = hero->id;
-		smp.val = hero->movementPointsRemaining();
-
-		if (info.reward.movePercentage >= 0) // percent from max
-			smp.val = hero->movementPointsLimit(hero->inBoat() && hero->getBoat()->layer == EPathfindingLayer::SAIL) * info.reward.movePercentage / 100;
-		smp.val = std::max<si32>(0, smp.val + info.reward.movePoints);
-
-		gameEvents.setMovePoints(&smp);
-	}
+	if(info.reward.movePoints != 0 || info.reward.movePercentage >= 0)
+		gameEvents.setMovePoints(hero->id, info.reward.calculateMovePoints(hero));
 
 	for(const auto & bonus : info.reward.heroBonuses)
 	{

@@ -17,17 +17,19 @@
 #include "NetPacksBase.h"
 #include "ObjProperty.h"
 
-#include "../CCreatureSet.h"
 #include "../ResourceSet.h"
 #include "../TurnTimerInfo.h"
+#include "../bonuses/Bonus.h"
 #include "../gameState/EVictoryLossCheckResult.h"
 #include "../gameState/RumorState.h"
 #include "../gameState/QuestInfo.h"
 #include "../gameState/TavernSlot.h"
 #include "../gameState/GameStatistics.h"
 #include "../int3.h"
-#include "../mapping/CMapDefines.h"
+#include "../mapObjects/army/CSimpleArmy.h"
 #include "../spells/ViewSpellInt.h"
+
+#include <vcmi/scripting/ApiTags.h>
 
 class CClient;
 class CGameHandler;
@@ -48,27 +50,64 @@ class BattleInfo;
 // For now it's will be there till teleports code refactored and moved into own file
 using TTeleportExitsList = std::vector<std::pair<ObjectInstanceID, int3>>;
 
+using FowTilesType = std::set<int3>;
+
 /***********************************************************************************************************/
 struct DLL_LINKAGE PackageApplied : public CPackForClient
 {
 	PackageApplied() = default;
-	explicit PackageApplied(ui8 Result)
-		: result(Result)
+	PackageApplied(PlayerColor player, uint32_t requestID, uint16_t packType, bool result)
+		: player(player)
+		, requestID(requestID)
+		, packType(packType)
+		, result(result)
 	{
 	}
+
 	void visitTyped(ICPackVisitor & visitor) override;
 
-	ui8 result = 0; //0 - something went wrong, request hasn't been realized; 1 - OK
-	ui32 packType = 0; //type id of applied package
-	ui32 requestID = 0; //an ID given by client to the request that was applied
+	/// ID of player that sent this package
 	PlayerColor player;
+	/// request ID, as provided by player
+	uint32_t requestID = 0;
+	/// type id of applied package
+	uint16_t packType = 0;
+	/// If false, then pack failed to apply, for example - illegal request
+	bool result = false;
 
 	template <typename Handler> void serialize(Handler & h)
 	{
-		h & result;
-		h & packType;
-		h & requestID;
 		h & player;
+		h & requestID;
+		h & packType;
+		h & result;
+	}
+};
+
+struct DLL_LINKAGE PackageReceived : public CPackForClient
+{
+	PackageReceived() = default;
+	PackageReceived(PlayerColor player, uint32_t requestID, uint16_t packType)
+		: player(player)
+		, requestID(requestID)
+		, packType(packType)
+	{
+	}
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	/// ID of player that sent this package
+	PlayerColor player;
+	/// request ID, as provided by player
+	uint32_t requestID;
+	/// type id of applied package
+	uint16_t packType;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & player;
+		h & requestID;
+		h & packType;
 	}
 };
 
@@ -171,7 +210,7 @@ struct DLL_LINKAGE DaysWithoutTown : public CPackForClient
 	}
 };
 
-struct DLL_LINKAGE EntitiesChanged : public CPackForClient
+struct DLL_LINKAGE EntitiesChanged : public CPackForClient, public scripting::ApiSharedPointer<EntitiesChanged>
 {
 	std::vector<EntityChanges> changes;
 
@@ -183,7 +222,7 @@ struct DLL_LINKAGE EntitiesChanged : public CPackForClient
 	}
 };
 
-struct DLL_LINKAGE SetResources : public CPackForClient
+struct DLL_LINKAGE SetResources : public CPackForClient, public scripting::ApiSharedPointer<SetResources>
 {
 	void visitTyped(ICPackVisitor & visitor) override;
 
@@ -351,15 +390,13 @@ struct DLL_LINKAGE SetMana : public CPackForClient
 struct DLL_LINKAGE SetMovePoints : public CPackForClient
 {
 	SetMovePoints() = default;
-	SetMovePoints(ObjectInstanceID hid, si32 val, ChangeValueMode mode)
+	SetMovePoints(ObjectInstanceID hid, si32 val)
 		: hid(hid)
 		, val(val)
-		, mode(mode)
 	{}
 
 	ObjectInstanceID hid;
 	si32 val = 0;
-	ChangeValueMode mode = ChangeValueMode::RELATIVE;
 
 	void visitTyped(ICPackVisitor & visitor) override;
 
@@ -367,13 +404,12 @@ struct DLL_LINKAGE SetMovePoints : public CPackForClient
 	{
 		h & val;
 		h & hid;
-		h & mode;
 	}
 };
 
 struct DLL_LINKAGE FoWChange : public CPackForClient
 {
-	std::unordered_set<int3> tiles;
+	FowTilesType tiles;
 	PlayerColor player;
 	ETileVisibility mode;
 	bool waitForDialogs = false;
@@ -490,6 +526,7 @@ struct DLL_LINKAGE PlayerEndsGame : public CPackForClient
 	PlayerColor player;
 	EVictoryLossCheckResult victoryLossCheckResult;
 	StatisticDataSet statistic;
+	bool silentEnd = false;
 
 	void visitTyped(ICPackVisitor & visitor) override;
 
@@ -498,20 +535,7 @@ struct DLL_LINKAGE PlayerEndsGame : public CPackForClient
 		h & player;
 		h & victoryLossCheckResult;
 		h & statistic;
-	}
-};
-
-struct DLL_LINKAGE PlayerReinitInterface : public CPackForClient
-{
-	std::vector<PlayerColor> players;
-	ui8 playerConnectionId; //PLAYER_AI for AI player
-
-	void visitTyped(ICPackVisitor & visitor) override;
-
-	template <typename Handler> void serialize(Handler & h)
-	{
-		h & players;
-		h & playerConnectionId;
+		h & silentEnd;
 	}
 };
 
@@ -594,6 +618,34 @@ struct DLL_LINKAGE ChangeFormation : public CPackForClient
 	}
 };
 
+struct DLL_LINKAGE ChangeTactics : public CPackForClient
+{
+	ObjectInstanceID hid;
+	bool enabled = false;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & hid;
+		h & enabled;
+	}
+};
+
+struct DLL_LINKAGE ChangeTownName : public CPackForClient
+{
+	ObjectInstanceID tid;
+	std::string name;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & tid;
+		h & name;
+	}
+};
+
 struct DLL_LINKAGE RemoveObject : public CPackForClient
 {
 	RemoveObject() = default;
@@ -641,7 +693,7 @@ struct DLL_LINKAGE TryMoveHero : public CPackForClient
 	/// Hero anchor position to which hero moves
 	int3 end;
 	/// Tiles that were revealed by this move
-	std::unordered_set<int3> fowRevealed;
+	FowTilesType fowRevealed;
 	/// If hero moves on guarded tile, this field will be set to visitable pos of attacked wandering monster
 	int3 attackedFrom;
 
@@ -661,6 +713,12 @@ struct DLL_LINKAGE TryMoveHero : public CPackForClient
 		h & movePoints;
 		h & fowRevealed;
 		h & attackedFrom;
+
+		std::string fow;
+		for (const auto & tile : fowRevealed)
+			fow += tile.toString() + ", ";
+
+		logGlobal->trace("OI %d, mp %d, res %d, start %s, end %s, attack %s, fow %s", id.getNum(), movePoints, static_cast<int>(result), start.toString(), end.toString(), attackedFrom.toString(), fow);
 	}
 };
 
@@ -1121,7 +1179,7 @@ struct DLL_LINKAGE HeroVisit : public CPackForClient
 	}
 };
 
-struct DLL_LINKAGE InfoWindow : public CPackForClient //103  - displays simple info window
+struct DLL_LINKAGE InfoWindow : public CPackForClient, public scripting::ApiSharedPointer<InfoWindow>
 {
 	EInfoWindowMode type = EInfoWindowMode::MODAL;
 	MetaString text;
@@ -1336,6 +1394,7 @@ struct DLL_LINKAGE GarrisonDialog : public Query
 	ObjectInstanceID objid;
 	ObjectInstanceID hid;
 	bool removableUnits = false;
+	MetaString customTitle;
 
 	void visitTyped(ICPackVisitor & visitor) override;
 
@@ -1345,6 +1404,8 @@ struct DLL_LINKAGE GarrisonDialog : public Query
 		h & objid;
 		h & hid;
 		h & removableUnits;
+		if (h.hasFeature(Handler::Version::CUSTOM_GARRISON_TITLE))
+			h & customTitle;
 	}
 };
 
@@ -1478,6 +1539,20 @@ struct DLL_LINKAGE CenterView : public CPackForClient
 		h & pos;
 		h & player;
 		h & focusTime;
+	}
+};
+
+struct DLL_LINKAGE ResponseStatistic : public CPackForClient
+{
+	PlayerColor player;
+	StatisticDataSet statistic;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & player;
+		h & statistic;
 	}
 };
 

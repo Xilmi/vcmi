@@ -16,6 +16,7 @@
 #include "../bonuses/Limiters.h"
 #include "../bonuses/Propagators.h"
 #include "../bonuses/Updaters.h"
+#include "../bonuses/BonusParameters.h"
 #include "../campaign/CampaignState.h"
 #include "../entities/artifact/CArtifact.h"
 #include "../gameState/CGameState.h"
@@ -55,15 +56,6 @@ VCMI_LIB_NAMESPACE_BEGIN
 template<typename Serializer>
 void registerTypes(Serializer &s)
 {
-	static_assert(std::is_abstract_v<IObjectInterface>, "If this type is no longer abstract consider registering it for serialization with ID 1");
-	static_assert(std::is_abstract_v<CGTeleport>, "If this type is no longer abstract consider registering it for serialization with ID 3");
-	static_assert(std::is_abstract_v<IQuestObject>, "If this type is no longer abstract consider registering it for serialization with ID 11");
-	static_assert(std::is_abstract_v<CArtifactSet>, "If this type is no longer abstract consider registering it for serialization with ID 29");
-//	static_assert(std::is_abstract_v<CPackForClient>, "If this type is no longer abstract consider registering it for serialization with ID 83");
-//	static_assert(std::is_abstract_v<Query>, "If this type is no longer abstract consider registering it for serialization with ID 153");
-//	static_assert(std::is_abstract_v<CGarrisonOperationPack>, "If this type is no longer abstract consider registering it for serialization with ID 161");
-//	static_assert(std::is_abstract_v<CArtifactOperationPack>, "If this type is no longer abstract consider registering it for serialization with ID 168");
-
 	s.template registerType<CGObjectInstance>(2);
 	s.template registerType<CGMonolith>(4);
 	s.template registerType<CGSubterraneanGate>(5);
@@ -86,7 +78,6 @@ void registerTypes(Serializer &s)
 	s.template registerType<CGUniversity>(23);
 	s.template registerType<CGHeroPlaceholder>(24);
 	s.template registerType<CArmedInstance>(25);
-	s.template registerType<CBonusSystemNode>(26);
 	s.template registerType<CCreatureSet>(27);
 	s.template registerType<CGHeroInstance>(28);
 	s.template registerType<CGDwelling>(30);
@@ -111,6 +102,7 @@ void registerTypes(Serializer &s)
 	s.template registerType<OppositeSideLimiter>(51);
 	s.template registerType<TownBuildingInstance>(52);
 	s.template registerType<TownRewardableBuildingInstance>(53);
+	s.template registerType<HasChargesLimiter>(55);
 	s.template registerType<CRewardableObject>(56);
 	s.template registerType<CTeamVisited>(57);
 	s.template registerType<CGObelisk>(58);
@@ -119,7 +111,7 @@ void registerTypes(Serializer &s)
 	s.template registerType<AllOfLimiter>(61);
 	s.template registerType<CCreatureTypeLimiter>(62);
 	s.template registerType<HasAnotherBonusLimiter>(63);
-	s.template registerType<CreatureTerrainLimiter>(64);
+	s.template registerType<TerrainLimiter>(64);
 	s.template registerType<FactionLimiter>(65);
 	s.template registerType<CreatureLevelLimiter>(66);
 	s.template registerType<CreatureAlignmentLimiter>(67);
@@ -157,7 +149,6 @@ void registerTypes(Serializer &s)
 	s.template registerType<ChangeObjPos>(101);
 	s.template registerType<PlayerEndsTurn>(102);
 	s.template registerType<PlayerEndsGame>(103);
-	s.template registerType<PlayerReinitInterface>(104);
 	s.template registerType<RemoveBonus>(105);
 	s.template registerType<ChangeFormation>(107);
 	s.template registerType<RemoveObject>(108);
@@ -298,6 +289,22 @@ void registerTypes(Serializer &s)
 	s.template registerType<DivideStackLevelUpdater>(246);
 	s.template registerType<SetHeroExperience>(247);
 	s.template registerType<GiveStackExperience>(248);
+	s.template registerType<TimesStackSizeUpdater>(249);
+	s.template registerType<TimesArmySizeUpdater>(250);
+	s.template registerType<PackageReceived>(251);
+	s.template registerType<ChangeTownName>(252);
+	s.template registerType<SetTownName>(253);
+	s.template registerType<LobbySetBattleOnlyModeStartInfo>(254);
+	s.template registerType<BattleEnded>(255);
+	s.template registerType<RequestStatistic>(256);
+	s.template registerType<ResponseStatistic>(257);
+	s.template registerType<LobbyQuickLoadGame>(258);
+	s.template registerType<UnitAdjacentLimiter>(259);
+	s.template registerType<AdvInterfaceReady>(260);
+	s.template registerType<SetTactics>(261);
+	s.template registerType<ChangeTactics>(262);
+	s.template registerType<CompositeUpdater>(263);
+	s.template registerType<BonusParameters>(264);
 }
 
 VCMI_LIB_NAMESPACE_END

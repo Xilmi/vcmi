@@ -12,7 +12,6 @@
 
 #include "../ResourceSet.h"
 #include "../bonuses/Bonus.h"
-#include "../CCreatureSet.h"
 #include "../networkPacks/Component.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
@@ -82,6 +81,9 @@ struct DLL_LINKAGE Reward final
 	/// fixed value, in form of percentage from max
 	si32 movePercentage;
 
+	/// if giving movement points puts hero above movement points limit, any overflow will be multiplied by specified percentage
+	si32 moveOverflowFactor;
+
 	/// Guards that must be defeated in order to access this reward, empty if not guarded
 	std::vector<CStackBasicDescriptor> guards;
 
@@ -125,6 +127,7 @@ struct DLL_LINKAGE Reward final
 	Component getDisplayedComponent(const CGHeroInstance * h) const;
 
 	si32 calculateManaPoints(const CGHeroInstance * h) const;
+	si32 calculateMovePoints(const CGHeroInstance * h) const;
 
 	Reward();
 	~Reward();
@@ -142,14 +145,25 @@ struct DLL_LINKAGE Reward final
 		h & manaDiff;
 		h & manaOverflowFactor;
 		h & movePoints;
+		if (h.version >= Handler::Version::REWARDABLE_EXTENSIONS_2)
+			h & moveOverflowFactor;
+
 		h & primary;
 		h & secondary;
-		h & heroBonuses;
 		if (h.version >= Handler::Version::REWARDABLE_EXTENSIONS)
 		{
+			h & heroBonuses;
 			h & playerBonuses;
 			h & commanderBonuses;
 		}
+		else
+		{
+			std::vector<Bonus> bonuses;
+			h & bonuses;
+			for (const auto & bonus : bonuses)
+				heroBonuses.push_back(std::make_shared<Bonus>(bonus));
+		}
+
 		h & grantedArtifacts;
 		if (h.version >= Handler::Version::REWARDABLE_EXTENSIONS)
 		{

@@ -18,12 +18,13 @@ VCMI_LIB_NAMESPACE_BEGIN
 
 class CGDwelling;
 
-class DwellingInstanceConstructor : public CDefaultObjectTypeHandler<CGDwelling>
+class DLL_LINKAGE DwellingInstanceConstructor : public CDefaultObjectTypeHandler<CGDwelling>
 {
 	std::vector<std::vector<const CCreature *>> availableCreatures;
 
 	JsonNode guards;
 	bool bannedForRandomDwelling = false;
+	AnimationPath kingdomOverviewImage;
 
 protected:
 	bool objectFilter(const CGObjectInstance * obj, std::shared_ptr<const ObjectTemplate> tmpl) const override;
@@ -39,6 +40,7 @@ public:
 	bool isBannedForRandomDwelling() const;
 	bool producesCreature(const CCreature * crea) const;
 	std::vector<const CCreature *> getProducedCreatures() const;
+	AnimationPath getKingdomOverviewImage() const;
 };
 
 VCMI_LIB_NAMESPACE_END

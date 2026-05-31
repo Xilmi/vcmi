@@ -12,10 +12,10 @@
 
 #include "../GameConstants.h"
 #include "../filesystem/ResourcePath.h"
+#include "../json/JsonNode.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-class JsonNode;
 class ObjectTemplate;
 
 struct ObjectTypeIdentifier
@@ -44,11 +44,13 @@ class DLL_LINKAGE MapIdentifiersH3M
 	std::map<ArtifactID, ArtifactID> mappingArtifact;
 	std::map<SecondarySkill, SecondarySkill> mappingSecondarySkill;
 	std::map<CampaignRegionID, CampaignRegionID> mappingCampaignRegions;
-	std::map<int, VideoPath> mappingCampaignVideo;
+	std::map<int, std::pair<VideoPath, VideoPath>> mappingCampaignVideo;
 	std::map<int, AudioPath> mappingCampaignMusic;
 
 	std::map<AnimationPath, AnimationPath> mappingObjectTemplate;
 	std::map<ObjectTypeIdentifier, ObjectTypeIdentifier> mappingObjectIndex;
+
+	JsonNode formatSettings;
 
 	template<typename IdentifierID>
 	void loadMapping(std::map<IdentifierID, IdentifierID> & result, const JsonNode & mapping, const std::string & identifierName);
@@ -58,7 +60,7 @@ public:
 	void remapTemplate(ObjectTemplate & objectTemplate);
 
 	AudioPath remapCampaignMusic(int index) const;
-	VideoPath remapCampaignVideo(int index) const;
+	std::pair<VideoPath, VideoPath> remapCampaignVideo(int index) const;
 	BuildingID remapBuilding(std::optional<FactionID> owner, BuildingID input) const;
 	HeroTypeID remapPortrait(HeroTypeID input) const;
 	FactionID remap(FactionID input) const;
@@ -69,6 +71,8 @@ public:
 	ArtifactID remap(ArtifactID input) const;
 	SecondarySkill remap(SecondarySkill input) const;
 	CampaignRegionID remap(CampaignRegionID input) const;
+
+	const JsonNode & getFormatSettings() const { return formatSettings; }
 
 };
 

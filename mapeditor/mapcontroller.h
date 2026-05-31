@@ -20,14 +20,16 @@ using ModCompatibilityInfo = std::map<std::string, ModVerificationInfo>;
 class EditorObstaclePlacer;
 VCMI_LIB_NAMESPACE_END
 
-class MainWindow;
+VCMI_LIB_USING_NAMESPACE
+
+class EditorMainWindow;
 class MapController : public QObject
 {
 	Q_OBJECT
 
 public:
 	explicit MapController(QObject * parent = nullptr);
-	MapController(MainWindow *);
+	MapController(EditorMainWindow *);
 	MapController(const MapController &) = delete;
 	MapController(const MapController &&) = delete;
 	~MapController();
@@ -44,12 +46,13 @@ public:
 	CMap * map();
 	MapHandler * mapHandler();
 	MapScene * scene(int level);
+	std::set<MapScene *> getScenes();
 	MinimapScene * miniScene(int level);
 	
 	void resetMapHandler();
 	
+	void initializeMap();
 	void sceneForceUpdate();
-	void sceneForceUpdate(int level);
 	
 	void commitTerrainChange(int level, const TerrainId & terrain);
 	void commitRoadOrRiverChange(int level, ui8 type, bool isRoad);
@@ -99,11 +102,13 @@ private:
 	std::unique_ptr<EditorCallback> _cb;
 	std::unique_ptr<CMap> _map;
 	std::unique_ptr<MapHandler> _mapHandler;
-	MainWindow * main;
-	mutable std::array<std::unique_ptr<MapScene>, 2> _scenes;
-	mutable std::array<std::unique_ptr<MinimapScene>, 2> _miniscenes;
+	EditorMainWindow * main;
+	mutable std::map<int, std::unique_ptr<MapScene>> _scenes;
+	mutable std::map<int, std::unique_ptr<MinimapScene>> _miniscenes;
 	std::vector<std::unique_ptr<CGObjectInstance>> _clipboard;
 	int _clipboardShiftIndex = 0;
+
+	const int MAX_LEVELS = 10; // TODO: multilevel support: remove this constant
 
 	std::map<TerrainId, std::unique_ptr<EditorObstaclePlacer>> _obstaclePainters;
 

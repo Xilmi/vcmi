@@ -11,6 +11,7 @@
 
 #include "CRewardableObject.h"
 #include "../ResourceSet.h"
+#include "../mapping/MapDifficulty.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -19,6 +20,8 @@ struct InfoWindow;
 class DLL_LINKAGE CGPandoraBox : public CRewardableObject
 {
 public:
+	MapDifficultySet presentOnDifficulties;
+
 	using CRewardableObject::CRewardableObject;
 
 	MetaString message;
@@ -32,6 +35,8 @@ public:
 	{
 		h & static_cast<CRewardableObject&>(*this);
 		h & message;
+		if(h.version >= Handler::Version::HOTA_MAP_FORMAT_EXTENSIONS)
+			h & presentOnDifficulties;
 	}
 protected:
 	void grantRewardWithMessage(IGameEventCallback & gameEvents, const CGHeroInstance * contextHero, int rewardIndex, bool markAsVisit) const override;
@@ -43,12 +48,17 @@ protected:
 class DLL_LINKAGE CGEvent : public CGPandoraBox  //event objects
 {
 public:
-	using CGPandoraBox::CGPandoraBox;
+	CGEvent(IGameInfoCallback *cb);
 
-	bool removeAfterVisit = false; //true if event is removed after occurring
-	std::set<PlayerColor> availableFor; //players whom this event is available for
-	bool computerActivate = false; //true if computer player can activate this event
-	bool humanActivate = false; //true if human player can activate this event
+	//players whom this event is available for
+	std::set<PlayerColor> availableFor;
+
+	//true if event is removed after occurring
+	bool removeAfterVisit = false;
+	//true if computer player can activate this event
+	bool computerActivate = false;
+	//true if human player can activate this event
+	bool humanActivate = false;
 
 	template <typename Handler> void serialize(Handler &h)
 	{
@@ -60,6 +70,7 @@ public:
 	}
 
 	void onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstance * h) const override;
+	void battleFinished(IGameEventCallback & gameEvents, const CGHeroInstance *hero, const BattleResult &result) const override;
 protected:
 	void grantRewardWithMessage(IGameEventCallback & gameEvents, const CGHeroInstance * contextHero, int rewardIndex, bool markAsVisit) const override;
 	

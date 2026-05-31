@@ -100,7 +100,7 @@ public:
 	~ScreenHandler();
 
 	/// Updates and potentially recreates target screen to match selected fullscreen status
-	void onScreenResize() final;
+	bool onScreenResize(bool keepWindowResolution) final;
 
 	/// Fills screen with black color, erasing any existing content
 	void clearScreen() final;
@@ -125,6 +125,8 @@ public:
 	std::vector<Point> getSupportedResolutions(int displayIndex) const;
 	std::tuple<int, int> getSupportedScalingRange() const final;
 	Rect convertLogicalPointsToWindow(const Rect & input) const final;
+
+	void screenShot() const final;
 
 	void setColorScheme(ColorScheme filter) final;
 };

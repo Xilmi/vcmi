@@ -89,8 +89,10 @@ public:
 		VideoPath tavernVideo;
 		std::vector<AudioPath> musicTheme;
 		ImagePath townBackground;
-		ImagePath guildBackground;
-		ImagePath guildWindow;
+		std::vector<ImagePath> guildBackground;
+		std::vector<ImagePath> guildWindow;
+		Point guildWindowPosition;
+		std::vector<std::vector<Point>> guildSpellPositions;
 		AnimationPath buildingsIcons;
 		ImagePath hallBackground;
 		/// vector[row][column] = list of buildings in this slot
@@ -100,7 +102,7 @@ public:
 		/// NOTE: index in vector is meaningless. Vector used instead of list for a bit faster access
 		std::vector<std::unique_ptr<const CStructure>> structures;
 
-		std::string siegePrefix;
+		std::map<MapLayerId, std::string> siegePrefix;
 		std::vector<Point> siegePositions;
 		std::string towerIconSmall;
 		std::string towerIconLarge;

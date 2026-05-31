@@ -15,11 +15,12 @@
 #include "Unit.h"
 
 #include "../bonuses/Bonus.h"
+#include "../CCreatureHandler.h"
 #include "../mapObjects/CGTownInstance.h"
-#include "../spells/CSpellHandler.h"
 #include "../IGameSettings.h"
 #include "../GameLibrary.h"
 
+#include <vcmi/spells/Spell.h>
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -31,16 +32,16 @@ DamageRange DamageCalculator::getBaseDamageSingle() const
 	minDmg = info.attacker->getMinDamage(info.shooting);
 	maxDmg = info.attacker->getMaxDamage(info.shooting);
 
-    if(minDmg > maxDmg)
-    {
+	if(minDmg > maxDmg)
+	{
 	const auto & creatureName = info.attacker->creatureId().toEntity(LIBRARY)->getNamePluralTranslated();
 	logGlobal->error("Creature %s: min damage %lld exceeds max damage %lld.", creatureName, minDmg, maxDmg);
-        logGlobal->error("This may lead to unexpected results, please report it to the mod's creator.");
-        // to avoid an RNG crash and make bless and curse spells work as expected
-        std::swap(minDmg, maxDmg);
-    }
+		logGlobal->error("This may lead to unexpected results, please report it to the mod's creator.");
+		// to avoid an RNG crash and make bless and curse spells work as expected
+		std::swap(minDmg, maxDmg);
+	}
 
-	if(info.attacker->creatureIndex() == CreatureID::ARROW_TOWERS)
+	if(info.attacker->isTurret())
 	{
 		const auto * town = callback.battleGetDefendedTown();
 		assert(town);
@@ -60,7 +61,7 @@ DamageRange DamageCalculator::getBaseDamageSingle() const
 	const std::string cachingStrSiedgeWeapon = "type_SIEGE_WEAPON";
 	static const auto selectorSiedgeWeapon = Selector::type()(BonusType::SIEGE_WEAPON);
 
-	if(info.attacker->hasBonus(selectorSiedgeWeapon, cachingStrSiedgeWeapon) && info.attacker->creatureIndex() != CreatureID::ARROW_TOWERS)
+	if(info.attacker->hasBonus(selectorSiedgeWeapon, cachingStrSiedgeWeapon) && !info.attacker->isTurret())
 	{
 		static const auto bonusSelector =
 			Selector::sourceTypeSel(BonusSource::ARTIFACT).Or(
@@ -171,7 +172,7 @@ int DamageCalculator::getActorAttackSlayer() const
 		if(isAffected)
 		{
 			SpellID spell(SpellID::SLAYER);
-			int attackBonus = spell.toSpell()->getLevelPower(spLevel);
+			int attackBonus = spell.toEntity(LIBRARY)->getLevelPower(spLevel);
 			if(info.attacker->hasBonusOfType(BonusType::SPECIAL_PECULIAR_ENCHANT, BonusSubtypeID(spell)))
 			{
 				ui8 attackerTier = info.attacker->unitType()->getLevel();
@@ -284,11 +285,24 @@ double DamageCalculator::getAttackFromBackFactor() const
 	return 0;
 }
 
-double DamageCalculator::getAttackHateFactor() const
+double DamageCalculator::getAttackHateCreatureFactor() const
 {
 	//assume that unit have only few HATE features and cache them all
 	auto allHateEffects = info.attacker->getBonusesOfType(BonusType::HATE);
 	return allHateEffects->valOfBonuses(Selector::subtype()(BonusSubtypeID(info.defender->creatureId()))) / 100.0;
+}
+
+double DamageCalculator::getAttackHateTraitFactor() const
+{
+	//assume that unit have only few HATE features and cache them all
+	auto allHateEffects = info.attacker->getBonusesOfType(BonusType::HATES_TRAIT);
+
+	auto selector = [this](const Bonus* hateBonus) -> bool
+	{
+		return info.defender->hasBonusOfType(hateBonus->subtype.as<BonusTypeID>().toEnum());
+	};
+
+	return allHateEffects->valOfBonuses(selector) / 100.0;
 }
 
 double DamageCalculator::getAttackRevengeFactor() const
@@ -474,7 +488,8 @@ std::vector<double> DamageCalculator::getAttackFactors() const
 		getAttackFromBackFactor(),
 		getAttackDeathBlowFactor(),
 		getAttackDoubleDamageFactor(),
-		getAttackHateFactor(),
+		getAttackHateCreatureFactor(),
+		getAttackHateTraitFactor(),
 		getAttackRevengeFactor()
 	};
 }
@@ -523,8 +538,20 @@ int DamageCalculator::battleBonusValue(const IBonusBearer * bearer, const CSelec
 						: Selector::effectRange()(BonusLimitEffect::ONLY_MELEE_FIGHT);
 
 	//any regular bonuses or just ones for melee/ranged
-	return bearer->getBonuses(selector, noLimit.Or(limitMatches))->totalValue();
+	return bearer->getBonuses(selector)->valOfBonuses(noLimit.Or(limitMatches));
 };
+
+int64_t DamageCalculator::getDamageCap() const
+{
+	const std::string cachingStrDamageCap = "type_DAMAGE_RECEIVED_CAP";
+	static const auto selectorDamageCap = Selector::type()(BonusType::DAMAGE_RECEIVED_CAP);
+
+	int damageCapPercentage = info.defender->valOfBonuses(selectorDamageCap, cachingStrDamageCap);
+	if (damageCapPercentage <= 0)
+		return std::numeric_limits<int64_t>::max();
+
+	return info.defender->getMaxHealth() * damageCapPercentage / 100;
+}
 
 DamageEstimation DamageCalculator::calculateDmgRange() const
 {
@@ -550,10 +577,15 @@ DamageEstimation DamageCalculator::calculateDmgRange() const
 
 	double resultingFactor = attackFactorTotal * defenseFactorTotal;
 
-	DamageRange damageDealt {
-		std::max<int64_t>( 1.0, std::floor(damageBase.min * resultingFactor)),
-		std::max<int64_t>( 1.0, std::floor(damageBase.max * resultingFactor))
-	};
+	int64_t cap = getDamageCap();
+
+	auto dmin = std::max<int64_t>(1.0, std::floor(damageBase.min * resultingFactor));
+	auto dmax = std::max<int64_t>(1.0, std::floor(damageBase.max * resultingFactor));
+
+	dmin = std::min(dmin, cap);
+	dmax = std::min(dmax, cap);
+
+	DamageRange damageDealt{ dmin, dmax };
 
 	DamageRange killsDealt = getCasualties(damageDealt);
 

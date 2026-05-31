@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "CHeroWindow.h"
+#include "wiki/WikiWindow.h"
 
 #include "CCreatureWindow.h"
 #include "CHeroBackpackWindow.h"
@@ -31,22 +32,22 @@
 #include "../widgets/Slider.h"
 #include "../render/IRenderHandler.h"
 
-#include "../lib/CConfigHandler.h"
-#include "../lib/CSkillHandler.h"
-#include "../lib/GameLibrary.h"
-#include "../lib/callback/CCallback.h"
-#include "../lib/entities/artifact/ArtifactUtils.h"
-#include "../lib/entities/hero/CHeroHandler.h"
-#include "../lib/mapObjects/CGHeroInstance.h"
-#include "../lib/networkPacks/ArtifactLocation.h"
-#include "../lib/texts/CGeneralTextHandler.h"
+#include "../../lib/CConfigHandler.h"
+#include "../../lib/CSkillHandler.h"
+#include "../../lib/GameLibrary.h"
+#include "../../lib/callback/CCallback.h"
+#include "../../lib/entities/artifact/ArtifactUtils.h"
+#include "../../lib/entities/hero/CHeroHandler.h"
+#include "../../lib/mapObjects/CGHeroInstance.h"
+#include "../../lib/networkPacks/ArtifactLocation.h"
+#include "../../lib/texts/CGeneralTextHandler.h"
 
 void CHeroSwitcher::clickPressed(const Point & cursorPosition)
 {
 	//TODO: do not recreate window
 	if (false)
 	{
-		owner->update();
+		owner->updateArtifacts();
 	}
 	else
 	{
@@ -70,7 +71,7 @@ CHeroSwitcher::CHeroSwitcher(CHeroWindow * owner_, Point pos_, const CGHeroInsta
 }
 
 CHeroWindow::CHeroWindow(const CGHeroInstance * hero)
-	: CWindowObject(PLAYER_COLORED, ImagePath::builtin("HeroScr4"))
+	: CWindowObject(PLAYER_COLORED, ImagePath::builtin(ENGINE->isRoeData() ? "HeroScr3" : "HeroScr4"))
 {
 	auto & heroscrn = LIBRARY->generaltexth->heroscrn;
 
@@ -81,7 +82,7 @@ CHeroWindow::CHeroWindow(const CGHeroInstance * hero)
 	name = std::make_shared<CLabel>(190, 38, EFonts::FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW);
 	title = std::make_shared<CLabel>(190, 65, EFonts::FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE);
 
-	statusbar = CGStatusBar::create(7, 559, ImagePath::builtin("ADROLLVR.bmp"), 660);
+	statusbar = CGStatusBar::create(std::make_shared<CPicture>(background->getSurface(), Rect(7, 559, 660, 19), 7, 559));
 
 	quitButton = std::make_shared<CButton>(Point(609, 516), AnimationPath::builtin("hsbtns.def"), CButton::tooltip(heroscrn[17]), [this](){ close(); }, EShortcut::GLOBAL_RETURN);
 
@@ -118,6 +119,13 @@ CHeroWindow::CHeroWindow(const CGHeroInstance * hero)
 	portraitArea = std::make_shared<LRClickableAreaWText>(Rect(18, 18, 58, 64));
 	portraitImage = std::make_shared<CAnimImage>(AnimationPath::builtin("PortraitsLarge"), 0, 0, 19, 19);
 
+	portraitWikiArea = std::make_shared<LRClickableArea>(Rect(18, 18, 58, 64), [this]()
+	{
+		ENGINE->windows().createAndPushWindow<WikiWindow>(
+			WikiWindow::Style::BROWN,
+			WikiEntryKey{WikiCategory::HERO, curHero->getHeroType()->getJsonKey()});
+	});
+
 	for(int v = 0; v < GameConstants::PRIMARY_SKILLS; ++v)
 	{
 		auto area = std::make_shared<LRClickableAreaWTextComp>(Rect(30 + 70 * v, 109, 42, 64), ComponentType::PRIM_SKILL);
@@ -153,7 +161,7 @@ CHeroWindow::CHeroWindow(const CGHeroInstance * hero)
 	{
 		auto divisionRoundUp = [](int x, int y){ return (x + (y - 1)) / y; };
 		int lines = divisionRoundUp(hero->secSkills.size(), 2);
-		secSkillSlider = std::make_shared<CSlider>(Point(284, 276), 189, [this](int val){ CHeroWindow::update(); }, 4, lines, 0, Orientation::VERTICAL, CSlider::BROWN);
+		secSkillSlider = std::make_shared<CSlider>(Point(284, 276), 189, [this](int val){ CHeroWindow::updateArtifacts(); }, 4, lines, 0, Orientation::VERTICAL, CSlider::BROWN);
 		secSkillSlider->setPanningStep(48);
 		secSkillSlider->setScrollBounds(Rect(-266, 0, secSkillSlider->pos.x - pos.x + secSkillSlider->pos.w, secSkillSlider->pos.h));
 	}
@@ -161,7 +169,7 @@ CHeroWindow::CHeroWindow(const CGHeroInstance * hero)
 	for(int i = 0; i < std::min<size_t>(hero->secSkills.size(), 8u); ++i)
 	{
 		bool isSmallBox = (secSkillSlider && i%2 == 1);
-		Rect r = Rect(i%2 == 0  ?  18  :  162,  276 + 48 * (i/2), isSmallBox ? 120 : 136,  42);
+		Rect r(i%2 == 0  ?  18  :  162,  276 + 48 * (i/2), isSmallBox ? 120 : 136,  42);
 		secSkills.emplace_back(std::make_shared<CSecSkillPlace>(r.topLeft(), CSecSkillPlace::ImageSize::MEDIUM));
 
 		int x = (i % 2) ? 212 : 68;
@@ -182,14 +190,23 @@ CHeroWindow::CHeroWindow(const CGHeroInstance * hero)
 	labels.push_back(std::make_shared<CLabel>(69, 232, FONT_SMALL, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->jktexts[6]));
 	labels.push_back(std::make_shared<CLabel>(213, 232, FONT_SMALL, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->jktexts[7]));
 
-	CHeroWindow::update();
+	addUsedEvents(KEYBOARD);
+	CHeroWindow::updateArtifacts();
 }
 
-void CHeroWindow::update()
+void CHeroWindow::keyPressed(EShortcut key)
+{
+	if(key == EShortcut::ADVENTURE_OPEN_WIKI)
+		ENGINE->windows().createAndPushWindow<WikiWindow>(
+			WikiWindow::Style::BROWN,
+			WikiEntryKey{WikiCategory::HERO, curHero->getHeroType()->getJsonKey()});
+}
+
+void CHeroWindow::updateArtifacts()
 {
 	OBJECT_CONSTRUCTION;
 
-	CWindowWithArtifacts::update();
+	CWindowWithArtifacts::updateArtifacts();
 	auto & heroscrn = LIBRARY->generaltexth->heroscrn;
 	assert(curHero);
 
@@ -202,6 +219,7 @@ void CHeroWindow::update()
 
 	tacticsButton = std::make_shared<CToggleButton>(Point(539, 483), AnimationPath::builtin("hsbtns8.def"), std::make_pair(heroscrn[26], heroscrn[31]), 0, EShortcut::HERO_TOGGLE_TACTICS);
 	tacticsButton->addHoverText(EButtonState::HIGHLIGHTED, LIBRARY->generaltexth->heroscrn[25]);
+	tacticsButton->setSelectedSilent(curHero->tacticFormationEnabled);
 
 	dismissButton->addHoverText(EButtonState::NORMAL, boost::str(boost::format(LIBRARY->generaltexth->heroscrn[16]) % curHero->getNameTranslated() % curHero->getClassNameTranslated()));
 	portraitArea->hoverText = boost::str(boost::format(LIBRARY->generaltexth->allTexts[15]) % curHero->getNameTranslated() % curHero->getClassNameTranslated());
@@ -223,7 +241,7 @@ void CHeroWindow::update()
 		{
 			arts = std::make_shared<CArtifactsOfHeroMain>(Point(-65, -8));
 			arts->clickPressedCallback = [this](const CArtPlace & artPlace, const Point & cursorPosition){clickPressedOnArtPlace(curHero, artPlace.slot, true, false, false, cursorPosition);};
-			arts->showPopupCallback = [this](CArtPlace & artPlace, const Point & cursorPosition){showArtifactAssembling(*arts, artPlace, cursorPosition);};
+			arts->showPopupCallback = [this](CArtPlace & artPlace, const Point & cursorPosition){showArtifactPopup(*arts, artPlace, cursorPosition);};
 			arts->gestureCallback = [this](const CArtPlace & artPlace, const Point & cursorPosition){showQuickBackpackWindow(curHero, artPlace.slot, cursorPosition);};
 			arts->setHero(curHero);
 			addSet(arts);
@@ -311,7 +329,7 @@ void CHeroWindow::update()
 	else
 	{
 		tacticsButton->block(false);
-		tacticsButton->addCallback([&](bool on){curHero->tacticFormationEnabled = on;});
+		tacticsButton->addCallback([this](bool on){ GAME->interface()->cb->setTactics(curHero, on); });
 	}
 
 	formations->resetCallback();

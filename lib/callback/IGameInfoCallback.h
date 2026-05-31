@@ -13,6 +13,8 @@
 #include "../constants/Enumerations.h"
 #include "../int3.h"
 
+#include <vcmi/scripting/ApiTags.h>
+
 VCMI_LIB_NAMESPACE_BEGIN
 
 struct StartInfo;
@@ -40,12 +42,12 @@ class CGTeleport;
 class CGTownInstance;
 class IMarket;
 
-#if SCRIPTING_ENABLED
+using FowTilesType = std::set<int3>;
+
 namespace scripting
 {
 class Pool;
 }
-#endif
 
 namespace vstd
 {
@@ -54,7 +56,7 @@ class RNG;
 
 /// Provide interfaces through which map objects can access game state data
 /// TODO: currently it is also used as Environment::GameCb. Consider separating these two interfaces
-class DLL_LINKAGE IGameInfoCallback : boost::noncopyable
+class DLL_LINKAGE IGameInfoCallback : boost::noncopyable, public scripting::ApiRawPointer<IGameInfoCallback>
 {
 public:
 	~IGameInfoCallback() = default;
@@ -147,12 +149,14 @@ public:
 	virtual bool checkForVisitableDir(const int3 & src, const int3 & dst) const = 0;
 	/// Returns all wandering monsters that guard specified tile
 	virtual std::vector<const CGObjectInstance *> getGuardingCreatures (int3 pos) const = 0;
+	/// Returns if tile is guarded by wandering monsters without checking whether player has access to the tile. AVOID USAGE.
+	virtual bool isTileGuardedUnchecked(int3 tile) const = 0;
 
 	/// Returns all tiles within specified range with specific tile visibility mode
-	virtual void getTilesInRange(std::unordered_set<int3> & tiles, const int3 & pos, int radius, ETileVisibility mode, std::optional<PlayerColor> player = std::optional<PlayerColor>(), int3::EDistanceFormula formula = int3::DIST_2D) const = 0;
+	virtual void getTilesInRange(FowTilesType & tiles, const int3 & pos, int radius, ETileVisibility mode, std::optional<PlayerColor> player = std::optional<PlayerColor>(), int3::EDistanceFormula formula = int3::DIST_2D) const = 0;
 
 	/// returns all tiles on given level (-1 - both levels, otherwise number of level)
-	virtual void getAllTiles(std::unordered_set<int3> &tiles, std::optional<PlayerColor> player, int level, std::function<bool(const TerrainTile *)> filter) const = 0;
+	virtual void getAllTiles(FowTilesType &tiles, std::optional<PlayerColor> player, int level, const std::function<bool(const TerrainTile *)> & filter) const = 0;
 
 	virtual std::vector<ObjectInstanceID> getVisibleTeleportObjects(std::vector<ObjectInstanceID> ids, PlayerColor player)  const  = 0;
 	virtual std::vector<ObjectInstanceID> getTeleportChannelEntrances(TeleportChannelID id, PlayerColor Player = PlayerColor::UNFLAGGABLE) const  = 0;
@@ -162,9 +166,8 @@ public:
 	virtual bool isTeleportChannelUnidirectional(TeleportChannelID id, PlayerColor player = PlayerColor::UNFLAGGABLE) const  = 0;
 	virtual bool isTeleportEntrancePassable(const CGTeleport * obj, PlayerColor player) const  = 0;
 
-#if SCRIPTING_ENABLED
-	virtual scripting::Pool * getGlobalContextPool() const = 0;
-#endif
+	virtual const scripting::Pool & getScriptContextPool() const = 0;
+
 };
 
 VCMI_LIB_NAMESPACE_END

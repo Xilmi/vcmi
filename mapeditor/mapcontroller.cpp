@@ -17,6 +17,7 @@
 #include "../lib/entities/hero/CHeroHandler.h"
 #include "../lib/mapObjectConstructors/AObjectTypeHandler.h"
 #include "../lib/mapObjectConstructors/CObjectClassesHandler.h"
+#include "../lib/mapObjectConstructors/CommonConstructors.h"
 #include "../lib/mapObjects/ObjectTemplate.h"
 #include "../lib/mapping/CMapService.h"
 #include "../lib/mapping/CMap.h"
@@ -26,9 +27,9 @@
 #include "../lib/modding/ModDescription.h"
 #include "../lib/TerrainHandler.h"
 #include "../lib/CSkillHandler.h"
-#include "../lib/spells/CSpellHandler.h"
 #include "../lib/CRandomGenerator.h"
 #include "../lib/serializer/CMemorySerializer.h"
+#include "../lib/spells/CSpellHandler.h"
 #include "mapsettings/modsettings.h"
 #include "mapview.h"
 #include "scenelayer.h"
@@ -43,9 +44,9 @@ MapController::MapController(QObject * parent)
 {
 }
 
-MapController::MapController(MainWindow * m): main(m)
+MapController::MapController(EditorMainWindow * m): main(m)
 {
-	for(int i : {0, 1})
+	for(int i = 0; i < MAX_LEVELS; i++)
 	{
 		_scenes[i].reset(new MapScene(i));
 		_miniscenes[i].reset(new MinimapScene(i));
@@ -56,12 +57,12 @@ MapController::MapController(MainWindow * m): main(m)
 
 void MapController::connectScenes()
 {
-	for (int level = 0; level <= 1; level++)
+	for(int i = 0; i < MAX_LEVELS; i++)
 	{
 		//selections for both layers will be handled separately
-		QObject::connect(_scenes[level].get(), &MapScene::selected, [this, level](bool anythingSelected)
+		QObject::connect(_scenes[i].get(), &MapScene::selected, [this, i](bool anythingSelected)
 		{
-			main->onSelectionMade(level, anythingSelected);
+			main->onSelectionMade(i, anythingSelected);
 		});
 	}
 }
@@ -99,6 +100,16 @@ MapHandler * MapController::mapHandler()
 MapScene * MapController::scene(int level)
 {
 	return _scenes[level].get();
+}
+
+std::set<MapScene *> MapController::getScenes()
+{
+	std::set<MapScene *>result;
+	if (!map())
+		return result;
+	for (int i=0; i<map()->levels(); i++)
+		result.insert(_scenes[i].get());
+	return result;
 }
 
 MinimapScene * MapController::miniScene(int level)
@@ -208,7 +219,10 @@ void MapController::repairMap(CMap * map)
 		{
 			if(!mine->isAbandoned())
 			{
-				mine->producedResource = GameResID(mine->subID);
+				if(mine->getResourceHandler()->getResourceType() == GameResID::NONE) // fallback
+					mine->producedResource = GameResID(mine->subID);
+				else
+					mine->producedResource = mine->getResourceHandler()->getResourceType();
 				mine->producedQuantity = mine->defaultResProduction();
 			}
 		}
@@ -223,13 +237,13 @@ void MapController::setMap(std::unique_ptr<CMap> cmap)
 	
 	repairMap();
 	
-	for(int i : {0, 1})
+	for(int i = 0; i < _map->levels(); i++)
 	{
 		_scenes[i].reset(new MapScene(i));
 		_miniscenes[i].reset(new MinimapScene(i));
 	}
 	resetMapHandler();
-	sceneForceUpdate();
+	initializeMap();
 
 	connectScenes();
 
@@ -256,21 +270,22 @@ void MapController::initObstaclePainters(CMap * map)
 	}
 }
 
-void MapController::sceneForceUpdate()
+void MapController::initializeMap()
 {
-	_scenes[0]->updateViews();
-	_miniscenes[0]->updateViews();
-	if(_map->twoLevel)
+	for(int i = 0; i < _map->levels(); i++)
 	{
-		_scenes[1]->updateViews();
-		_miniscenes[1]->updateViews();
+		_scenes[i]->createMap();
+		_miniscenes[i]->createMap();
 	}
 }
 
-void MapController::sceneForceUpdate(int level)
+void MapController::sceneForceUpdate()
 {
-	_scenes[level]->updateViews();
-	_miniscenes[level]->updateViews();
+	for(int i = 0; i < _map->levels(); i++)
+	{
+		_scenes[i]->updateMap();
+		_miniscenes[i]->updateMap();
+	}
 }
 
 void MapController::resetMapHandler()
@@ -278,7 +293,7 @@ void MapController::resetMapHandler()
 	if(!_mapHandler)
 		_mapHandler.reset(new MapHandler());
 	_mapHandler->reset(map());
-	for(int i : {0, 1})
+	for(int i = 0; i < MAX_LEVELS; i++)
 	{
 		_scenes[i]->initialize(*this);
 		_miniscenes[i]->initialize(*this);
@@ -295,16 +310,13 @@ void MapController::commitTerrainChange(int level, const TerrainId & terrain)
 		return;
 	
 	_scenes[level]->selectionTerrainView.clear();
-	_scenes[level]->selectionTerrainView.draw();
 	
 	_map->getEditManager()->getTerrainSelection().setSelection(v);
 	_map->getEditManager()->drawTerrain(terrain, terrainDecorationPercentageLevel, &CRandomGenerator::getDefault());
 	
-	for(auto & t : v)
-		_scenes[level]->terrainView.setDirty(t);
-	_scenes[level]->terrainView.draw();
+	_scenes[level]->terrainView.redrawTerrain(v);
 	
-	_miniscenes[level]->updateViews();
+	_miniscenes[level]->updateMap();
 	main->mapChanged();
 }
 
@@ -316,19 +328,16 @@ void MapController::commitRoadOrRiverChange(int level, ui8 type, bool isRoad)
 		return;
 	
 	_scenes[level]->selectionTerrainView.clear();
-	_scenes[level]->selectionTerrainView.draw();
 	
 	_map->getEditManager()->getTerrainSelection().setSelection(v);
 	if(isRoad)
 		_map->getEditManager()->drawRoad(RoadId(type), &CRandomGenerator::getDefault());
 	else
 		_map->getEditManager()->drawRiver(RiverId(type), &CRandomGenerator::getDefault());
+
+	_scenes[level]->terrainView.redrawTerrain(v);
 	
-	for(auto & t : v)
-		_scenes[level]->terrainView.setDirty(t);
-	_scenes[level]->terrainView.draw();
-	
-	_miniscenes[level]->updateViews();
+	_miniscenes[level]->updateMap();
 	main->mapChanged();
 }
 
@@ -353,15 +362,13 @@ void MapController::commitObjectErase(int level)
 	{
 		//invalidate tiles under objects
 		_mapHandler->removeObject(obj);
-		_scenes[level]->objectsView.setDirty(obj);
 	}
+	_scenes[level]->objectsView.redrawObjects(selectedObjects);
 
 	_scenes[level]->selectionObjectsView.clear();
-	_scenes[level]->objectsView.draw();
-	_scenes[level]->selectionObjectsView.draw();
-	_scenes[level]->passabilityView.update();
+	_scenes[level]->passabilityView.redraw();
 	
-	_miniscenes[level]->updateViews();
+	_miniscenes[level]->updateMap();
 	main->mapChanged();
 }
 
@@ -409,11 +416,11 @@ void MapController::pasteFromClipboard(int level)
 	if(!errors.isEmpty())
 		QMessageBox::warning(main, QObject::tr("Can't place object"), errors.join('\n'));
 	
-	_scenes[level]->objectsView.draw();
-	_scenes[level]->passabilityView.update();
-	_scenes[level]->selectionObjectsView.draw();
+	_scenes[level]->objectsView.redraw();
+	_scenes[level]->passabilityView.redraw();
+	_scenes[level]->selectionObjectsView.redraw();
 	
-	_miniscenes[level]->updateViews();
+	_miniscenes[level]->updateMap();
 	main->mapChanged();
 }
 
@@ -423,9 +430,8 @@ bool MapController::discardObject(int level) const
 	if(_scenes[level]->selectionObjectsView.newObject)
 	{
 		_scenes[level]->selectionObjectsView.newObject.reset();
-		_scenes[level]->selectionObjectsView.shift = QPoint(0, 0);
+		_scenes[level]->selectionObjectsView.setShift(0, 0);
 		_scenes[level]->selectionObjectsView.selectionMode = SelectionObjectsLayer::NOTHING;
-		_scenes[level]->selectionObjectsView.draw();
 		return true;
 	}
 	return false;
@@ -435,7 +441,7 @@ void MapController::createObject(int level, std::shared_ptr<CGObjectInstance> ob
 {
 	_scenes[level]->selectionObjectsView.newObject = obj;
 	_scenes[level]->selectionObjectsView.selectionMode = SelectionObjectsLayer::MOVEMENT;
-	_scenes[level]->selectionObjectsView.draw();
+	_scenes[level]->selectionObjectsView.redraw();
 }
 
 void MapController::commitObstacleFill(int level)
@@ -465,29 +471,26 @@ void MapController::commitObstacleFill(int level)
 		for(auto o : sel.second->placeObstacles(CRandomGenerator::getDefault()))
 		{
 			_mapHandler->invalidate(o.get());
-			_scenes[level]->objectsView.setDirty(o.get());
+			_scenes[level]->objectsView.redrawObjects({o.get()});
 		}
 	}
 	
 	_scenes[level]->selectionTerrainView.clear();
-	_scenes[level]->selectionTerrainView.draw();
-	_scenes[level]->objectsView.draw();
+	_scenes[level]->objectsView.update();
 	_scenes[level]->passabilityView.update();
 	
-	_miniscenes[level]->updateViews();
+	_miniscenes[level]->updateMap();
 	main->mapChanged();
 }
 
 void MapController::commitObjectChange(int level)
 {	
-	for( auto * o : _scenes[level]->selectionObjectsView.getSelection())
-		_scenes[level]->objectsView.setDirty(o);
+	_scenes[level]->objectsView.redrawObjects(_scenes[level]->selectionObjectsView.getSelection());
 	
-	_scenes[level]->objectsView.draw();
-	_scenes[level]->selectionObjectsView.draw();
-	_scenes[level]->passabilityView.update();
+	_scenes[level]->selectionObjectsView.redraw();
+	_scenes[level]->passabilityView.redraw();
 	
-	_miniscenes[level]->updateViews();
+	_miniscenes[level]->updateMap();
 	main->mapChanged();
 }
 
@@ -504,29 +507,30 @@ void MapController::commitObjectShift(int level)
 	bool makeShift = !shift.isNull();
 	if(makeShift)
 	{
-		for(auto * obj : _scenes[level]->selectionObjectsView.getSelection())
+		std::set<CGObjectInstance*> movedObjects = _scenes[level]->selectionObjectsView.getSelection();
+		for(auto * obj : movedObjects)
 		{
 			int3 pos = obj->pos;
 			pos.z = level;
 			pos.x += shift.x(); pos.y += shift.y();
 			
-			_scenes[level]->objectsView.setDirty(obj); //set dirty before movement
 			_map->getEditManager()->moveObject(obj, pos);
 			_mapHandler->invalidate(obj);
 		}
+		_scenes[level]->objectsView.redrawObjects(movedObjects);
 	}
 	
 	_scenes[level]->selectionObjectsView.newObject = nullptr;
-	_scenes[level]->selectionObjectsView.shift = QPoint(0, 0);
+	_scenes[level]->selectionObjectsView.setShift(0, 0);
 	_scenes[level]->selectionObjectsView.selectionMode = SelectionObjectsLayer::NOTHING;
 	
 	if(makeShift)
 	{
-		_scenes[level]->objectsView.draw();
-		_scenes[level]->selectionObjectsView.draw();
-		_scenes[level]->passabilityView.update();
+		_scenes[level]->objectsView.redraw();
+		_scenes[level]->passabilityView.redraw();
+		_scenes[level]->selectionObjectsView.redraw();
 		
-		_miniscenes[level]->updateViews();
+		_miniscenes[level]->updateMap();
 		main->mapChanged();
 	}
 }
@@ -549,16 +553,14 @@ void MapController::commitObjectCreate(int level)
 	
 	_map->getEditManager()->insertObject(newObj);
 	_mapHandler->invalidate(newObj.get());
-	_scenes[level]->objectsView.setDirty(newObj.get());
+	_scenes[level]->objectsView.redrawObjects({newObj.get()});
 	
 	_scenes[level]->selectionObjectsView.newObject = nullptr;
-	_scenes[level]->selectionObjectsView.shift = QPoint(0, 0);
+	_scenes[level]->selectionObjectsView.setShift(0, 0);
 	_scenes[level]->selectionObjectsView.selectionMode = SelectionObjectsLayer::NOTHING;
-	_scenes[level]->objectsView.draw();
-	_scenes[level]->selectionObjectsView.draw();
-	_scenes[level]->passabilityView.update();
+	_scenes[level]->passabilityView.redraw();
 	
-	_miniscenes[level]->updateViews();
+	_miniscenes[level]->updateMap();
 	main->mapChanged();
 }
 
@@ -744,6 +746,8 @@ ModCompatibilityInfo MapController::modAssessmentMap(const CMap & map)
 
 	for(auto obj : map.objects)
 	{
+		if(!obj)
+			continue;
 		modAssessmentObject(obj.get(), result);
 	}
 	return result;

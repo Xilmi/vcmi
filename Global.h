@@ -93,18 +93,6 @@ static_assert(sizeof(bool) == 1, "Bool needs to be 1 byte in size.");
 #  endif
 #endif
 
-/* ---------------------------------------------------------------------------- */
-/* A macro to force inlining some of our functions */
-/* ---------------------------------------------------------------------------- */
-// Compiler (at least MSVC) is not so smart here-> without that displaying is MUCH slower
-#ifdef _MSC_VER
-#  define STRONG_INLINE __forceinline
-#elif __GNUC__
-#  define STRONG_INLINE inline __attribute__((always_inline))
-#else
-#  define STRONG_INLINE inline
-#endif
-
 // Required for building boost::stacktrace on macOS.
 // See https://github.com/boostorg/stacktrace/issues/88
 #if defined(VCMI_APPLE)
@@ -127,6 +115,7 @@ static_assert(sizeof(bool) == 1, "Bool needs to be 1 byte in size.");
 #include <cstdlib>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -215,10 +204,6 @@ typedef int64_t si64; //signed int 64 bits (8 bytes)
 typedef int32_t si32; //signed int 32 bits (4 bytes)
 typedef int16_t si16; //signed int 16 bits (2 bytes)
 typedef int8_t si8; //signed int 8 bits (1 byte)
-
-// Lock typedefs
-using TLockGuard = std::lock_guard<std::mutex>;
-using TLockGuardRec = std::lock_guard<std::recursive_mutex>;
 
 /* ---------------------------------------------------------------------------- */
 /* Macros */
@@ -712,13 +697,16 @@ namespace vstd
 		return a + (b - a) * f;
 	}
 
-	/// Divides dividend by divisor and rounds result up
+	/// Divides dividend by divisor and rounds result away from zero
 	/// For use with integer-only arithmetic
 	template<typename Integer1, typename Integer2>
 	Integer1 divideAndCeil(const Integer1 & dividend, const Integer2 & divisor)
 	{
 		static_assert(std::is_integral_v<Integer1> && std::is_integral_v<Integer2>, "This function should only be used with integral types");
-		return (dividend + divisor - 1) / divisor;
+		if (dividend >= 0)
+			return (dividend + divisor - 1) / divisor;
+		else
+			return (dividend - divisor + 1) / divisor;
 	}
 
 	/// Divides dividend by divisor and rounds result to nearest
@@ -727,10 +715,13 @@ namespace vstd
 	Integer1 divideAndRound(const Integer1 & dividend, const Integer2 & divisor)
 	{
 		static_assert(std::is_integral_v<Integer1> && std::is_integral_v<Integer2>, "This function should only be used with integral types");
-		return (dividend + divisor / 2 - 1) / divisor;
+		if (dividend >= 0)
+			return (dividend + divisor / 2 - 1) / divisor;
+		else
+			return (dividend - divisor / 2 + 1) / divisor;
 	}
 
-	/// Divides dividend by divisor and rounds result down
+	/// Divides dividend by divisor and rounds result towards zero
 	/// For use with integer-only arithmetic
 	template<typename Integer1, typename Integer2>
 	Integer1 divideAndFloor(const Integer1 & dividend, const Integer2 & divisor)

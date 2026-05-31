@@ -27,14 +27,14 @@
 
 #include "../render/IRenderHandler.h"
 
-#include "../lib/CSkillHandler.h"
-#include "../lib/GameLibrary.h"
-#include "../lib/callback/CCallback.h"
-#include "../lib/entities/hero/CHeroHandler.h"
-#include "../lib/filesystem/Filesystem.h"
-#include "../lib/mapObjects/CGHeroInstance.h"
-#include "../lib/texts/CGeneralTextHandler.h"
-#include "../lib/texts/TextOperations.h"
+#include "../../lib/CSkillHandler.h"
+#include "../../lib/GameLibrary.h"
+#include "../../lib/callback/CCallback.h"
+#include "../../lib/entities/hero/CHeroHandler.h"
+#include "../../lib/filesystem/Filesystem.h"
+#include "../../lib/mapObjects/CGHeroInstance.h"
+#include "../../lib/texts/CGeneralTextHandler.h"
+#include "../../lib/texts/TextOperations.h"
 
 static const std::string QUICK_EXCHANGE_BG = "quick-exchange/TRADEQE";
 
@@ -44,7 +44,7 @@ static bool isQuickExchangeLayoutAvailable()
 }
 
 CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID queryID)
-	: CWindowObject(PLAYER_COLORED | BORDERED, ImagePath::builtin(isQuickExchangeLayoutAvailable() ? QUICK_EXCHANGE_BG : "TRADE2")),
+	: CWindowObject(PLAYER_COLORED | BORDERED, ImagePath::builtin(isQuickExchangeLayoutAvailable() ? QUICK_EXCHANGE_BG : (ENGINE->isRoeData() ? "TRADE" : "TRADE2"))),
 	controller(hero1, hero2)
 {
 	const bool qeLayout = isQuickExchangeLayoutAvailable();
@@ -96,12 +96,12 @@ CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2,
 
 	artifs[0] = std::make_shared<CArtifactsOfHeroMain>(Point(-334, 151));
 	artifs[0]->clickPressedCallback = [this, hero = heroInst[0]](const CArtPlace & artPlace, const Point & cursorPosition){clickPressedOnArtPlace(hero, artPlace.slot, true, false, false, cursorPosition);};
-	artifs[0]->showPopupCallback = [this, heroArts = artifs[0]](CArtPlace & artPlace, const Point & cursorPosition){showArtifactAssembling(*heroArts, artPlace, cursorPosition);};
+	artifs[0]->showPopupCallback = [this, heroArts = artifs[0]](CArtPlace & artPlace, const Point & cursorPosition){showArtifactPopup(*heroArts, artPlace, cursorPosition);};
 	artifs[0]->gestureCallback = [this, hero = heroInst[0]](const CArtPlace & artPlace, const Point & cursorPosition){showQuickBackpackWindow(hero, artPlace.slot, cursorPosition);};
 	artifs[0]->setHero(heroInst[0]);
 	artifs[1] = std::make_shared<CArtifactsOfHeroMain>(Point(98, 151));
 	artifs[1]->clickPressedCallback = [this, hero = heroInst[1]](const CArtPlace & artPlace, const Point & cursorPosition){clickPressedOnArtPlace(hero, artPlace.slot, true, false, false, cursorPosition);};
-	artifs[1]->showPopupCallback = [this, heroArts = artifs[1]](CArtPlace & artPlace, const Point & cursorPosition){showArtifactAssembling(*heroArts, artPlace, cursorPosition);};
+	artifs[1]->showPopupCallback = [this, heroArts = artifs[1]](CArtPlace & artPlace, const Point & cursorPosition){showArtifactPopup(*heroArts, artPlace, cursorPosition);};
 	artifs[1]->gestureCallback = [this, hero = heroInst[1]](const CArtPlace & artPlace, const Point & cursorPosition){showQuickBackpackWindow(hero, artPlace.slot, cursorPosition);};
 	artifs[1]->setHero(heroInst[1]);
 
@@ -261,7 +261,7 @@ CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2,
 		}
 	}
 
-	CExchangeWindow::update();
+	CExchangeWindow::updateArtifacts();
 }
 
 void CExchangeWindow::creatureArrowButtonCallback(bool leftToRight, SlotID slotId)
@@ -361,7 +361,7 @@ void CExchangeWindow::updateGarrisons()
 {
 	garr->recreateSlots();
 
-	update();
+	updateArtifacts();
 }
 
 bool CExchangeWindow::holdsGarrison(const CArmedInstance * army)
@@ -375,13 +375,13 @@ void CExchangeWindow::questLogShortcut()
 	GAME->interface()->showQuestLog();
 }
 
-void CExchangeWindow::update()
+void CExchangeWindow::updateArtifacts()
 {
 	const bool qeLayout = isQuickExchangeLayoutAvailable();
 
 	OBJECT_CONSTRUCTION;
 
-	CWindowWithArtifacts::update();
+	CWindowWithArtifacts::updateArtifacts();
 
 	for(size_t leftRight : {0, 1})
 	{

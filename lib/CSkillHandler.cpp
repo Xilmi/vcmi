@@ -16,6 +16,7 @@
 #include "GameLibrary.h"
 #include "bonuses/Updaters.h"
 #include "constants/StringConstants.h"
+#include "entities/hero/CHeroClassHandler.h"
 #include "filesystem/Filesystem.h"
 #include "modding/IdentifierStorage.h"
 #include "texts/CGeneralTextHandler.h"
@@ -25,13 +26,9 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-CSkill::CSkill(const SecondarySkill & id, std::string identifier, bool obligatoryMajor, bool obligatoryMinor):
+CSkill::CSkill(const SecondarySkill & id, std::string identifier):
 	id(id),
-	identifier(std::move(identifier)),
-	obligatoryMajor(obligatoryMajor),
-	obligatoryMinor(obligatoryMinor),
-	special(false),
-	onlyOnWaterMap(false)
+	identifier(std::move(identifier))
 {
 	gainChance[0] = gainChance[1] = 0; //affects CHeroClassHandler::afterLoadFinalization()
 	levels.resize(NSecondarySkill::levels.size() - 1);
@@ -141,21 +138,36 @@ DLL_LINKAGE std::ostream & operator<<(std::ostream & out, const CSkill & skill)
 	return out << "]";
 }
 
+bool CSkill::isWisdom() const
+{
+	return hasTag("wisdom");
+}
+
+bool CSkill::isSpellSchool() const
+{
+	return hasTag("spellSchool");
+}
+
+bool CSkill::isSpecial() const
+{
+	return hasTag("special");
+}
+
+bool CSkill::isOnlyOnWaterMap() const
+{
+	return hasTag("onlyOnWaterMap");
+}
+
+bool CSkill::hasTag(const std::string & tag) const
+{
+	return vstd::contains(tags, tag);
+}
+
 std::string CSkill::toString() const
 {
 	std::ostringstream ss;
 	ss << *this;
 	return ss.str();
-}
-
-void CSkill::updateFrom(const JsonNode & data)
-{
-
-}
-
-void CSkill::serializeJson(JsonSerializeFormat & handler)
-{
-
 }
 
 ///CSkillHandler
@@ -209,18 +221,49 @@ std::shared_ptr<CSkill> CSkillHandler::loadFromJson(const std::string & scope, c
 {
 	assert(identifier.find(':') == std::string::npos);
 	assert(!scope.empty());
-	bool major;
-	bool minor;
-
-	major = json["obligatoryMajor"].Bool();
-	minor = json["obligatoryMinor"].Bool();
-	auto skill = std::make_shared<CSkill>(SecondarySkill(index), identifier, major, minor);
+	auto skill = std::make_shared<CSkill>(SecondarySkill(index), identifier);
 	skill->modScope = scope;
 
-	skill->onlyOnWaterMap = json["onlyOnWaterMap"].Bool();
-	skill->special = json["special"].Bool();
+	for (const auto & tag : json["tags"].Struct())
+		if (tag.second.Bool())
+			skill->tags.push_back(tag.first);
+
+	if (json["onlyOnWaterMap"].Bool() && !vstd::contains(skill->tags, "onlyOnWaterMap"))
+		skill->tags.push_back("onlyOnWaterMap");
+
+	if (json["special"].Bool() && !vstd::contains(skill->tags, "special"))
+		skill->tags.push_back("special");
+
+	if (json["obligatoryMajor"].Bool() && !vstd::contains(skill->tags, "wisdom"))
+		skill->tags.push_back("wisdom");
+
+	if (json["obligatoryMinor"].Bool() && !vstd::contains(skill->tags, "spellSchool"))
+		skill->tags.push_back("spellSchool");
 
 	LIBRARY->generaltexth->registerString(scope, skill->getNameTextID(), json["name"]);
+
+	for(auto skillPair : json["gainChance"].Struct())
+	{
+		int probability = static_cast<int>(skillPair.second.Integer());
+
+		if (skillPair.first == "might")
+		{
+			skill->gainChance[0] = probability;
+			continue;
+		}
+
+		if (skillPair.first == "magic")
+		{
+			skill->gainChance[1] = probability;
+			continue;
+		}
+
+		LIBRARY->identifiers()->requestIdentifierIfFound(skillPair.second.getModScope(), "heroClass", skillPair.first, [skill, probability](si32 classID)
+		{
+			LIBRARY->heroclassesh->objects[classID]->secSkillProbability[skill->id] = probability;
+		});
+	}
+
 	switch(json["gainChance"].getType())
 	{
 	case JsonNode::JsonType::DATA_INTEGER:
@@ -263,7 +306,10 @@ std::shared_ptr<CSkill> CSkillHandler::loadFromJson(const std::string & scope, c
 		{
 			auto bonus = JsonUtils::parseBonus(bonusNode);
 			bonus->val = 0; // set by HeroHandler on specialty load
-			bonus->updater = std::make_shared<TimesHeroLevelUpdater>();
+			if (bonus->propagator != nullptr)
+				bonus->addPropagationUpdater(std::make_shared<TimesHeroLevelUpdater>());
+			else
+				bonus->addUpdater(std::make_shared<TimesHeroLevelUpdater>());
 			bonus->valType = BonusValueType::PERCENT_TO_TARGET_TYPE;
 			bonus->targetSourceType = BonusSource::SECONDARY_SKILL;
 			skill->specialtyTargetBonuses.push_back(bonus);
@@ -292,6 +338,8 @@ void CSkillHandler::beforeValidate(JsonNode & object)
 	inheritNode("basic");
 	inheritNode("advanced");
 	inheritNode("expert");
+
+	object.Struct().erase("base");
 }
 
 std::set<SecondarySkill> CSkillHandler::getDefaultAllowed() const
@@ -299,7 +347,7 @@ std::set<SecondarySkill> CSkillHandler::getDefaultAllowed() const
 	std::set<SecondarySkill> result;
 
 	for (auto const & skill : objects)
-		if (!skill->special)
+		if (!skill->isSpecial())
 			result.insert(skill->getId());
 
 	return result;

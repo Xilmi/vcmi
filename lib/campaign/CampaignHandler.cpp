@@ -187,7 +187,13 @@ CampaignScenario CampaignHandler::readScenarioFromJson(JsonNode & reader)
 		ret.hasPrologEpilog = !identifier.isNull();
 		if(ret.hasPrologEpilog)
 		{
-			ret.prologVideo = VideoPath::fromJson(identifier["video"]);
+			auto loadStringOrVector = [](auto & target, auto & node){
+				if(node.isVector())
+					target = {VideoPath::fromJson(node.Vector().at(0)), node.Vector().size() > 1 ? VideoPath::fromJson(node.Vector().at(1)) : VideoPath::builtin("")};
+				else
+					target = {VideoPath::fromJson(node), VideoPath::builtin("")};
+			};
+			loadStringOrVector(ret.prologVideo, identifier["video"]);
 			ret.prologMusic = AudioPath::fromJson(identifier["music"]);
 			ret.prologVoice = AudioPath::fromJson(identifier["voice"]);
 			ret.prologText.jsonDeserialize(identifier["text"]);
@@ -218,7 +224,7 @@ JsonNode CampaignHandler::writeScenarioToJson(const CampaignScenario & scenario)
 		JsonNode node;
 		if(elem.hasPrologEpilog)
 		{
-			node["video"].String() = elem.prologVideo.getName();
+			node["video"].Vector() = JsonVector{ JsonNode(elem.prologVideo.first.getName()), JsonNode(elem.prologVideo.second.getName()) };
 			node["music"].String() = elem.prologMusic.getName();
 			node["voice"].String() = elem.prologVoice.getName();
 			node["text"].String() = elem.prologText.toString();
@@ -312,6 +318,8 @@ void CampaignHandler::writeScenarioTravelToJson(JsonNode & node, const CampaignT
 		node["keepCreatures"].Vector().push_back(JsonNode(CreatureID::encode(c)));
 	for(const auto & a : travel.artifactsKeptByHero)
 		node["keepArtifacts"].Vector().push_back(JsonNode(ArtifactID::encode(a)));
+	
+	node["startOptions"].String() = vstd::reverseMap(startOptionsMap)[travel.startOptions];
 
 	if (travel.playerColor.isValidPlayer())
 		node["playerColor"].String() = PlayerColor::encode(travel.playerColor.getNum());
@@ -326,6 +334,11 @@ void CampaignHandler::readHeaderFromMemory( CampaignHeader & ret, CBinaryReader 
 
 	if (ret.version == CampaignVersion::HotA)
 	{
+		// Format versions:
+		// 0 - unused?
+		// 1 - 1.7.0
+		// 2 - 1.7.3
+		// 3 - 1.8.0
 		int32_t formatVersion = reader.readInt32();
 
 		if (formatVersion == 2)
@@ -388,7 +401,7 @@ CampaignScenario CampaignHandler::readScenarioFromMemory( CBinaryReader & reader
 		{
 			ret.prologVideo = mapping.remapCampaignVideo(reader.readUInt8());
 			ret.prologMusic = mapping.remapCampaignMusic(reader.readUInt8());
-			logGlobal->trace("Campaign %s, scenario %s: music theme: %s, video: %s", header.filename, identifier, ret.prologMusic.getOriginalName(), ret.prologVideo.getOriginalName());
+			logGlobal->trace("Campaign %s, scenario %s: music theme: %s, video: %s", header.filename, identifier, ret.prologMusic.getOriginalName(), ret.prologVideo.first.getOriginalName());
 			ret.prologText.appendTextID(readLocalizedString(header, reader, header.filename, header.modName, header.encoding, identifier));
 		}
 		return ret;
