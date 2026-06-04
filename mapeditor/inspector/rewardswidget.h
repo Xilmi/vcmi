@@ -40,6 +40,10 @@ private slots:
 
 	void on_resetPeriod_valueChanged(int arg1);
 
+	void on_resetWeeks_valueChanged(int arg1);
+
+	void on_resetMonths_valueChanged(int arg1);
+
 	void on_visitInfoList_itemSelectionChanged();
 
 	void on_visitInfoList_currentItemChanged(QListWidgetItem *current, QListWidgetItem *previous);

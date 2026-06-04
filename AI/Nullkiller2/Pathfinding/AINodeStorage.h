@@ -176,7 +176,7 @@ private:
 	uint8_t turnDistanceLimit[2];
 
 public:
-	/// more than 1 chain layer for each hero allows us to have more than 1 path to each tile so we can chose more optimal one.	
+	/// more than 1 chain layer for each hero allows us to have more than 1 path to each tile so we can chose more optimal one.
 	AINodeStorage(Nullkiller * aiNk, const int3 & sizes);
 	~AINodeStorage() override;
 
@@ -246,7 +246,7 @@ public:
 
 	template<class NodeRange>
 	bool hasBetterChain(
-		const CGPathNode * source, 
+		const CGPathNode * source,
 		const AIPathNode & destinationNode,
 		const NodeRange & chains) const;
 
@@ -289,7 +289,17 @@ public:
 	}
 
 	void calculateTownPortalTeleportations(std::vector<CGPathNode *> & neighbours);
-	void fillChainInfo(const AIPathNode * node, AIPath & path, int parentIndex) const;
+
+	using RealMoveMasksByHero = std::map<const CGHeroInstance *, uint64_t>;
+
+	inline bool isRealMovementNode(const AIPathNode * node) const
+	{
+		return node && node->actor && node->actor->hero && node->coord != node->actor->hero->visitablePos();
+	}
+
+	// Reconstructs an AIPath by walking theNodeBefore / chainOther, appending branch nodes first and linking them via parentIndex
+	// Returns false when reconstruction would assign conflicting real-move chainMasks to the same hero
+	bool tryReconstructChainInfo(const AIPathNode * node, AIPath & path, int & parentIndex, RealMoveMasksByHero & realMoveMasks) const;
 
 	template<typename Fn>
 	void iterateValidNodes(const int3 & pos, EPathfindingLayer layer, Fn fn)

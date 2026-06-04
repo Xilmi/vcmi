@@ -763,33 +763,26 @@ void HeroChainCalculationTask::calculateHeroChain(
 			}
 		}
 
-		// Always acquire locks in consistent order to prevent deadlock
-		// Order by memory address to ensure consistent acquisition order
-		const ChainActor * firstActor = carrier->actor;
-		const ChainActor * secondActor = other->actor;
-		if(firstActor > secondActor)
-			std::swap(firstActor, secondActor);
-
-		// Retry with timeout to prevent livelock using exponential backoff
-		constexpr auto maxDelay = std::chrono::milliseconds(16);
-		auto currentDelay = std::chrono::milliseconds(1);
-		constexpr int maxRetries = 7;
-
-		for(int attempt = 0; attempt < maxRetries; ++attempt)
+		const auto exchangeResult = carrier->actor->tryExchangeNoLock(other->actor);
+		if(exchangeResult.lockAcquired)
 		{
-			const auto exchangeResult = firstActor->tryExchangeNoLock(secondActor);
-			if(exchangeResult.lockAcquired)
+			if (exchangeResult.actor)
 			{
-				if (exchangeResult.actor)
-					result.push_back(calculateExchange(exchangeResult.actor, carrier, other));
-				return;
+				if(exchangeResult.actor->hero != carrier->actor->hero)
+				{
+#if NK2AI_PATHFINDER_TRACE_LEVEL >= 1
+					logAi->trace(
+		"HeroChainCalculationTask::calculateHeroChain exchange direction mismatch: result=%s, carrier=%s, other=%s",
+						exchangeResult.actor->toString(),
+					carrier->actor->toString(),
+					other->actor->toString());
+#endif
+					return;
+				}
+				result.push_back(calculateExchange(exchangeResult.actor, carrier, other));
 			}
-
-			std::this_thread::sleep_for(currentDelay);
-			currentDelay = std::min(currentDelay * 2, maxDelay);
+			return;
 		}
-
-		logAi->warn("HeroChainCalculationTask::calculateHeroChain failed to lock actors");
 	}
 }
 
@@ -992,7 +985,7 @@ void AINodeStorage::setTownsAndDwellings(
 		}
 	}
 
-	/*auto dayOfWeek = cb->getDate(Date::DAY_OF_WEEK);
+	/*auto dayOfWeek = cb->getCalendar().getDayOfWeek();
 	auto waitForGrowth = dayOfWeek > 4;*/
 
 	for(auto obj: visitableObjs)
@@ -1443,8 +1436,18 @@ void AINodeStorage::calculateChainInfo(std::vector<AIPath> & paths, const int3 &
 		path.targetHero = node.actor->hero;
 		path.heroArmy = node.actor->creatureSet;
 		path.armyLoss = node.armyLoss;
+		path.chainMask = node.actor->chainMask;
 
-		fillChainInfo(&node, path, -1);
+		RealMoveMasksByHero realMoveMasks;
+		int parentIndex = -1;
+		if(!tryReconstructChainInfo(&node, path, parentIndex, realMoveMasks))
+		{
+#if NK2AI_PATHFINDER_TRACE_LEVEL >= 2
+			logAi->trace("AINodeStorage::calculateChainInfo Skip conflicting reconstructed chain path %s", path.toString());
+#endif
+			paths.pop_back();
+			continue;
+		}
 		path.targetObjectDanger = aiNk->dangerEvaluator->evaluateDanger(pos, path.targetHero, !node.actor->allowBattle);
 		for(const auto & pathNode : path.nodes)
 		{
@@ -1488,46 +1491,83 @@ void AINodeStorage::calculateChainInfo(std::vector<AIPath> & paths, const int3 &
 			path.targetHero,
 			getHeroArmyStrengthWithCommander(path.targetHero, path.heroArmy, fortLevel),
 			path.targetObjectDanger);
-
-		path.chainMask = node.actor->chainMask;
 		path.exchangeCount = node.actor->actorExchangeCount;
 	}
 }
 
-void AINodeStorage::fillChainInfo(const AIPathNode * node, AIPath & path, int parentIndex) const
+bool AINodeStorage::tryReconstructChainInfo(const AIPathNode * node, AIPath & path,	int & parentIndex, RealMoveMasksByHero & realMoveMasks) const
 {
 	while(node != nullptr)
 	{
 		if(!node->actor->hero)
-			return;
+			return true;
+
+		const auto tryAppendCurrentNode = [this, &node](AIPath & candidatePath, int candidateParentIndex,
+																										RealMoveMasksByHero & candidateMasks) -> std::optional<int>
+		{
+			if(isRealMovementNode(node))
+			{
+				auto existingMask = candidateMasks.find(node->actor->hero);
+				if(existingMask != candidateMasks.end() && existingMask->second != node->actor->chainMask)
+					return std::nullopt;
+			}
+
+			AIPathNodeInfo pathNode;
+			pathNode.cost = node->getCost();
+			pathNode.targetHero = node->actor->hero;
+			pathNode.chainMask = node->actor->chainMask;
+			pathNode.specialAction = node->specialAction;
+			pathNode.turns = node->turns;
+			pathNode.danger = node->danger;
+			pathNode.coord = node->coord;
+			pathNode.parentIndex = candidateParentIndex;
+			pathNode.actionIsBlocked = false;
+			pathNode.layer = node->layer;
+
+			if(pathNode.specialAction)
+			{
+				auto targetNode = node->theNodeBefore ? getAINode(node->theNodeBefore) : node;
+				pathNode.actionIsBlocked = !pathNode.specialAction->canAct(aiNk, targetNode);
+			}
+
+			const int nextParentIndex = static_cast<int>(candidatePath.nodes.size());
+
+			candidatePath.nodes.push_back(pathNode);
+			if(isRealMovementNode(node))
+				candidateMasks[node->actor->hero] = node->actor->chainMask;
+
+			return nextParentIndex;
+		};
 
 		if(node->chainOther)
-			fillChainInfo(node->chainOther, path, parentIndex);
-
-		AIPathNodeInfo pathNode;
-
-		pathNode.cost = node->getCost();
-		pathNode.targetHero = node->actor->hero;
-		pathNode.chainMask = node->actor->chainMask;
-		pathNode.specialAction = node->specialAction;
-		pathNode.turns = node->turns;
-		pathNode.danger = node->danger;
-		pathNode.coord = node->coord;
-		pathNode.parentIndex = parentIndex;
-		pathNode.actionIsBlocked = false;
-		pathNode.layer = node->layer;
-
-		if(pathNode.specialAction)
 		{
-			auto targetNode =node->theNodeBefore ?  getAINode(node->theNodeBefore) : node;
+			AIPath pathWithBranch = path;
+			auto masksWithBranch = realMoveMasks;
+			int parentIndexWithBranch = parentIndex;
 
-			pathNode.actionIsBlocked = !pathNode.specialAction->canAct(aiNk, targetNode);
+			if(!tryReconstructChainInfo(node->chainOther, pathWithBranch, parentIndexWithBranch, masksWithBranch))
+				return false; // Reject path because chainOther branch is conflicting for hero
+
+			auto nextParentIndex = tryAppendCurrentNode(pathWithBranch, parentIndexWithBranch, masksWithBranch);
+			if(!nextParentIndex)
+				return false; // Reject path because current node conflicts after chainOther for hero
+
+			path = std::move(pathWithBranch);
+			realMoveMasks = std::move(masksWithBranch);
+			parentIndex = *nextParentIndex;
+			node = getAINode(node->theNodeBefore);
+			continue;
 		}
 
-		parentIndex = path.nodes.size();
-		path.nodes.push_back(pathNode);
+		auto nextParentIndex = tryAppendCurrentNode(path, parentIndex, realMoveMasks);
+		if(!nextParentIndex)
+			return false;
+
+		parentIndex = *nextParentIndex;
 		node = getAINode(node->theNodeBefore);
 	}
+
+	return true;
 }
 
 AIPath::AIPath()

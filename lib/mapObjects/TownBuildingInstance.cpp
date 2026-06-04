@@ -111,7 +111,10 @@ Rewardable::Configuration TownRewardableBuildingInstance::generateConfiguration(
 
 void TownRewardableBuildingInstance::newTurn(IGameEventCallback & gameEvents, IGameRandomizer & gameRandomizer) const
 {
-	if (configuration.resetParameters.period != 0 && cb->getDate(Date::DAY) > 1 && ((cb->getDate(Date::DAY)-1) % configuration.resetParameters.period) == 0)
+	auto calendar = cb->getCalendar();
+	int currentDay = calendar.getCurrentDay();
+	ui32 resetDuration = configuration.getResetDuration(calendar);
+	if (resetDuration != 0 && currentDay > 1 && ((currentDay-1) % resetDuration) == 0)
 	{
 		auto newConfiguration = generateConfiguration(gameRandomizer);
 		gameEvents.setRewardableObjectConfiguration(town->id, getBuildingType(), newConfiguration);

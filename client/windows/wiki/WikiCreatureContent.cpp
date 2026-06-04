@@ -24,6 +24,7 @@
 
 #include "../../../lib/CCreatureHandler.h"
 #include "../../../lib/CBonusTypeHandler.h"
+#include "../../../lib/CStack.h"
 #include "../../../lib/GameLibrary.h"
 #include "../../../lib/ResourceSet.h"
 #include "../../../lib/texts/CGeneralTextHandler.h"
@@ -118,25 +119,31 @@ std::vector<std::shared_ptr<CIntObject>> buildCreatureContent( // NOSONAR (compl
 		struct StatRow { std::string label; std::string value; };
 		std::vector<StatRow> stats;
 
-		stats.push_back({tr("vcmi.wiki.creature.stat.level"),   std::to_string(creature->getLevel())});
-		stats.push_back({tr("core.genrltxt.190"),  std::to_string(creature->getBaseAttack())});
-		stats.push_back({tr("core.genrltxt.191"), std::to_string(creature->getBaseDefense())});
+		// Use a hypothetical CStackInstance to evaluate limiters correctly (e.g. conditional rune bonuses)
+		CStackInstance fakeStack(nullptr, creature->getId(), 1, true);
+		const bool shooter = fakeStack.hasBonusOfType(BonusType::SHOOTER) && fakeStack.valOfBonuses(BonusType::SHOTS);
 
-		const int dmgMin = creature->getBaseDamageMin();
-		const int dmgMax = creature->getBaseDamageMax();
+		stats.push_back({tr("vcmi.wiki.creature.stat.level"),   std::to_string(creature->getLevel())});
+		stats.push_back({tr("core.genrltxt.190"),  std::to_string(fakeStack.getAttack(shooter))});
+		stats.push_back({tr("core.genrltxt.191"), std::to_string(fakeStack.getDefense(shooter))});
+
+		const int dmgMin = fakeStack.getMinDamage(shooter);
+		const int dmgMax = fakeStack.getMaxDamage(shooter);
 		if(dmgMin == dmgMax)
 			stats.push_back({tr("core.genrltxt.199"), std::to_string(dmgMin)});
 		else
 			stats.push_back({tr("core.genrltxt.199"), std::to_string(dmgMin) + " - " + std::to_string(dmgMax)});
 
-		stats.push_back({tr("core.genrltxt.193"),     std::to_string(creature->getBaseSpeed())});
-		stats.push_back({tr("core.help.439.help"), std::to_string(creature->getBaseHitPoints())});
+		stats.push_back({tr("core.genrltxt.193"),     std::to_string(fakeStack.getMovementRange())});
+		stats.push_back({tr("core.help.439.help"), std::to_string(fakeStack.getMaxHealth())});
 		stats.push_back({tr("core.genrltxt.194"),    std::to_string(creature->getGrowth())});
 
-		if(creature->getBaseShots() > 0)
-			stats.push_back({tr("vcmi.wiki.creature.stat.shots"),      std::to_string(creature->getBaseShots())});
-		if(creature->getBaseSpellPoints() > 0)
-			stats.push_back({tr("core.genrltxt.387"), std::to_string(creature->getBaseSpellPoints())});
+		const int baseShots = fakeStack.valOfBonuses(BonusType::SHOTS);
+		if(baseShots > 0)
+			stats.push_back({tr("vcmi.wiki.creature.stat.shots"),      std::to_string(baseShots)});
+		const int baseCasts = fakeStack.valOfBonuses(BonusType::CASTS);
+		if(baseCasts > 0)
+			stats.push_back({tr("core.genrltxt.387"), std::to_string(baseCasts)});
 		if(creature->getHorde() > 0)
 			stats.push_back({tr("vcmi.wiki.creature.stat.hordegrowth"), std::to_string(creature->getHorde())});
 		if(creature->isDoubleWide())

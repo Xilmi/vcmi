@@ -250,7 +250,10 @@ void GameStatePackVisitor::visitGiveBonus(GiveBonus & pack)
 	assert(cbsn);
 
 	if(Bonus::OneWeek(&pack.bonus))
-		pack.bonus.turnsRemain = (LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK) + 1) - gs.getDate(Date::DAY_OF_WEEK); // set correct number of days before adding bonus
+	{
+		auto calendar = gs.getCalendar();
+		pack.bonus.turnsRemain = calendar.getDaysInWeek() + 1 - calendar.getDayOfWeek(); // set correct number of days before adding bonus
+	}
 
 	auto b = std::make_shared<Bonus>(pack.bonus);
 	cbsn->addNewBonus(b);
@@ -629,9 +632,10 @@ void GameStatePackVisitor::visitHeroRecruited(HeroRecruited & pack)
 	h->pos = pack.tile;
 	h->updateAppearance();
 
-	// Generate unique instance name before adding to map
-	if (h->instanceName.empty())
-		gs.getMap().generateUniqueInstanceName(h.get());
+	// Heroes taken from the tavern pool may carry a stale instance name from an
+	// earlier lifetime or from an older save that reconstructed uidCounter from
+	// on-map objects only. Always assign a fresh map-unique name on recruitment.
+	gs.getMap().generateUniqueInstanceName(h.get());
 
 	gs.getMap().addNewObject(h);
 	assert(h->id.hasValue());

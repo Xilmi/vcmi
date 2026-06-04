@@ -49,7 +49,7 @@ Goals::TGoalVec DefenceBehavior::decompose(const Nullkiller * aiNk) const
 
 bool isThreatUnderControl(const CGTownInstance * town, const HitMapInfo & threat, const Nullkiller * aiNk, const std::vector<AIPath> & paths)
 {
-	int dayOfWeek = aiNk->cc->getDate(Date::DAY_OF_WEEK);
+	int dayOfWeek = aiNk->cc->getCalendar().getDayOfWeek();
 
 	for(const AIPath & path : paths)
 	{

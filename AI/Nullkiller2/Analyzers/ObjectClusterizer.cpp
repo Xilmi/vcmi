@@ -221,7 +221,7 @@ void ObjectClusterizer::onObjectRemoved(ObjectInstanceID id)
 	vstd::erase_if_present(invalidated, id);
 
 	NK2AI::ClusterMap::accessor cluster;
-	
+
 	if(blockedObjects.find(cluster, id))
 	{
 		for(auto & unlocked : cluster->second->objects)
@@ -299,13 +299,13 @@ void ObjectClusterizer::clusterize()
 
 	if(isUpToDate && invalidated.empty())
 		return;
-		
+
 	auto start = std::chrono::high_resolution_clock::now();
 
 	logAi->debug("Begin object clusterization");
 
 	std::vector<const CGObjectInstance *> objs;
-	
+
 	if(isUpToDate)
 	{
 		for(auto id : invalidated)

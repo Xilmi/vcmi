@@ -23,10 +23,10 @@ namespace scripting::api::library
 
 const std::vector<SkillProxy::CustomRegType> SkillProxy::REGISTER_CUSTOM =
 {
-	{"getIconIndex", LuaMethodWrapper<Skill, decltype(&Entity::getIconIndex), &Entity::getIconIndex>::invoke, false},
-	{"getIndex", LuaMethodWrapper<Skill, decltype(&Entity::getIndex), &Entity::getIndex>::invoke, false},
-	{"getJsonKey", LuaMethodWrapper<Skill, decltype(&Entity::getJsonKey), &Entity::getJsonKey>::invoke, false},
-	{"getName", LuaMethodWrapper<Skill, decltype(&Entity::getNameTranslated), &Entity::getNameTranslated>::invoke, false},
+	{"getIconIndex", LuaMethodWrapper<&Entity::getIconIndex, Skill>::invoke,      false},
+	{"getIndex",     LuaMethodWrapper<&Entity::getIndex, Skill>::invoke,          false},
+	{"getJsonKey",   LuaMethodWrapper<&Entity::getJsonKey, Skill>::invoke,        false},
+	{"getName",      LuaMethodWrapper<&Entity::getNameTranslated, Skill>::invoke, false},
 };
 
 }

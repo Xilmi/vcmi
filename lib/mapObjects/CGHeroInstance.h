@@ -296,7 +296,7 @@ public:
 	PlayerColor getCasterOwner() const override;
 	const CGHeroInstance * getHeroCaster() const override;
 
-	void getCasterName(MetaString & text) const override;
+	std::string getCasterNameTextID() const override;
 	void getCastDescription(const spells::Spell * spell, const battle::Units & attacked, MetaString & text) const override;
 	void spendMana(ServerCallback * server, const int spellCost) const override;
 

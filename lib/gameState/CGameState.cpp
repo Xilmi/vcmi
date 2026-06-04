@@ -149,36 +149,9 @@ bool CGameState::isHeroAllowedForPlayer(const HeroTypeID & hid, const PlayerColo
 	return true;
 }
 
-int CGameState::getDate(int d, Date mode)
+Calendar CGameState::getCalendar() const
 {
-	int daysPerWeek = LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK);
-	int daysPerMonth = LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_WEEKS_PER_MONTH) * daysPerWeek;
-
-	int temp;
-	switch (mode)
-	{
-	case Date::DAY:
-		return d;
-	case Date::DAY_OF_WEEK: //day of week
-		temp = (d)%daysPerWeek; // 1 - Monday, 7 - Sunday
-		return temp ? temp : daysPerWeek;
-	case Date::WEEK:  //current week
-		temp = ((d - 1) % daysPerMonth) + 1;
-		return ((temp - 1) / daysPerWeek) + 1;
-	case Date::MONTH: //current month
-		return ((d-1)/daysPerMonth)+1;
-	case Date::DAY_OF_MONTH: //day of month
-		temp = (d)%daysPerMonth;
-		if (temp)
-			return temp;
-		else return daysPerMonth;
-	}
-	return 0;
-}
-
-int CGameState::getDate(Date mode) const
-{
-	return getDate(day, mode);
+	return Calendar(getSettings(), day);
 }
 
 CGameState::CGameState()

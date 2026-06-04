@@ -49,6 +49,8 @@ public:
 
 	MOCK_CONST_METHOD0(getCasterColor, PlayerColor());
 	MOCK_CONST_METHOD0(getHeroCaster, const CGHeroInstance*());
+	MOCK_CONST_METHOD0(getUnitCaster, const battle::Unit*());
+	MOCK_CONST_METHOD0(getCasterNameTextID, std::string());
 
 	MOCK_CONST_METHOD0(getSpellIndex, int32_t());
 	MOCK_CONST_METHOD0(getSpellId, SpellID());

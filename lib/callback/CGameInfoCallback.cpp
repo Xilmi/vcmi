@@ -385,9 +385,9 @@ bool CGameInfoCallback::getHeroInfo(const CGObjectInstance * hero, InfoAboutHero
 	return true;
 }
 
-int CGameInfoCallback::getDate(Date mode) const
+Calendar CGameInfoCallback::getCalendar() const
 {
-	return gameState().getDate(mode);
+	return gameState().getCalendar();
 }
 
 bool CGameInfoCallback::isVisibleFor(int3 pos, PlayerColor player) const

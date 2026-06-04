@@ -92,8 +92,8 @@
 	{
 		"allowedTerrains" : ["dirt"],
 		"width" : 2,
-		"height" : 1,
-		"blockedTiles" :  [0, 1],
+		"height" : 2,
+		"blockedTiles" :  [-16],
 		"animation" : "ObDRk03.def",
 		"absolute" : false
 	},

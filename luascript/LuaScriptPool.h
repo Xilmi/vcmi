@@ -22,6 +22,8 @@ namespace scripting
 class LuaModule;
 class LuaScriptInstance;
 
+/// Owned by CGameState; holds the live LuaContext for every registered script in the current game session.
+/// Scripts are registered at session start and their contexts are initialized before gameplay begins.
 class LuaScriptPool : public Pool
 {
 public:

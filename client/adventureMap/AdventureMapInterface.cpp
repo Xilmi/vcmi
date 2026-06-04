@@ -458,7 +458,7 @@ void AdventureMapInterface::onPlayerTurnStarted(PlayerColor playerID)
 	onSelectionChanged(GAME->interface()->localState->getCurrentArmy());
 
 	//show new day animation and sound on infobar, except for 1st day of the game
-	if (GAME->interface()->cb->getDate(Date::DAY) != 1)
+	if (GAME->interface()->cb->getCalendar().getCurrentDay() != 1)
 		widget->getInfoBar()->showDate();
 
 	onHeroChanged(nullptr);

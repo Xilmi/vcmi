@@ -14,17 +14,10 @@
 #include "../../json/JsonUtils.h"
 
 #include "Catapult.h"
-#include "Clone.h"
-#include "Damage.h"
-#include "Dispel.h"
 #include "Effect.h"
-#include "Heal.h"
 #include "Moat.h"
 #include "Obstacle.h"
 #include "RemoveObstacle.h"
-#include "Sacrifice.h"
-#include "Teleport.h"
-#include "Timed.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -46,16 +39,9 @@ std::shared_ptr<Effect> BuiltinEffectFactory::create(const std::string & scope, 
 
 	static const std::unordered_map<std::string, EffectFactoryFunctor> effectFactory = {
 		{ "Catapult",       &makeEffect<Catapult> },
-		{ "Clone",          &makeEffect<Clone> },
-		{ "Damage",         &makeEffect<Damage> },
-		{ "Dispel",         &makeEffect<Dispel> },
-		{ "Heal",           &makeEffect<Heal> },
 		{ "Moat",           &makeEffect<Moat> },
 		{ "Obstacle",       &makeEffect<Obstacle> },
 		{ "RemoveObstacle", &makeEffect<RemoveObstacle> },
-		{ "Sacrifice",      &makeEffect<Sacrifice> },
-		{ "Teleport",       &makeEffect<Teleport> },
-		{ "Timed",          &makeEffect<Timed> },
 	};
 
 	return effectFactory.at(name)();

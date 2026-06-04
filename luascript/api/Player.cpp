@@ -16,9 +16,7 @@
 #include "../LuaStack.h"
 #include "../LuaCallWrapper.h"
 
-namespace scripting
-{
-namespace api
+namespace scripting::api
 {
 
 
@@ -34,7 +32,6 @@ const std::vector<PlayerProxy::CustomRegType> PlayerProxy::REGISTER_CUSTOM =
 
 };
 
-}
 }
 
 VCMI_LIB_NAMESPACE_END

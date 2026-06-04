@@ -186,7 +186,7 @@ void NewTurnProcessor::onPlayerTurnEnded(PlayerColor which)
 	// check for 7 days without castle
 	gameHandler->checkVictoryLossConditionsForPlayer(which);
 
-	bool newWeek = gameHandler->gameInfo().getDate(Date::DAY_OF_WEEK) == LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK); // end of 7th day
+	bool newWeek = gameHandler->gameInfo().getCalendar().nextDay().getDayOfWeek() == 1; // end of 7th day
 
 	if (newWeek) //new heroes in tavern
 		gameHandler->heroPool->onNewWeek(which);
@@ -264,14 +264,15 @@ ResourceSet NewTurnProcessor::generatePlayerIncome(PlayerColor playerID, bool ne
 		const JsonNode & difficultyConfig = weeklyBonusesConfig[difficultyName];
 
 		// Distribute weekly bonuses over 7 days, depending on the current day of the week
+		auto calendar = gameHandler->gameState().getCalendar();
 		for (GameResID i : LIBRARY->resourceTypeHandler->getAllObjects())
 		{
 			const std::string & name = i.toResource()->getJsonKey();
 			int64_t weeklyBonus = difficultyConfig[name].Integer();
-			int64_t dayOfWeek = gameHandler->gameState().getDate(Date::DAY_OF_WEEK);
+			int64_t dayOfWeek = calendar.getDayOfWeek();
 			int64_t dailyIncome = incomeHandicapped[i];
-			int64_t amountTillToday = dailyIncome * weeklyBonus * (dayOfWeek-1) / LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK) / 100;
-			int64_t amountAfterToday = dailyIncome * weeklyBonus * dayOfWeek / LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK) / 100;
+			int64_t amountTillToday = dailyIncome * weeklyBonus * (dayOfWeek-1) / calendar.getDaysInWeek() / 100;
+			int64_t amountAfterToday = dailyIncome * weeklyBonus * dayOfWeek / calendar.getDaysInWeek() / 100;
 			int64_t dailyBonusToday = amountAfterToday - amountTillToday;
 			int64_t totalIncomeToday = std::min(GameConstants::PLAYER_RESOURCES_CAP, incomeHandicapped[i] + dailyBonusToday);
 			incomeHandicapped[i] = totalIncomeToday;
@@ -666,12 +667,10 @@ NewTurn NewTurnProcessor::generateNewTurnPack()
 	n.creatureid = CreatureID::NONE;
 	n.day = gameHandler->gameState().day + 1;
 
-	int daysPerWeek = LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK);
-	int daysPerMonth = LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_WEEKS_PER_MONTH) * daysPerWeek;
-
-	bool firstTurn = !gameHandler->gameInfo().getDate(Date::DAY);
-	bool newWeek = gameHandler->gameInfo().getDate(Date::DAY_OF_WEEK) == daysPerWeek; //day numbers are confusing, as day was not yet switched
-	bool newMonth = gameHandler->gameInfo().getDate(Date::DAY_OF_MONTH) == daysPerMonth;
+	auto calendar = gameHandler->gameInfo().getCalendar();
+	bool firstTurn = !calendar.getCurrentDay();
+	bool newWeek = calendar.nextDay().getDayOfWeek() == 1; //day numbers are confusing, as day was not yet switched
+	bool newMonth = calendar.nextDay().getDayOfMonth() == 1;
 
 	int additionalGrowth = 0;
 
@@ -714,12 +713,10 @@ void NewTurnProcessor::onNewTurn()
 {
 	NewTurn n = generateNewTurnPack();
 
-	int daysPerWeek = LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK);
-	int daysPerMonth = LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_WEEKS_PER_MONTH) * daysPerWeek;
-
-	bool firstTurn = !gameHandler->gameInfo().getDate(Date::DAY);
-	bool newWeek = gameHandler->gameInfo().getDate(Date::DAY_OF_WEEK) == daysPerWeek; //day numbers are confusing, as day was not yet switched
-	bool newMonth = gameHandler->gameInfo().getDate(Date::DAY_OF_MONTH) == daysPerMonth;
+	auto calendar = gameHandler->gameInfo().getCalendar();
+	bool firstTurn = !calendar.getCurrentDay();
+	bool newWeek = calendar.nextDay().getDayOfWeek() == 1; //day numbers are confusing, as day was not yet switched
+	bool newMonth = calendar.nextDay().getDayOfMonth() == 1;
 
 	gameHandler->sendAndApply(n);
 
@@ -739,7 +736,7 @@ void NewTurnProcessor::onNewTurn()
 		{
 			const auto * t = gameHandler->gameState().getTown(townID);
 			if (!t->getOwner().isValidPlayer())
-				updateNeutralTownGarrison(t, 1 + gameHandler->gameInfo().getDate(Date::DAY) / LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK));
+				updateNeutralTownGarrison(t, 1 + calendar.getCurrentDay() / calendar.getDaysInWeek());
 		}
 	}
 

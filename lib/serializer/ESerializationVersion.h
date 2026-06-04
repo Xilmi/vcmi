@@ -64,10 +64,11 @@ enum class ESerializationVersion : int32_t
 	BONUS_TRIGGER, // bonus that allows triggered effects in combat
 	CUSTOM_GARRISON_TITLE, // GarrisonDialog pack now has custom title parameter
 	LUA_SCRIPTS,
+	REWARDABLE_RESET_CALENDAR, // rewardable reset period split into days/weeks/months
 
 	RELEASE_170 = HOTA_MAP_STACK_COUNT,
 	RELEASE_174 = CUSTOM_GARRISON_TITLE,
-	CURRENT = LUA_SCRIPTS,
+	CURRENT = REWARDABLE_RESET_CALENDAR,
 };
 
 static_assert(ESerializationVersion::MINIMAL <= ESerializationVersion::CURRENT, "Invalid serialization version definition!");

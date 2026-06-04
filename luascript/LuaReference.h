@@ -15,6 +15,8 @@ VCMI_LIB_NAMESPACE_BEGIN
 namespace scripting
 {
 
+/// RAII handle for a value stored in the Lua registry, preventing it from being garbage-collected.
+/// Wraps luaL_ref / luaL_unref and allows pushing the referenced value back onto the stack.
 class LuaReference : public boost::noncopyable
 {
 public:

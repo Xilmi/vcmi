@@ -215,14 +215,7 @@ ExchangeResult HeroExchangeMap::tryExchangeNoLock(const ChainActor * other)
 	ExchangeResult result;
 
 	{
-		std::shared_lock lock(sync, std::try_to_lock);
-
-		if(!lock.owns_lock())
-		{
-			result.lockAcquired = false;
-
-			return result;
-		}
+		std::shared_lock lock(sync);
 
 		auto position = exchangeMap.find(other);
 
@@ -235,13 +228,14 @@ ExchangeResult HeroExchangeMap::tryExchangeNoLock(const ChainActor * other)
 	}
 
 	{
-		std::unique_lock uniqueLock(sync, std::try_to_lock);
+		std::unique_lock uniqueLock(sync);
 
-		if(!uniqueLock.owns_lock())
+		auto position = exchangeMap.find(other);
+		if(position != exchangeMap.end())
 		{
-			result.lockAcquired = false;
+			result.actor = position->second;
 
-			return result;
+			return result; // inserted while waiting for unique lock
 		}
 
 		auto inserted = exchangeMap.insert(std::pair<const ChainActor *, HeroActor *>(other, nullptr));

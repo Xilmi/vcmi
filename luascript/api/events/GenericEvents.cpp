@@ -14,15 +14,11 @@
 #include "../../LuaStack.h"
 #include "../../LuaCallWrapper.h"
 #include "../Registry.h"
-#include "SubscriptionRegistryProxy.h"
+#include "SubscriptionRegistry.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-namespace scripting
-{
-namespace api
-{
-namespace events
+namespace scripting::api::events
 {
 using ::events::GameResumed;
 using ::events::PlayerGotTurn;
@@ -55,16 +51,8 @@ const std::vector<PlayerGotTurnProxy::CustomRegType> PlayerGotTurnProxy::REGISTE
 		&SubscriptionRegistryProxy<PlayerGotTurnProxy>::subscribeAfter,
 		true
 	},
-	{
-		"getPlayer",
-		LuaMethodWrapper<PlayerGotTurn, decltype(&PlayerGotTurn::getPlayerIndex), &PlayerGotTurn::getPlayerIndex>::invoke,
-		false
-	},
-	{
-		"setPlayer",
-		LuaMethodWrapper<PlayerGotTurn, decltype(&PlayerGotTurn::setPlayerIndex), &PlayerGotTurn::setPlayerIndex>::invoke,
-		false
-	},
+	{"getPlayer", LuaMethodWrapper<&PlayerGotTurn::getPlayerIndex>::invoke, false},
+	{"setPlayer", LuaMethodWrapper<&PlayerGotTurn::setPlayerIndex>::invoke, false},
 };
 
 const std::vector<TurnStartedProxy::CustomRegType> TurnStartedProxy::REGISTER_CUSTOM =
@@ -81,8 +69,6 @@ const std::vector<TurnStartedProxy::CustomRegType> TurnStartedProxy::REGISTER_CU
 	}
 };
 
-}
-}
 }
 
 

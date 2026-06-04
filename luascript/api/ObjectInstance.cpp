@@ -16,9 +16,7 @@
 #include "../LuaStack.h"
 #include "../LuaCallWrapper.h"
 
-namespace scripting
-{
-namespace api
+namespace scripting::api
 {
 VCMI_REGISTER_CORE_SCRIPT_API(ObjectInstanceProxy, "adventure.ObjectInstance");
 
@@ -31,7 +29,6 @@ const std::vector<ObjectInstanceProxy::CustomRegType> ObjectInstanceProxy::REGIS
 	{"getPosition", LuaMethodWrapper<CGObjectInstance, decltype(IObjectInterface::getPosition), &IObjectInterface::getPosition>::invoke, false},
 };
 
-}
 }
 
 

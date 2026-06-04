@@ -13,6 +13,7 @@
 #include "api/Registry.h"
 #include "../lib/constants/IdentifierBase.h"
 #include "vcmi/scripting/ApiTags.h"
+#include <boost/core/demangle.hpp>
 
 
 VCMI_LIB_NAMESPACE_BEGIN
@@ -23,6 +24,7 @@ class int3;
 namespace scripting
 {
 
+/// Exception thrown by LuaStack when a type mismatch or missing value is detected while reading the Lua stack.
 class LuaApiException : public std::runtime_error
 {
 	using std::runtime_error::runtime_error;
@@ -30,15 +32,16 @@ class LuaApiException : public std::runtime_error
 
 class LuaStack;
 
+/// Typed helper for Lua stack operations: push/get for all VCMI types and API objects.
+/// Records the initial stack top on construction; call restoreInitialTop() to reset to it.
+/// All get() overloads throw LuaApiException on type mismatch.
 class LuaStack
 {
 public:
 	LuaStack(lua_State * L_);
-	void balance();
+	void restoreInitialTop();
 	void clear();
 	void debugPrintStack();
-
-	void pushByIndex(lua_Integer index);
 
 	template<typename T>
 	LuaStack & operator<<(const T & parameter)
@@ -141,7 +144,7 @@ public:
 		static_assert(std::is_same_v<std::remove_const_t<DataType>, BaseType>, "Can not push derived class as copyable!");
 
 		static const auto KEY = api::Registry::get()->getTypeName<BaseType>();
-		
+
 		createLuaUserdata<BaseType>(value);
 
 		luaL_getmetatable(L, KEY);
@@ -194,60 +197,39 @@ public:
 		nonConstValue.serializeScript(luaSerializer);
 	}
 
-	bool tryGet(int position, bool & value);
+	void get(int position, bool & value);
 
 	template<typename T, typename std::enable_if_t< std::is_integral_v<T> && !std::is_same_v<T, bool>, int> = 0>
-	bool tryGet(int position, T & value)
+	void get(int position, T & value)
 	{
 		lua_Integer temp;
-		if(tryGetInteger(position, temp))
-		{
-			value = static_cast<T>(temp);
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		getInteger(position, temp);
+		value = static_cast<T>(temp);
 	}
 
 	template<typename T, typename std::enable_if_t<std::is_base_of_v<IdentifierBase, T>, int> = 0>
-	bool tryGet(int position, T & value)
+	void get(int position, T & value)
 	{
 		lua_Integer temp;
-		if(tryGetInteger(position, temp))
-		{
-			value = T(temp);
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		getInteger(position, temp);
+		value = T(temp);
 	}
 
 	template<typename T, typename std::enable_if_t< std::is_enum_v<T>, int> = 0>
-	bool tryGet(int position, T & value)
+	void get(int position, T & value)
 	{
 		lua_Integer temp;
-		if(tryGetInteger(position, temp))
-		{
-			value = static_cast<T>(temp);
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		getInteger(position, temp);
+		value = static_cast<T>(temp);
 	}
 
-	bool tryGet(int position, int3 & value);
+	void get(int position, int3 & value);
 
-	bool tryGet(int position, double & value);
-	bool tryGet(int position, std::string & value);
+	void get(int position, double & value);
+	void get(int position, std::string & value);
 
 	template<typename T>
-	bool tryGet(int idx, std::vector<T> & out)
+	void get(int idx, std::vector<T> & out)
 	{
 		if (!lua_istable(L, idx))
 			throw LuaApiException("value at index is not a table");
@@ -261,71 +243,61 @@ public:
 
 		for (size_t i = 0; i < len; ++i) {
 			lua_rawgeti(L, idx, i+1);
-			tryGet(-1, out[i]);
+			get(-1, out[i]);
 			lua_pop(L, 1);
 		}
-
-		return true;
 	}
 
 	template<typename T, typename std::enable_if_t<std::is_base_of_v<scripting::TagSerializable, T>, int> = 0>
-	inline bool tryGet(int position, T & value)
+	inline void get(int position, T & value)
 	{
 		const auto & deserializer = [this, position]<typename Data>(const std::string &keyName, Data & data)
 		{
 			if (!lua_istable(L, position))
 				throw LuaApiException("value at index is not a table");
 
-			// pushes table[keyName] on stack
-			// NOTE: if value is not present or set to nil, top of stack will contain nil
-			// do not handle it here, but in tryGet - attempt to tryGet values that don't support nil values
-			// will throw exceptions, while allowing null values (where supported) to load
 			lua_getfield(L, position, keyName.c_str());
 
 			try {
-				tryGet(absindex(-1), data);
+				get(absindex(-1), data);
 			} catch (...) {
-				// restore stack
 				lua_pop(L, 1);
 				throw;
 			}
 
-			lua_pop(L, 1); // pop pushed value
+			lua_pop(L, 1);
 		};
 
 		value.serializeScript(deserializer);
-		return true;
 	}
 
 	template<typename T, typename std::enable_if_t<std::is_base_of_v<scripting::TagRawPointer, T> && std::is_const_v<T>, int> = 0>
-	inline bool tryGet(int position, T * & value)
+	inline void get(int position, T * & value)
 	{
 		using DataType = T;
 		using BaseType = typename DataType::ScriptingApiName;
 		using BasePtrType = BaseType *;
 		using ConstPtrType = const BaseType *;
 
-		ConstPtrType basePtr;
-		bool result = tryGetCUData<BasePtrType, ConstPtrType>(position, basePtr);
+		ConstPtrType basePtr = nullptr;
+		getCUData<BasePtrType, ConstPtrType>(position, basePtr);
 		value = dynamic_cast<T*>(basePtr);
-		return result;
 	}
 
 	template<typename T, typename std::enable_if_t<std::is_base_of_v<scripting::TagRawPointer, T> && !std::is_const_v<T>, int> = 0>
-	inline bool tryGet(int position, T * & value)
+	inline void get(int position, T * & value)
 	{
 		using DataType = T;
 		using BaseType = typename DataType::ScriptingApiName;
 		using BasePtrType = BaseType*;
 
-		BasePtrType basePtr;
-		bool result = tryGetUData<BasePtrType>(position, basePtr);
+		BasePtrType basePtr = nullptr;
+		getUData<BasePtrType>(position, basePtr);
 		value = dynamic_cast<T*>(basePtr);
-		return result;
 	}
 
 	template<typename T, typename std::enable_if_t<std::is_base_of_v<scripting::TagSharedPointer, T> && std::is_const_v<T>, int> = 0>
-	inline bool tryGet(int position, std::shared_ptr<T> & value)
+	inline void get(int position, std::shared_ptr<T> & value)
 	{
 		using DataType = T;
 		using BaseType = typename DataType::ScriptingApiName;
@@ -333,74 +305,50 @@ public:
 		using ConstPtrType = std::shared_ptr<const BaseType>;
 
 		ConstPtrType basePtr;
-		bool result = tryGetCUData<BasePtrType, ConstPtrType>(position, basePtr);
+		getCUData<BasePtrType, ConstPtrType>(position, basePtr);
 		value = std::dynamic_pointer_cast<T>(basePtr);
-		return result;
 	}
 
 	template<typename T, typename std::enable_if_t<std::is_base_of_v<scripting::TagSharedPointer, T> && !std::is_const_v<T>, int> = 0>
-	inline bool tryGet(int position, std::shared_ptr<T> & value)
+	inline void get(int position, std::shared_ptr<T> & value)
 	{
 		using DataType = T;
 		using BaseType = typename DataType::ScriptingApiName;
 		using BasePtrType = std::shared_ptr<BaseType>;
 
 		BasePtrType basePtr;
-		bool result = tryGetUData<BasePtrType>(position, basePtr);
+		getUData<BasePtrType>(position, basePtr);
 		value = std::dynamic_pointer_cast<T>(basePtr);
-		return result;
 	}
 
 	template<typename T, typename std::enable_if_t<std::is_base_of_v<scripting::TagCopyable, T>, int> = 0>
-	inline bool tryGet(int position, T & value)
+	inline void get(int position, T & value)
 	{
 		using DataType = T;
 		using BaseType = typename DataType::ScriptingApiName;
 		static_assert(std::is_same_v<DataType, BaseType>, "Can not push derived class as copyable!");
 
-		return tryGetUData<BaseType>(position, value);
-	}
-
-	template<typename... Args>
-	bool tryGetAll(int position, Args &...args) {
-		bool failed = false;
-		int i = 0;
-
-		((tryGet(position + i, args) ? ++i : (failed = true, ++i, false)), ...);
-
-		return !failed;
+		getUData<BaseType>(position, value);
 	}
 
 	template<typename T>
-	void getOrThrow(int position, T & value)
+	void getNonNull(int position, T & value)
 	{
-		bool result = tryGet(position, value);
-		if (!result)
-		{
-			const char * expectedType = typeid(T).name();
-			const char * actualType = lua_typename(L, position);
-			std::string message	= std::string("Invalid Lua value! Expected ") + expectedType + " at position" + std::to_string(position) + ", but found " + actualType;
-			throw LuaApiException( message );
-		}
-	}
-
-	template<typename T>
-	void getNonNullOrThrow(int position, T & value)
-	{
-		getOrThrow(position, value);
+		get(position, value);
 		if (value == nullptr)
 		{
-			const char * expectedType = typeid(T).name();
-			std::string message	= std::string("Invalid Lua value! Expected ") + expectedType + " at position" + std::to_string(position) + ", but found nil value!";
+			std::string expectedType = boost::core::demangle(typeid(T).name());
+			std::string message = std::string("Invalid Lua value! Expected ") + expectedType + " at position " + std::to_string(position) + ", but found nil value!";
 			throw LuaApiException( message );
 		}
 	}
 
-	bool tryGet(int position, JsonNode & value);
+	void get(int position, JsonNode & value);
 
 	int retVoid();
 
-	inline int retPushed()
+	/// Returns the current stack size.
+	inline int stackSize()
 	{
 		return lua_gettop(L);
 	}
@@ -416,7 +364,7 @@ public:
 	}
 
 private:
-	bool tryGetInteger(int position, lua_Integer & value);
+	void getInteger(int position, lua_Integer & value);
 
 	template<typename T>
 	void pushArray(T & value)
@@ -432,14 +380,14 @@ private:
 	}
 
 	template<typename BaseType>
-	bool tryGetUData(int position, BaseType & value)
+	void getUData(int position, BaseType & value)
 	{
 		if constexpr (std::is_assignable_v<std::remove_cvref_t<BaseType>&, std::nullptr_t>)
 		{
 			if (lua_isnil(L, position))
 			{
 				value = nullptr;
-				return true;
+				return;
 			}
 		}
 
@@ -449,11 +397,10 @@ private:
 
 		if(!raw)
 		{
-			const char * expectedType = typeid(BaseType).name();
-			const char * actualType = lua_typename(L, position);
-			std::string message	= std::string("Invalid Lua value! Expected ") + expectedType + "at position" + std::to_string(position) + ", but found " + actualType;
+			std::string expectedType = boost::core::demangle(typeid(BaseType).name());
+			const char * actualType = lua_typename(L, lua_type(L, position));
+			std::string message = std::string("Invalid Lua value! Expected ") + expectedType + " at position " + std::to_string(position) + ", but found " + actualType;
 			throw LuaApiException( message );
-
 		}
 
 		if(lua_getmetatable(L, position) == 0)
@@ -465,20 +412,20 @@ private:
 		{
 			value = *(static_cast<BaseType *>(raw));
 			lua_pop(L, 2);
-			return true;
+			return;
 		}
 
 		lua_pop(L, 2);
-		throw LuaApiException( "Failed to retrieve class " + std::string(typeid(BaseType).name()) + " from stack!");
+		throw LuaApiException( "Failed to retrieve class " + boost::core::demangle(typeid(BaseType).name()) + " from stack!");
 	}
 
 	template<typename BaseType, typename BaseConstType>
-	bool tryGetCUData(int position, BaseConstType & value)
+	void getCUData(int position, BaseConstType & value)
 	{
 		if (lua_isnil(L, position))
 		{
 			value = nullptr;
-			return true;
+			return;
 		}
 
 		static const auto KEY = api::Registry::get()->getTypeName<BaseType>();
@@ -488,9 +435,9 @@ private:
 
 		if(!raw)
 		{
-			const char * expectedType = typeid(BaseType).name();
-			const char * actualType = lua_typename(L, position);
-			std::string message	= std::string("Invalid Lua value! Expected ") + expectedType + "at position" + std::to_string(position) + ", but found " + actualType;
+			std::string expectedType = boost::core::demangle(typeid(BaseType).name());
+			const char * actualType = lua_typename(L, lua_type(L, position));
+			std::string message = std::string("Invalid Lua value! Expected ") + expectedType + " at position " + std::to_string(position) + ", but found " + actualType;
 			throw LuaApiException( message );
 		}
 
@@ -505,7 +452,7 @@ private:
 		{
 			value = *(static_cast<BaseType *>(raw));
 			lua_pop(L, 2);
-			return true;
+			return;
 		}
 
 		lua_pop(L, 1);
@@ -518,11 +465,11 @@ private:
 		{
 			value = *(static_cast<BaseConstType *>(raw));
 			lua_pop(L, 2);
-			return true;
+			return;
 		}
 
 		lua_pop(L, 2);
-		throw LuaApiException( "Failed to retrieve class " + std::string(typeid(BaseType).name()) + " from stack!");
+		throw LuaApiException( "Failed to retrieve class " + boost::core::demangle(typeid(BaseType).name()) + " from stack!");
 	}
 
 	/// Pushes copy of FinalType on top of Lua stack as userdata

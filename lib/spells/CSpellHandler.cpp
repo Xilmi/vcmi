@@ -259,7 +259,7 @@ std::shared_ptr<CSpell> CSpellHandler::loadFromJson(const std::string & scope, c
 	auto targetType = json["targetType"].String();
 
 	if(targetType == "NO_TARGET")
-		spell->targetType = spells::AimType::NO_TARGET;
+		spell->targetType = spells::AimType::NOTHING;
 	else if(targetType == "CREATURE")
 		spell->targetType = spells::AimType::CREATURE;
 	else if(targetType == "OBSTACLE")
@@ -441,8 +441,6 @@ std::shared_ptr<CSpell> CSpellHandler::loadFromJson(const std::string & scope, c
 
 		CSpell::LevelInfo & levelObject = spell->levels[levelIndex];
 
-		const si32 levelPower     = levelObject.power = static_cast<si32>(levelNode["power"].Integer());
-
 		if (!levelNode["description"].String().empty())
 			LIBRARY->generaltexth->registerString(scope, spell->getDescriptionTextID(levelIndex), levelNode["description"]);
 
@@ -451,35 +449,8 @@ std::shared_ptr<CSpell> CSpellHandler::loadFromJson(const std::string & scope, c
 		levelObject.clearAffected = levelNode["targetModifier"]["clearAffected"].Bool();
 		levelObject.range         = spellRangeInHexes(levelNode["range"].String());
 
-		for(const auto & elem : levelNode["effects"].Struct())
-		{
-			const JsonNode & bonusNode = elem.second;
-			auto b = JsonUtils::parseBonus(bonusNode);
-			const bool usePowerAsValue = bonusNode["val"].isNull();
-
-			b->sid = BonusSourceID(spell->id); //for all
-			b->source = BonusSource::SPELL_EFFECT;//for all
-
-			if(usePowerAsValue)
-				b->val = levelPower;
-
-			levelObject.effects.push_back(b);
-		}
-
-		for(const auto & elem : levelNode["cumulativeEffects"].Struct())
-		{
-			const JsonNode & bonusNode = elem.second;
-			auto b = JsonUtils::parseBonus(bonusNode);
-			const bool usePowerAsValue = bonusNode["val"].isNull();
-
-			b->sid = BonusSourceID(spell->id); //for all
-			b->source = BonusSource::SPELL_EFFECT;//for all
-
-			if(usePowerAsValue)
-				b->val = levelPower;
-
-			levelObject.cumulativeEffects.push_back(b);
-		}
+		levelObject.effects = levelNode["effects"];
+		levelObject.cumulativeEffects = levelNode["cumulativeEffects"];
 
 		levelObject.adventureEffect = levelNode["adventureEffect"];
 
@@ -521,7 +492,7 @@ std::shared_ptr<CSpell> CSpellHandler::loadFromJson(const std::string & scope, c
 				}
 			}
 
-			if(!levelObject.cumulativeEffects.empty() || !levelObject.effects.empty() || spell->isOffensive())
+			if(!levelObject.cumulativeEffects.Struct().empty() || !levelObject.effects.Struct().empty() || spell->isOffensive())
 				logGlobal->error("Mixing %s special effects with old format effects gives unpredictable result", spell->getNameTranslated());
 		}
 	}

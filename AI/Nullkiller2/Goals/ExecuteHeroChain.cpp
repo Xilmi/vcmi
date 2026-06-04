@@ -154,6 +154,10 @@ void ExecuteHeroChain::accept(AIGateway * aiGw)
 
 						return;
 					}
+
+					// hero can be already on the target tile after move in specialAction->execute()
+					if(node->coord == heroPtr->visitablePos())
+						continue;
 				}
 				else if(i > 0 && aiGw->nullkiller->isObjectGraphAllowed())
 				{
@@ -186,13 +190,24 @@ void ExecuteHeroChain::accept(AIGateway * aiGw)
 
 					if(targetNode->accessible == EPathAccessibility::NOT_SET
 						|| targetNode->accessible == EPathAccessibility::BLOCKED
-						|| targetNode->accessible == EPathAccessibility::FLYABLE
-						|| targetNode->turns != 0)
+						|| targetNode->accessible == EPathAccessibility::FLYABLE)
 					{
 						logAi->error(
 							"Unable to complete chain. Expected hero %s to arrive to %s in 0 turns but he cannot do this",
 							hero->getNameTranslated(),
 							node->coord.toString());
+
+						return;
+					}
+
+					if(targetNode->turns != 0)
+					{
+						logAi->debug(
+							"Stopping stale hero chain for %s: expected immediate move to %s, but live path now takes %d turns with %d MP left",
+							hero->getNameTranslated(),
+							node->coord.toString(),
+							static_cast<int>(targetNode->turns),
+							hero->movementPointsRemaining());
 
 						return;
 					}
@@ -241,7 +256,7 @@ void ExecuteHeroChain::accept(AIGateway * aiGw)
 							CGPath path;
 							bool isOk = aiGw->nullkiller->getPathsInfo(hero)->getPath(path, node->coord);
 
-							if(isOk && path.nodes.back().turns > 0)
+							if(isOk && path.nodes.front().turns > 0)
 							{
 								logAi->warn("Hero %s has %d mp which is not enough to continue his way towards %s.", hero->getNameTranslated(), hero->movementPointsRemaining(), node->coord.toString());
 

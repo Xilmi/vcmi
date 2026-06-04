@@ -89,5 +89,11 @@ void BattleFake::setupEmptyBattlefield()
 	EXPECT_CALL(*this, getBattlefieldType()).WillRepeatedly(Return(BattleField(0)));
 }
 
+void BattleFake::setupNativeStacks(const TStacks & stacks, TerrainId terrain)
+{
+	EXPECT_CALL(*this, getStacksIf(_)).WillRepeatedly(Return(stacks));
+	EXPECT_CALL(*this, getTerrainType()).WillRepeatedly(Return(terrain));
+}
+
 }
 }

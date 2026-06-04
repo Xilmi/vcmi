@@ -20,7 +20,7 @@ class IGameInfoCallbackMock : public IGameInfoCallback
 {
 public:
 	//various
-	MOCK_CONST_METHOD1(getDate, int(Date));
+	MOCK_CONST_METHOD0(getCalendar, Calendar());
 	MOCK_CONST_METHOD0(getStartInfo, const StartInfo *());
 	MOCK_CONST_METHOD0(getMapHeader, const CMapHeader *());
 	MOCK_CONST_METHOD0(getMapSize, int3());

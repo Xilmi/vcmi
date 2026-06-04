@@ -55,6 +55,8 @@
 #include "../../../lib/CConfigHandler.h"
 #include "../../../lib/json/JsonUtils.h"
 #include "../../../lib/mapping/CMap.h"
+#include "../../../lib/mapping/MapFeaturesH3M.h"
+#include "../../../lib/mapping/MapFormat.h"
 #include "../../../lib/mapObjects/CGHeroInstance.h"
 
 // ============================================================================
@@ -469,6 +471,21 @@ WikiWindow::WikiWindow(WikiWindow::Style style_, std::optional<WikiEntryKey> ini
 		          [](const WikiEntry & a, const WikiEntry & b){ return a.name < b.name; });
 	}
 
+	// Expansion scopes for core entities based on when they were introduced
+	static const auto featROE = MapFormatFeaturesH3M::find(EMapFormat::ROE, 0);
+	static const auto featAB  = MapFormatFeaturesH3M::find(EMapFormat::AB,  0);
+	static const auto featSOD = MapFormatFeaturesH3M::find(EMapFormat::SOD, 0);
+
+	// Returns "core.roe", "core.ab", "core.sod" or the original modScope for non-core entities
+	auto coreExpansion = [&](const std::string & scope, int idx, int roe, int ab, int sod) -> std::string
+	{
+		if(scope != "core") return scope;
+		if(idx < roe) return "core.roe";
+		if(idx < ab)  return "core.ab";
+		if(idx < sod) return "core.sod";
+		return "core";
+	};
+
 	// Towns – playable factions that have a town (skip neutral / special)
 	{
 		const int iTown = static_cast<int>(WikiCategory::TOWN);
@@ -486,7 +503,7 @@ WikiWindow::WikiWindow(WikiWindow::Style style_, std::optional<WikiEntryKey> ini
 			categoryEntries[iTown].push_back({
 				faction->getJsonKey(), faction->getNameTranslated(), "",
 				WikiIconInfo{ AnimationPath::builtin("ITPA"), static_cast<size_t>(faction->town->clientInfo.icons[1][0]) + 2, 0 },
-				faction->getModScope(),
+				coreExpansion(faction->getModScope(), faction->getId().getNum(), featROE.factionsCount, featAB.factionsCount, featSOD.factionsCount),
 				alignStr
 			});
 		}
@@ -510,7 +527,7 @@ WikiWindow::WikiWindow(WikiWindow::Style style_, std::optional<WikiEntryKey> ini
 			categoryEntries[iHero].push_back({
 				hero->getJsonKey(), name, "",
 				WikiIconInfo{ AnimationPath::builtin("PortraitsSmall"), iconFrame, 0 },
-				hero->getModScope(),
+				coreExpansion(hero->getModScope(), hero->getId().getNum(), featROE.heroesCount, featAB.heroesCount, featSOD.heroesCount),
 				heroClassName
 			});
 		}
@@ -544,7 +561,7 @@ WikiWindow::WikiWindow(WikiWindow::Style style_, std::optional<WikiEntryKey> ini
 				categoryEntries[iCreature].push_back({
 					creature->getJsonKey(), creature->getNameSingularTranslated(), "",
 					WikiIconInfo{ AnimationPath::builtin("CPRSMALL"), static_cast<size_t>(creature->getIconIndex()), 0 },
-					creature->getModScope(),
+					coreExpansion(creature->getModScope(), creature->getIndex(), featROE.creaturesCount, featAB.creaturesCount, featSOD.creaturesCount),
 					factionName
 				});
 			}
@@ -553,17 +570,17 @@ WikiWindow::WikiWindow(WikiWindow::Style style_, std::optional<WikiEntryKey> ini
 		          [](const WikiEntry & a, const WikiEntry & b){ return a.name < b.name; });
 	}
 
-	// Artifacts – exclude "special" class
+	// Artifacts
 	{
 		const int iArtifact = static_cast<int>(WikiCategory::ARTIFACT);
 		for(const auto & artifact : LIBRARY->arth->objects)
-			if(artifact && artifact->aClass != EArtifactClass::ART_SPECIAL)
+			if(artifact)
 				categoryEntries[iArtifact].push_back({
 					artifact->getJsonKey(),
 					artifact->getNameTranslated(),
 					artifact->getDescriptionTranslated(),
 					WikiIconInfo{ AnimationPath::builtin("Artifact"), static_cast<size_t>(artifact->getIconIndex()), 0 },
-					artifact->getModScope(), ""
+					coreExpansion(artifact->getModScope(), artifact->getId().getNum(), featROE.artifactsCount, featAB.artifactsCount, featSOD.artifactsCount), ""
 				});
 		std::sort(categoryEntries[iArtifact].begin(), categoryEntries[iArtifact].end(),
 		          [](const WikiEntry & a, const WikiEntry & b){ return a.name < b.name; });
@@ -1088,7 +1105,13 @@ void WikiWindow::updateContent() // NOSONAR
 			if(showScope)
 			{
 				std::string displayName;
-				if(ms == "core")
+				if(ms == "core.roe")
+					displayName = LIBRARY->generaltexth->translate("vcmi.wiki.modName.core.roe");
+				else if(ms == "core.ab")
+					displayName = LIBRARY->generaltexth->translate("vcmi.wiki.modName.core.ab");
+				else if(ms == "core.sod")
+					displayName = LIBRARY->generaltexth->translate("vcmi.wiki.modName.core.sod");
+				else if(ms == "core")
 					displayName = LIBRARY->generaltexth->translate("vcmi.wiki.modName.core");
 				else
 				{

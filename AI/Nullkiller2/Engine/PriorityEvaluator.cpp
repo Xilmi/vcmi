@@ -160,7 +160,7 @@ uint64_t getDwellingArmyGrowth(CCallback * cb, const CGObjectInstance * target, 
 			// Increase priority towards the end of the week if units are lost afterwards
 			if(!cb->getSettings().getBoolean(EGameSettings::DWELLINGS_ACCUMULATE_WHEN_OWNED))
 			{
-				const auto dayOfWeek = cb->getDate(Date::DAY_OF_WEEK);
+				const auto dayOfWeek = cb->getCalendar().getDayOfWeek();
 				score *= dayOfWeek;
 			}
 		}
@@ -1358,7 +1358,8 @@ float PriorityEvaluator::evaluate(Goals::TSubgoal task, int priorityTier)
 										 ? aiNk->settings->getMaxArmyLossTarget() * evaluationContext.powerRatio
 										 : 1.0;
 		const float maxEnemyDangerRatio = evaluationContext.powerRatio > 0 ? evaluationContext.powerRatio : 1.0;
-		const bool arriveNextWeek = aiNk->cc->getDate(Date::DAY_OF_WEEK) + evaluationContext.turn > LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK);
+		auto calendar = aiNk->cc->getCalendar();
+		const bool arriveNextWeek = calendar.getDayOfWeek() + evaluationContext.turn > calendar.getDaysInWeek();
 
 #if NK2AI_TRACE_LEVEL >= 2
 		logAi->trace(

@@ -26,10 +26,10 @@ function Script:isValidTarget(mechanics, unit)
 	local hexes = unit:getHexes()
 	for i = 1, hexes:size() do
 		local hex = hexes:at(i)
-		local blocker = mechanics:getBattle():getAnyUnitIf(function(other)
+		local blockers = mechanics:getBattle():getUnitsIf(function(other)
 			return other:isValidTarget(false) and other:coversPos(hex)
 		end)
-		if blocker ~= nil then return false end
+		if #blockers > 0 then return false end
 	end
 
 	if unit:isGhost() then return false end

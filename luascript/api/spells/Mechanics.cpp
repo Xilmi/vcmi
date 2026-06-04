@@ -20,39 +20,66 @@
 #include "../../../lib/battle/Unit.h"
 #include "../../../lib/spells/Problem.h"
 #include "../../../lib/mapObjects/CGHeroInstance.h"
+#include "../../../lib/constants/EntityIdentifiers.h"
+#include "../../../lib/GameLibrary.h"
+#include "../../../lib/texts/CGeneralTextHandler.h"
+#include "../../../lib/texts/Languages.h"
+
+#include <vcmi/spells/Service.h>
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-namespace scripting
+namespace scripting::api
 {
-	namespace api
-	{
 		using ::spells::Mechanics;
 
-
-		const std::vector<SpellsMechanicsProxy::CustomRegType> SpellsMechanicsProxy::REGISTER_CUSTOM =
+		bool MechanicsProxy::ownerMatchesUnit(const Mechanics * m, const battle::Unit * unit)
 		{
-			{"isPositive", LuaMethodWrapper<Mechanics, decltype(&Mechanics::isPositiveSpell), &Mechanics::isPositiveSpell>::invoke, false},
-			{"isNegative", LuaMethodWrapper<Mechanics, decltype(&Mechanics::isNegativeSpell), &Mechanics::isNegativeSpell>::invoke, false},
-			{"isSmart", LuaMethodWrapper<Mechanics, decltype(&Mechanics::isSmart), &Mechanics::isSmart>::invoke, false},
+			return m->ownerMatches(unit);
+		}
 
-			{"getEffectLevel", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getEffectLevel), &Mechanics::getEffectLevel>::invoke, false},
-			{"getRangeLevel", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getRangeLevel), &Mechanics::getRangeLevel>::invoke, false},
-			{"getEffectPower", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getEffectPower), &Mechanics::getEffectPower>::invoke, false},
-			{"getEffectDuration", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getEffectDuration), &Mechanics::getEffectDuration>::invoke, false},
-			{"getEffectValue", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getEffectValue), &Mechanics::getEffectValue>::invoke, false},
-			{"getCasterColor", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getCasterColor), &Mechanics::getCasterColor>::invoke, false},
-			{"getCasterSide", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getCasterSide), &Mechanics::getCasterSide>::invoke, false},
-			{"getHeroCaster", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getHeroCaster), &Mechanics::getHeroCaster>::invoke, false},
-			{"getBattle", LuaMethodWrapper<Mechanics, decltype(&Mechanics::battle), &Mechanics::battle>::invoke, false},
-			{"getBattleID", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getBattleID), &Mechanics::getBattleID>::invoke, false},
-			{"calculateRawEffectValue", LuaMethodWrapper<Mechanics, decltype(&Mechanics::calculateRawEffectValue), &Mechanics::calculateRawEffectValue>::invoke, false},
-			{"applySpecificSpellBonus", LuaMethodWrapper<Mechanics, decltype(&Mechanics::applySpecificSpellBonus), &Mechanics::applySpecificSpellBonus>::invoke, false},
-			{"applySpellBonus", LuaMethodWrapper<Mechanics, decltype(&Mechanics::applySpellBonus), &Mechanics::applySpellBonus>::invoke, false},
-			{"isReceptive", LuaMethodWrapper<Mechanics, decltype(&Mechanics::isReceptive), &Mechanics::isReceptive>::invoke, false},
-			{"getSpell", LuaMethodWrapper<Mechanics, decltype(&Mechanics::getSpell), &Mechanics::getSpell>::invoke, false},
+		const spells::Spell * MechanicsProxy::getSpellByKey(const spells::Mechanics * m, const std::string & key)
+		{
+			return m->spells()->getByIndex(SpellID::decode(key));
+		}
+
+		std::string MechanicsProxy::getPluralFormTextID(const spells::Mechanics * m, const std::string & baseTextID, int32_t count)
+		{
+			std::string lang = LIBRARY->generaltexth->getPreferredLanguage();
+			return Languages::getPluralFormTextID(lang, count, baseTextID);
+		}
+
+		const std::vector<MechanicsProxy::CustomRegType> MechanicsProxy::REGISTER_CUSTOM =
+		{
+			{"isPositive",             LuaMethodWrapper<&Mechanics::isPositiveSpell>::invoke,          false},
+			{"isNegative",             LuaMethodWrapper<&Mechanics::isNegativeSpell>::invoke,          false},
+			{"isSmart",                LuaMethodWrapper<&Mechanics::isSmart>::invoke,                  false},
+			{"isMassive",              LuaMethodWrapper<&Mechanics::isMassive>::invoke,                false},
+			{"alwaysHitFirstTarget",   LuaMethodWrapper<&Mechanics::alwaysHitFirstTarget>::invoke,     false},
+			{"wouldResist",            LuaMethodWrapper<&Mechanics::wouldResist>::invoke,              false},
+
+			{"getEffectLevel",         LuaMethodWrapper<&Mechanics::getEffectLevel>::invoke,           false},
+			{"getRangeLevel",          LuaMethodWrapper<&Mechanics::getRangeLevel>::invoke,            false},
+			{"getEffectPower",         LuaMethodWrapper<&Mechanics::getEffectPower>::invoke,           false},
+			{"getEffectDuration",      LuaMethodWrapper<&Mechanics::getEffectDuration>::invoke,        false},
+			{"getEffectValue",         LuaMethodWrapper<&Mechanics::getEffectValue>::invoke,           false},
+			{"getCasterColor",         LuaMethodWrapper<&Mechanics::getCasterColor>::invoke,           false},
+			{"getCasterSide",          LuaMethodWrapper<&Mechanics::getCasterSide>::invoke,            false},
+			{"getHeroCaster",          LuaMethodWrapper<&Mechanics::getHeroCaster>::invoke,            false},
+			{"getUnitCaster",          LuaMethodWrapper<&Mechanics::getUnitCaster>::invoke,            false},
+			{"getCasterNameTextID",    LuaMethodWrapper<&Mechanics::getCasterNameTextID>::invoke,      false},
+			{"getBattle",              LuaMethodWrapper<&Mechanics::battle>::invoke,                   false},
+			{"getBattleID",            LuaMethodWrapper<&Mechanics::getBattleID>::invoke,              false},
+			{"calculateRawEffectValue", LuaMethodWrapper<&Mechanics::calculateRawEffectValue>::invoke, false},
+			{"applySpecificSpellBonus", LuaMethodWrapper<&Mechanics::applySpecificSpellBonus>::invoke, false},
+			{"applySpellBonus",        LuaMethodWrapper<&Mechanics::applySpellBonus>::invoke,          false},
+			{"isReceptive",            LuaMethodWrapper<&Mechanics::isReceptive>::invoke,              false},
+			{"ownerMatches",           LuaFunctionWrapper<&ownerMatchesUnit>::invoke,                  false},
+			{"getSpell",               LuaMethodWrapper<&Mechanics::getSpell>::invoke,                 false},
+			{"getSpellByKey",          LuaFunctionWrapper<&MechanicsProxy::getSpellByKey>::invoke,     false},
+			{"adjustEffectValue",      LuaMethodWrapper<&Mechanics::adjustEffectValue>::invoke,        false},
+			{"getPluralFormTextID",    LuaFunctionWrapper<&MechanicsProxy::getPluralFormTextID>::invoke, false},
 		};
-	}
 }
 
 VCMI_LIB_NAMESPACE_END

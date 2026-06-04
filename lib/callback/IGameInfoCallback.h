@@ -12,6 +12,7 @@
 #include "../constants/EntityIdentifiers.h"
 #include "../constants/Enumerations.h"
 #include "../int3.h"
+#include "Calendar.h"
 
 #include <vcmi/scripting/ApiTags.h>
 
@@ -69,13 +70,11 @@ public:
 	/// TODO: remove
 	virtual const CGameState & gameState() const = 0;
 
-	/// Returns current date:
-	/// DAY - number of days since start of the game (1..inf)
-	/// DAY_OF_WEEK - number of days since start of the week (1..7)
-	/// WEEK - number of week within month (1..4)
-	/// MONTH - current month (1..inf)
-	/// DAY_OF_MONTH - number of day within current month, (1..28)
-	virtual int getDate(Date mode=Date::DAY) const = 0;
+	/// Returns Calendar wrapper for current in-game date.
+	virtual Calendar getCalendar() const = 0;
+
+	/// Returns Calendar wrapper for arbitrary day count, interpreted using current game settings.
+	Calendar getCalendar(int day) const { return Calendar(getSettings(), day); }
 
 	/// Return pointer to static map header for current map
 	virtual const CMapHeader * getMapHeader() const = 0;

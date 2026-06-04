@@ -14,13 +14,9 @@
 
 #include "../../LuaWrapper.h"
 
-#include "EventBusProxy.h"
+#include "EventBus.h"
 
-namespace scripting
-{
-namespace api
-{
-namespace events
+namespace scripting::api::events
 {
 
 using ::events::ObjectVisitStarted;
@@ -33,8 +29,6 @@ public:
 };
 
 
-}
-}
 }
 
 

@@ -36,19 +36,24 @@ function Script:transformTarget(mechanics, aimPoint, spellTarget)
 	return spellTarget
 end
 
+--- Filters the transformed target, removing destinations that should not receive the effect.
+--- Return the filtered target list.
+function Script:filterTarget(mechanics, target)
+	return target
+end
+
 --- TODO
 function Script:getHealthChange(mechanics, problem, target)
     return true
 end
 
 --- TODO
-function Script:adjustAffectedHexes(mechanics, problem, target)
-    return true
+function Script:adjustAffectedHexes(mechanics, hexes, spellTarget)
 end
 
 --- TODO
-function Script:adjustTargetTypes(mechanics, problem, target)
-    return true
+function Script:adjustTargetTypes(mechanics, types)
+    return types
 end
 
 return Script

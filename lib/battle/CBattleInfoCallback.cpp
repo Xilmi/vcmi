@@ -30,7 +30,7 @@
 #include "../networkPacks/PacksForClientBattle.h"
 #include "../BattleFieldHandler.h"
 #include "../Rect.h"
-#include "../spells/effects/UnitEffect.h"
+#include "../spells/effects/Effect.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -202,6 +202,9 @@ bool CBattleInfoCallback::battleHasPenaltyOnLine(const BattleHex & from, const B
 	if (!from.isAvailable() || !dest.isAvailable())
 		throw std::runtime_error("Invalid hex (" + std::to_string(from.toInt()) + " and " + std::to_string(dest.toInt()) + ") received in battleHasPenaltyOnLine!" );
 
+	if(battleGetFortifications().wallsHealth == 0)
+		return false;
+
 	auto isTileBlocked = [&](const BattleHex & tile)
 	{
 		EWallPart wallPart = battleHexToWallPart(tile);
@@ -339,7 +342,7 @@ PossiblePlayerBattleAction CBattleInfoCallback::getCasterAction(const CSpell * s
 
 	const CSpell::TargetInfo ti(spell, caster->getSpellSchoolLevel(spell), mode);
 
-	if(ti.massive || ti.type == spells::AimType::NO_TARGET)
+	if(ti.massive || ti.type == spells::AimType::NOTHING)
 		spellSelMode = PossiblePlayerBattleAction::NO_LOCATION;
 	else if(ti.type == spells::AimType::LOCATION && ti.clearAffected)
 		spellSelMode = PossiblePlayerBattleAction::FREE_LOCATION;

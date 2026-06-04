@@ -11,8 +11,10 @@
 #pragma once
 
 #include <vcmi/scripting/ApiTags.h>
+#include <vcmi/spells/Magic.h>
 
 #include "../../lib/constants/Enumerations.h"
+#include "../../lib/bonuses/BonusEnum.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -27,6 +29,9 @@ class Enums : public scripting::ApiSerializable<Enums>
 	EnumMap<EHealLevel> exportHealLevel() const;
 	EnumMap<EHealPower> exportHealPower() const;
 	EnumMap<ESpellCastProblem> exportSpellCastProblem() const;
+	EnumMap<spells::AimType> exportAimType() const;
+	EnumMap<BonusDuration::BonusDuration> exportBonusDuration() const;
+	EnumMap<si32> exportBonusSource() const;
 
 public:
 	template<typename Serializer>
@@ -35,6 +40,9 @@ public:
 		s("HealLevel", exportHealLevel());
 		s("HealPower", exportHealPower());
 		s("SpellCastProblem", exportSpellCastProblem());
+		s("AimType", exportAimType());
+		s("BonusDuration", exportBonusDuration());
+		s("BonusSource", exportBonusSource());
 	}
 };
 

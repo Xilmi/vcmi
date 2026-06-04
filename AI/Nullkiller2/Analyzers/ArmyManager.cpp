@@ -197,6 +197,10 @@ std::vector<SlotInfo> ArmyManager::getBestArmy(const IBonusBearer * armyCarrier,
 	uint64_t armyValue = 0;
 	TemporaryArmy newArmyInstance;
 
+	const auto & badMoraleChance = cpsic->getSettings().getVector(EGameSettings::COMBAT_BAD_MORALE_CHANCE);
+	const auto & highMoraleChance = cpsic->getSettings().getVector(EGameSettings::COMBAT_GOOD_MORALE_CHANCE);
+	int moraleDiceSize = cpsic->getSettings().getInteger(EGameSettings::COMBAT_MORALE_DICE_SIZE);
+
 	while(allowedFactions.size() < alignmentMap.size())
 	{
 		auto strongestAlignment = vstd::maxElementByFun(alignmentMap, [&](std::pair<FactionID, uint64_t> pair) -> uint64_t
@@ -230,10 +234,6 @@ std::vector<SlotInfo> ArmyManager::getBestArmy(const IBonusBearer * armyCarrier,
 		{
 			auto morale = slot.second->moraleVal();
 			auto multiplier = 1.0f;
-
-			const auto & badMoraleChance = cpsic->getSettings().getVector(EGameSettings::COMBAT_BAD_MORALE_CHANCE);
-			const auto & highMoraleChance = cpsic->getSettings().getVector(EGameSettings::COMBAT_GOOD_MORALE_CHANCE);
-			int moraleDiceSize = cpsic->getSettings().getInteger(EGameSettings::COMBAT_MORALE_DICE_SIZE);
 
 			if(morale < 0 && !badMoraleChance.empty())
 			{
@@ -346,7 +346,8 @@ std::vector<creInfo> ArmyManager::getArmyAvailableToBuy(
 {
 	std::vector<creInfo> creaturesInDwellings;
 	int freeHeroSlots = GameConstants::ARMY_SIZE - hero->stacksCount();
-	bool countGrowth = (cpsic->getDate(Date::DAY_OF_WEEK) + turn) > LIBRARY->engineSettings()->getInteger(EGameSettings::GENERAL_DAYS_PER_WEEK);
+	auto calendar = cpsic->getCalendar();
+	bool countGrowth = (calendar.getDayOfWeek() + turn) > calendar.getDaysInWeek();
 
 	const CGTownInstance * town = dwelling->ID == Obj::TOWN
 		? dynamic_cast<const CGTownInstance *>(dwelling)

@@ -67,7 +67,7 @@ ESpellCastResult RemoveObjectEffect::applyAdventureEffects(SpellCastEnvironment 
 		InfoWindow iw;
 		iw.player = parameters.caster->getCasterOwner();
 		iw.text = failMessage;
-		parameters.caster->getCasterName(iw.text);
+		iw.text.replaceTextID(parameters.caster->getCasterNameTextID());
 		env->apply(iw);
 		return ESpellCastResult::OK;
 	}

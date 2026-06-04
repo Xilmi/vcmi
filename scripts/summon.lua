@@ -52,12 +52,13 @@ function Script:applicableGeneral(mechanics, problem)
 
 	-- check if there are summoned creatures of other type
 	if self.exclusive then
-		local elemental = mechanics:getBattle():getAnyUnitIf(function(unit)
+		local elementals = mechanics:getBattle():getUnitsIf(function(unit)
 			return (unit:getOwner() == mechanics:getCasterColor())
 				and (unit:isSummoned())
 				and (not unit:isClone())
 				and (unit:getCreature():getJsonKey() ~= creature:getJsonKey())
 		end)
+		local elemental = elementals[1]
 
 		print("SpellEffectSummon - summoning:", creature:getJsonKey(), " elemental is ", elemental)
 		if elemental ~= nil then
@@ -125,13 +126,13 @@ end
 --- and return list of affected units
 function Script:transformTarget(mechanics, aimPoint, spellTarget)
 	local creature = LIBRARY:getCreatureByName(self.id)
-	local sameSummoned = mechanics:getBattle():getAnyUnitIf(function(unit)
+	local sameSummoned = mechanics:getBattle():getUnitsIf(function(unit)
 		return (unit:getOwner() == mechanics:getCasterColor())
 			and (unit:isSummoned())
 			and (not unit:isClone())
 			and (unit:getCreature():getJsonKey() == creature:getJsonKey())
 			and (unit:isAlive())
-	end)
+	end)[1]
 
 	if sameSummoned == nil or not self.summonSameUnit then
 		local hex = mechanics:getBattle():getAvailableHex(creature, mechanics:getCasterSide())

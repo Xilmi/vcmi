@@ -25,6 +25,8 @@ public:
 	using Wrapper = RawPointerWrapper<const Creature, CreatureProxy>;
 
 	static const std::vector<typename Wrapper::CustomRegType> REGISTER_CUSTOM;
+
+	static std::string getNameTextID(const Creature * creature, int amount);
 };
 
 }

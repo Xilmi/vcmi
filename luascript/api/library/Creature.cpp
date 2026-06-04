@@ -25,39 +25,45 @@ namespace scripting::api::library
 
 const std::vector<CreatureProxy::CustomRegType> CreatureProxy::REGISTER_CUSTOM =
 {
-	{"getIconIndex", LuaMethodWrapper<Creature, decltype(&Entity::getIconIndex), &Entity::getIconIndex>::invoke, false},
-	{"getIndex", LuaMethodWrapper<Creature, decltype(&Entity::getIndex), &Entity::getIndex>::invoke, false},
-	{"getJsonKey", LuaMethodWrapper<Creature, decltype(&Entity::getJsonKey), &Entity::getJsonKey>::invoke, false},
-	{"getName", LuaMethodWrapper<Creature, decltype(&Entity::getNameTranslated), &Entity::getNameTranslated>::invoke, false},
-	{"getBonusBearer", LuaMethodWrapper<Creature, decltype(&IConstBonusProvider::getBonusBearer), &IConstBonusProvider::getBonusBearer>::invoke, false},
+	{"getIconIndex",          LuaMethodWrapper<&Entity::getIconIndex, Creature>::invoke,           false},
+	{"getIndex",              LuaMethodWrapper<&Entity::getIndex, Creature>::invoke,               false},
+	{"getJsonKey",            LuaMethodWrapper<&Entity::getJsonKey, Creature>::invoke,             false},
+	{"getName",               LuaMethodWrapper<&Entity::getNameTranslated, Creature>::invoke,      false},
+	{"getBonusBearer",        LuaMethodWrapper<&IConstBonusProvider::getBonusBearer, Creature>::invoke, false},
 
-	{"getMaxHealth", LuaMethodWrapper<Creature,decltype(&Creature::getMaxHealth), &Creature::getMaxHealth>::invoke, false},
-	{"getPluralName", LuaMethodWrapper<Creature, decltype(&Creature::getNamePluralTranslated), &Creature::getNamePluralTranslated>::invoke, false},
-	{"getSingularName", LuaMethodWrapper<Creature, decltype(&Creature::getNameSingularTranslated), &Creature::getNameSingularTranslated>::invoke, false},
-	{"getNamePluralTextID", LuaMethodWrapper<Creature, decltype(&Creature::getNamePluralTextID), &Creature::getNamePluralTextID>::invoke, false},
-	{"getNameSingularTextID", LuaMethodWrapper<Creature, decltype(&Creature::getNameSingularTextID), &Creature::getNameSingularTextID>::invoke, false},
+	{"getMaxHealth",          LuaMethodWrapper<&Creature::getMaxHealth, Creature>::invoke,          false},
+	{"getPluralName",         LuaMethodWrapper<&Creature::getNamePluralTranslated>::invoke,        false},
+	{"getSingularName",       LuaMethodWrapper<&Creature::getNameSingularTranslated>::invoke,      false},
+	{"getNamePluralTextID",   LuaMethodWrapper<&Creature::getNamePluralTextID>::invoke,            false},
+	{"getNameSingularTextID", LuaMethodWrapper<&Creature::getNameSingularTextID>::invoke,          false},
+	{"getNameTextID",         LuaFunctionWrapper<&CreatureProxy::getNameTextID>::invoke,           false},
 
-	{"getAdvMapAmountMin", LuaMethodWrapper<Creature, decltype(&Creature::getAdvMapAmountMin), &Creature::getAdvMapAmountMin>::invoke, false},
-	{"getAdvMapAmountMax", LuaMethodWrapper<Creature, decltype(&Creature::getAdvMapAmountMax), &Creature::getAdvMapAmountMax>::invoke, false},
-	{"getAIValue", LuaMethodWrapper<Creature, decltype(&Creature::getAIValue), &Creature::getAIValue>::invoke, false},
-	{"getFightValue", LuaMethodWrapper<Creature, decltype(&Creature::getFightValue), &Creature::getFightValue>::invoke, false},
-	{"getLevel", LuaMethodWrapper<Creature, decltype(&Creature::getLevel), &Creature::getLevel>::invoke, false},
-	{"getGrowth", LuaMethodWrapper<Creature, decltype(&Creature::getGrowth), &Creature::getGrowth>::invoke, false},
-	{"getHorde", LuaMethodWrapper<Creature, decltype(&Creature::getHorde), &Creature::getHorde>::invoke, false},
-	{"getFactionID", LuaMethodWrapper<Creature, decltype(&Creature::getFactionID), &Creature::getFactionID>::invoke, false},
+	{"getAdvMapAmountMin",    LuaMethodWrapper<&Creature::getAdvMapAmountMin>::invoke,             false},
+	{"getAdvMapAmountMax",    LuaMethodWrapper<&Creature::getAdvMapAmountMax>::invoke,             false},
+	{"getAIValue",            LuaMethodWrapper<&Creature::getAIValue>::invoke,                     false},
+	{"getFightValue",         LuaMethodWrapper<&Creature::getFightValue>::invoke,                  false},
+	{"getLevel",              LuaMethodWrapper<&Creature::getLevel>::invoke,                       false},
+	{"getGrowth",             LuaMethodWrapper<&Creature::getGrowth>::invoke,                      false},
+	{"getHorde",              LuaMethodWrapper<&Creature::getHorde>::invoke,                       false},
+	{"getFactionID",          LuaMethodWrapper<&Creature::getFactionID, Creature>::invoke,          false},
 
-	{"getBaseAttack", LuaMethodWrapper<Creature, decltype(&Creature::getBaseAttack), &Creature::getBaseAttack>::invoke, false},
-	{"getBaseDefense", LuaMethodWrapper<Creature, decltype(&Creature::getBaseDefense), &Creature::getBaseDefense>::invoke, false},
-	{"getBaseDamageMin", LuaMethodWrapper<Creature, decltype(&Creature::getBaseDamageMin), &Creature::getBaseDamageMin>::invoke, false},
-	{"getBaseDamageMax", LuaMethodWrapper<Creature, decltype(&Creature::getBaseDamageMax), &Creature::getBaseDamageMax>::invoke, false},
-	{"getBaseHitPoints", LuaMethodWrapper<Creature, decltype(&Creature::getBaseHitPoints), &Creature::getBaseHitPoints>::invoke, false},
-	{"getBaseSpellPoints", LuaMethodWrapper<Creature, decltype(&Creature::getBaseSpellPoints), &Creature::getBaseSpellPoints>::invoke, false},
-	{"getBaseSpeed", LuaMethodWrapper<Creature, decltype(&Creature::getBaseSpeed), &Creature::getBaseSpeed>::invoke, false},
-	{"getBaseShots", LuaMethodWrapper<Creature, decltype(&Creature::getBaseShots), &Creature::getBaseShots>::invoke, false},
+	{"getBaseAttack",         LuaMethodWrapper<&Creature::getBaseAttack>::invoke,                  false},
+	{"getBaseDefense",        LuaMethodWrapper<&Creature::getBaseDefense>::invoke,                 false},
+	{"getBaseDamageMin",      LuaMethodWrapper<&Creature::getBaseDamageMin>::invoke,               false},
+	{"getBaseDamageMax",      LuaMethodWrapper<&Creature::getBaseDamageMax>::invoke,               false},
+	{"getBaseHitPoints",      LuaMethodWrapper<&Creature::getBaseHitPoints>::invoke,               false},
+	{"getBaseSpellPoints",    LuaMethodWrapper<&Creature::getBaseSpellPoints>::invoke,             false},
+	{"getBaseSpeed",          LuaMethodWrapper<&Creature::getBaseSpeed>::invoke,                   false},
+	{"getBaseShots",          LuaMethodWrapper<&Creature::getBaseShots>::invoke,                   false},
 
-	{"getRecruitCost", LuaMethodWrapper<Creature, decltype(&Creature::getRecruitCost), &Creature::getRecruitCost>::invoke, false},
-	{"isDoubleWide", LuaMethodWrapper<Creature, decltype(&Creature::isDoubleWide), &Creature::isDoubleWide>::invoke, false},
+	{"getRecruitCost",        LuaMethodWrapper<&Creature::getRecruitCost>::invoke,                 false},
+	{"isDoubleWide",          LuaMethodWrapper<&Creature::isDoubleWide>::invoke,                   false},
 };
+
+std::string CreatureProxy::getNameTextID(const Creature * creature, int amount)
+{
+	return amount == 1 ? creature->getNameSingularTextID() : creature->getNamePluralTextID();
+}
 
 }
 

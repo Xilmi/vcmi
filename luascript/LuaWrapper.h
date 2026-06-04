@@ -89,6 +89,7 @@ namespace detail
 	};
 }
 
+/// Base Registar implementation providing empty hooks for metatable and static table customization.
 class RegistarBase : public api::Registar
 {
 public:
@@ -105,6 +106,7 @@ protected:
 	}
 };
 
+/// Registers a raw-pointer API class in the Lua registry, creating metatables for both mutable and const pointer variants.
 template<class T, class Proxy = T>
 class RawPointerWrapper : public RegistarBase
 {
@@ -129,12 +131,12 @@ public:
 		if(luaL_newmetatable(L, KEY) != 0)
 			adjustMetatable(L);
 
-		S.balance();
+		S.restoreInitialTop();
 
 		if(luaL_newmetatable(L, S_KEY) != 0)
 			adjustMetatable(L);
 
-		S.balance();
+		S.restoreInitialTop();
 
 		detail::Dispatcher<Proxy, UDataType>::pushStaticTable(L);
 
@@ -148,6 +150,7 @@ protected:
 	}
 };
 
+/// Registers a shared_ptr API class in the Lua registry; manages lifetime via __gc and supports a default constructor.
 template<class T, class Proxy = T>
 class SharedPointerWrapper : public RegistarBase
 {
@@ -184,7 +187,7 @@ public:
 			lua_rawset(L, -3);
 		}
 
-		S.balance();
+		S.restoreInitialTop();
 
 		detail::Dispatcher<Proxy, UDataType>::pushStaticTable(L);
 
@@ -197,6 +200,7 @@ protected:
 	}
 };
 
+/// Registers a by-value (copyable) API class in the Lua registry; copies the object into Lua userdata with __gc.
 template<class T, class Proxy = T>
 class CopyableWrapper : public RegistarBase
 {
@@ -233,7 +237,7 @@ public:
 			lua_rawset(L, -3);
 		}
 
-		S.balance();
+		S.restoreInitialTop();
 
 		detail::Dispatcher<Proxy, UDataType>::pushStaticTable(L);
 

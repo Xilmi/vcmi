@@ -45,7 +45,7 @@ enum class Mode
 
 enum class AimType
 {
-	NO_TARGET,
+	NOTHING,
 	CREATURE,
 	OBSTACLE,
 	LOCATION

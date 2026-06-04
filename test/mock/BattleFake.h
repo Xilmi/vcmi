@@ -68,6 +68,8 @@ public:
 
 	void setupEmptyBattlefield();
 
+	void setupNativeStacks(const TStacks & stacks, TerrainId terrain);
+
 	template <typename T>
 	void accept(T & pack)
 	{

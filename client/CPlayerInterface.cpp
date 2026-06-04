@@ -126,6 +126,12 @@
 
 #define BATTLE_EVENT_POSSIBLE_RETURN	if (GAME->interface() != this) return; if (isAutoFightOn && !battleInt) return
 
+namespace
+{
+	constexpr int LEVEL_UP_REQUEST_NONE = -1;
+	constexpr int LEVEL_UP_REQUEST_WAITING_FOR_REPLY = -2;
+}
+
 std::shared_ptr<BattleInterface> CPlayerInterface::battleInt;
 
 CPlayerInterface::CPlayerInterface(PlayerColor Player):
@@ -250,7 +256,7 @@ void CPlayerInterface::playerStartsTurn(PlayerColor player)
 void CPlayerInterface::performAutosave()
 {
 	int frequency = static_cast<int>(settings["general"]["saveFrequency"].Integer());
-	if(frequency > 0 && cb->getDate() % frequency == 0)
+	if(frequency > 0 && cb->getCalendar().getCurrentDay() % frequency == 0)
 	{
 		bool usePrefix = settings["general"]["useSavePrefix"].Bool();
 		std::string prefix = std::string();
@@ -288,9 +294,10 @@ void CPlayerInterface::performAutosave()
 		}
 		else
 		{
-			std::string stringifiedDate = std::to_string(cb->getDate(Date::MONTH))
-					+ std::to_string(cb->getDate(Date::WEEK))
-					+ std::to_string(cb->getDate(Date::DAY_OF_WEEK));
+			auto calendar = cb->getCalendar();
+			std::string stringifiedDate = std::to_string(calendar.getMonth())
+					+ std::to_string(calendar.getWeek())
+					+ std::to_string(calendar.getDayOfWeek());
 
 			cb->save("Saves/Autosave/" + prefix + stringifiedDate, false);
 		}
@@ -522,27 +529,48 @@ void CPlayerInterface::heroGotLevel(const CGHeroInstance *hero, PrimarySkill psk
 	EVENT_HANDLER_CALLED_BY_CLIENT;
 	waitWhileDialog();
 	ENGINE->sound().playSound(soundBase::heroNewLevel);
-	ENGINE->windows().createAndPushWindow<CLevelWindow>(hero, pskill, skills, [this, queryID](ui32 selection)
+
+	closePendingLevelUpDialog();
+
+	const bool closeImmediately = queryID < 0;
+	pendingLevelUpRequestID = closeImmediately ? LEVEL_UP_REQUEST_NONE : LEVEL_UP_REQUEST_WAITING_FOR_REPLY;
+
+	auto levelWindow = std::make_shared<CLevelWindow>(hero, pskill, skills, [this, queryID](ui32 selection)
 	{
 		if(queryID < 0)
 			return;
 
-		cb->selectionMade(selection, queryID);
+		pendingLevelUpRequestID = cb->selectionMade(selection, queryID);
 	});
+
+	levelWindow->setCloseOnSelection(closeImmediately);
+	if(!closeImmediately)
+		pendingLevelUpDialog = levelWindow;
+
+	ENGINE->windows().pushWindow(levelWindow);
 }
 
-void CPlayerInterface::commanderGotLevel (const CCommanderInstance * commander, std::vector<ui32> skills, QueryID queryID)
+void CPlayerInterface::commanderGotLevel(const CCommanderInstance * commander, std::vector<ui32> skills, QueryID queryID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
 	waitWhileDialog();
 	ENGINE->sound().playSound(soundBase::heroNewLevel);
-	ENGINE->windows().createAndPushWindow<CStackWindow>(commander, skills, [this, queryID](ui32 selection)
+
+	closePendingLevelUpDialog();
+
+	const bool closeImmediately = queryID < 0;
+	pendingLevelUpRequestID = closeImmediately ? LEVEL_UP_REQUEST_NONE : LEVEL_UP_REQUEST_WAITING_FOR_REPLY;
+	auto levelWindow = std::make_shared<CStackWindow>(commander, skills, [this, queryID](ui32 selection)
 	{
 		if(queryID < 0)
 			return;
 
-		cb->selectionMade(selection, queryID);
+		pendingLevelUpRequestID = cb->selectionMade(selection, queryID);
 	});
+	levelWindow->setCloseOnSelection(closeImmediately);
+	if(!closeImmediately)
+		pendingLevelUpDialog = levelWindow;
+	ENGINE->windows().pushWindow(levelWindow);
 }
 
 void CPlayerInterface::heroInGarrisonChange(const CGTownInstance *town)
@@ -1292,7 +1320,24 @@ void CPlayerInterface::requestRealized( PackageApplied *pa )
 		movementController->onMoveHeroApplied();
 
 	if(pa->packType == CTypeList::getInstance().getTypeID<QueryReply>(nullptr))
+	{
+		if(pendingLevelUpRequestID == static_cast<int>(pa->requestID))
+			closePendingLevelUpDialog();
 		movementController->onQueryReplyApplied();
+	}
+}
+
+void CPlayerInterface::closePendingLevelUpDialog()
+{
+	if(!pendingLevelUpDialog)
+	{
+		pendingLevelUpRequestID = LEVEL_UP_REQUEST_NONE;
+		return;
+	}
+
+	pendingLevelUpDialog->close();
+	pendingLevelUpDialog.reset();
+	pendingLevelUpRequestID = LEVEL_UP_REQUEST_NONE;
 }
 
 void CPlayerInterface::showHeroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)

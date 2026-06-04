@@ -207,6 +207,8 @@ if(ANDROID)
 	list(APPEND launcher_RESOURCES "${CMAKE_CURRENT_BINARY_DIR}/config.qrc")
 	generate_binary_resource("Mods" "${CMAKE_SOURCE_DIR}/Mods")
 	list(APPEND launcher_RESOURCES "${CMAKE_CURRENT_BINARY_DIR}/Mods.qrc")
+	generate_binary_resource("scripts" "${CMAKE_SOURCE_DIR}/scripts")
+	list(APPEND launcher_RESOURCES "${CMAKE_CURRENT_BINARY_DIR}/scripts.qrc")
 endif()
 
 target_sources(vcmilauncher PRIVATE

@@ -52,7 +52,7 @@ const StartInfo * EditorCallback::getStartInfo() const
 	THROW_EDITOR_UNSUPPORTED;
 }
 
-int EditorCallback::getDate(Date mode) const
+Calendar EditorCallback::getCalendar() const
 {
 	THROW_EDITOR_UNSUPPORTED;
 }

@@ -29,7 +29,7 @@ public:
 
 	// Unused in editor — return null or dummy
 	const StartInfo * getStartInfo() const override;
-	int getDate(Date mode) const override;
+	Calendar getCalendar() const override;
 
 	const TerrainTile * getTile(int3 tile, bool verbose) const override;
 	const TerrainTile * getTileUnchecked(int3 tile) const override;

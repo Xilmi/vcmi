@@ -14,9 +14,7 @@
 
 #include "../LuaWrapper.h"
 
-namespace scripting
-{
-namespace api
+namespace scripting::api
 {
 
 class ObjectInstanceProxy : public OpaqueWrapper<const CGObjectInstance, ObjectInstanceProxy>
@@ -27,7 +25,6 @@ public:
 };
 
 
-}
 }
 
 

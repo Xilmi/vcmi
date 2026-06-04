@@ -308,7 +308,7 @@ void CGDwelling::onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstan
 
 void CGDwelling::newTurn(IGameEventCallback & gameEvents, IGameRandomizer & gameRandomizer) const
 {
-	if(cb->getDate(Date::DAY_OF_WEEK) != 1) //not first day of week
+	if(cb->getCalendar().getDayOfWeek() != 1) //not first day of week
 		return;
 
 	//town growths and War Machines Factories are handled separately

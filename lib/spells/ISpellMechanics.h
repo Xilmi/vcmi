@@ -236,11 +236,13 @@ public:
 	virtual PlayerColor getCasterColor() const = 0;
 	virtual BattleSide getCasterSide() const { return casterSide; };
 	virtual const CGHeroInstance * getHeroCaster() const = 0;
+	virtual const battle::Unit * getUnitCaster() const = 0;
 
 	//Spell facade
 	virtual int32_t getSpellIndex() const = 0;
 	virtual SpellID getSpellId() const = 0;
 	virtual std::string getSpellName() const = 0;
+	virtual std::string getCasterNameTextID() const = 0;
 	virtual int32_t getSpellLevel() const = 0;
 
 	virtual bool isSmart() const = 0;
@@ -290,6 +292,7 @@ public:
 	int32_t getSpellIndex() const override;
 	SpellID getSpellId() const override;
 	std::string getSpellName() const override;
+	std::string getCasterNameTextID() const override;
 	int32_t getSpellLevel() const override;
 
 	IBattleCast::Value getEffectLevel() const override;
@@ -300,6 +303,7 @@ public:
 
 	PlayerColor getCasterColor() const override;
 	const CGHeroInstance * getHeroCaster() const override;
+	const battle::Unit * getUnitCaster() const override;
 
 	bool isSmart() const override;
 	bool isMassive() const override;

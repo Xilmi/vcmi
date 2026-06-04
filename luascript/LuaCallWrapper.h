@@ -27,6 +27,7 @@ template<typename R, typename C, typename... Args>
 struct LuaClassMemberTraits<R(C::*)(Args...)>
 {
 	using ReturnType = R;
+	using ClassType  = C;
 	using TupleType  = std::tuple<std::remove_cvref_t<Args>...>;
 	static constexpr bool isConst = false;
 };
@@ -36,6 +37,7 @@ template<typename R, typename C, typename... Args>
 struct LuaClassMemberTraits<R(C::*)(Args...) const>
 {
 	using ReturnType = R;
+	using ClassType  = C;
 	using TupleType  = std::tuple<std::remove_cvref_t<Args>...>;
 	static constexpr bool isConst = true;
 };
@@ -45,31 +47,37 @@ template<typename R, typename C, typename... Args>
 struct LuaClassMemberTraits<R(C::*)(Args...) const noexcept>
 {
 	using ReturnType = R;
+	using ClassType  = C;
 	using TupleType  = std::tuple<std::remove_cvref_t<Args>...>;
 	static constexpr bool isConst = true;
 };
 
-/// Wrapper to convert C++ method into a function with signature that can be called from Lua
-template <typename ObjectType, typename MethodType, MethodType method>
+/// Adapts a C++ member function (from a proxy class) into a Lua C function with full exception-to-error translation.
+/// Automatically unpacks `self` and all arguments from the Lua stack using LuaStack type traits.
+/// Usage: LuaMethodWrapper<&Class::method> when Class has a scripting tag,
+///        LuaMethodWrapper<&Base::method, DerivedClass> when the method is defined in an untagged base class.
+template <auto method, typename ExplicitObjectType = void>
 class LuaMethodWrapper
 {
+	using MethodType = decltype(method);
 	using TraitsInfo = LuaClassMemberTraits<MethodType>;
 	using ReturnType = typename TraitsInfo::ReturnType;
 	using TupleType = typename TraitsInfo::TupleType;
+	using ObjectType = std::conditional_t<std::is_void_v<ExplicitObjectType>, typename TraitsInfo::ClassType, ExplicitObjectType>;
 
 	static constexpr bool isSharedPtr = std::is_base_of_v<scripting::TagSharedPointer, ObjectType>;
 	static constexpr bool isRawPtr = std::is_base_of_v<scripting::TagRawPointer, ObjectType>;
 	static constexpr bool isCopyable = std::is_base_of_v<scripting::TagCopyable, ObjectType>;
-	static_assert(isSharedPtr + isRawPtr + isCopyable == 1, "Unsupported class passed into LuaMethodWrapper. Please inherit from scipting API tags");
+	static_assert(isSharedPtr + isRawPtr + isCopyable == 1, "Unsupported class passed into LuaMethodWrapper. Please inherit from scripting API tags");
 
 	using ObjectRawPtr = std::conditional_t<TraitsInfo::isConst, const ObjectType*, ObjectType*>;
 	using ObjectSharedPtr = std::conditional_t<TraitsInfo::isConst, std::shared_ptr<const ObjectType>, std::shared_ptr<ObjectType>>;
 	using ObjectPtr = std::conditional_t<isSharedPtr, ObjectSharedPtr, std::conditional_t<isCopyable, ObjectType, ObjectRawPtr>>;
 
 	template <std::size_t... I>
-	static void tryGetAllImpl(LuaStack &stack, TupleType &t, std::index_sequence<I...> i)
+	static void tryGetAllImpl(LuaStack &stack, TupleType &t, std::index_sequence<I...>)
 	{
-		( (stack.getOrThrow(static_cast<int>(I + 2), std::get<I>(t))), ... );
+		( (stack.get(static_cast<int>(I + 2), std::get<I>(t))), ... );
 	}
 
 	template <typename... Ts>
@@ -84,7 +92,7 @@ class LuaMethodWrapper
 		ObjectPtr obj{};
 		TupleType args;
 
-		S.getOrThrow(1,obj);
+		S.get(1, obj);
 		tryGetAll(S, args);
 		S.clear();
 
@@ -97,7 +105,6 @@ class LuaMethodWrapper
 		else
 			objPtr = obj;
 
-
 		if constexpr (std::is_void_v<ReturnType>)
 		{
 			std::apply([&](auto &&... a){ std::invoke(method, objPtr, std::forward<decltype(a)>(a)...); }, args);
@@ -107,7 +114,7 @@ class LuaMethodWrapper
 		{
 			ReturnType result = std::apply([&](auto &&... a){ return std::invoke(method, objPtr, std::forward<decltype(a)>(a)...); }, args);
 			S.push(std::move(result));
-			return S.retPushed();
+			return S.stackSize();
 		}
 	}
 
@@ -145,7 +152,8 @@ struct LuaFunctionTraits<R(&)(Args...)> : LuaFunctionTraits<R(*)(Args...)> {};
 template<typename R, typename... Args>
 struct LuaFunctionTraits<R(Args...)> : LuaFunctionTraits<R(*)(Args...)> {};
 
-/// Wrapper to convert C++ functioninto a function with signature that can be called from Lua
+/// Adapts a C++ free function into a Lua C function, unpacking all arguments from the Lua stack.
+/// Use for static proxy methods that need adapted signatures (e.g. fixed extra parameters).
 template <auto func>
 class LuaFunctionWrapper
 {
@@ -157,7 +165,7 @@ class LuaFunctionWrapper
 	template <std::size_t... I>
 	static void tryGetAllImpl(LuaStack &stack, TupleType &t, std::index_sequence<I...>)
 	{
-		( (stack.getOrThrow(static_cast<int>(I + 1), std::get<I>(t))), ... ); // args start at index 1 for free functions
+		( (stack.get(static_cast<int>(I + 1), std::get<I>(t))), ... ); // args start at index 1 for free functions
 	}
 
 	template <typename... Ts>
@@ -183,7 +191,7 @@ class LuaFunctionWrapper
 		{
 			ReturnType result = std::apply([&](auto &&... a){ return std::invoke(func, std::forward<decltype(a)>(a)...); }, args);
 			S.push(std::move(result));
-			return S.retPushed();
+			return S.stackSize();
 		}
 	}
 
@@ -203,7 +211,8 @@ public:
 	}
 };
 
-/// Wrapper to convert C++ functioninto a function with signature that can be called from Lua
+/// Thin wrapper for raw `int(lua_State*)` functions that translates C++ exceptions into Lua errors.
+/// Use when a method already has the correct Lua C function signature but needs safe exception handling.
 template <auto func>
 class LuaCallWrapper
 {

@@ -347,7 +347,7 @@ void BattleResultProcessor::endBattleConfirm(const CBattleInfoCallback & battle)
 				if(!strongestHero || hero->exp > strongestHero->exp)
 					strongestHero = hero;
 			if(strongestHero->id == finishingBattle->loserId && strongestHero->level > 5 && finishingBattle->victor.isValidPlayer())
-				gameHandler->statistics->getPlayerAccumulator(finishingBattle->victor).lastDefeatedStrongestHeroDay = gameHandler->gameState().getDate(Date::DAY);
+				gameHandler->statistics->getPlayerAccumulator(finishingBattle->victor).lastDefeatedStrongestHeroDay = gameHandler->gameState().getCalendar().getCurrentDay();
 		}
 	}
 

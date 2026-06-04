@@ -24,6 +24,8 @@ namespace scripting
 class LuaModule;
 class LuaContext;
 
+/// Holds the source code and metadata of a loaded Lua script; one instance per script, persists across map restarts.
+/// Owned by LuaModule and used as a factory to create LuaContext instances for each game session.
 class LuaScriptInstance final : public Script
 {
 public:

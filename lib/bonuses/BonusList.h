@@ -11,10 +11,11 @@
 
 #include "Bonus.h"
 #include "BonusSelector.h"
+#include <vcmi/scripting/ApiTags.h>
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-class DLL_LINKAGE BonusList
+class DLL_LINKAGE BonusList : public scripting::ApiCopyable<BonusList>
 {
 public:
 	using TInternalContainer = boost::container::small_vector<std::shared_ptr<Bonus>, 16>;

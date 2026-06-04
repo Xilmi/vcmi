@@ -14,13 +14,9 @@
 #include "../../LuaStack.h"
 #include "../../LuaCallWrapper.h"
 #include "../Registry.h"
-#include "SubscriptionRegistryProxy.h"
+#include "SubscriptionRegistry.h"
 
-namespace scripting
-{
-namespace api
-{
-namespace events
+namespace scripting::api::events
 {
 
 VCMI_REGISTER_SCRIPT_API(ObjectVisitStartedProxy, "events.ObjectVisitStarted");
@@ -29,13 +25,11 @@ const std::vector<ObjectVisitStartedProxy::CustomRegType> ObjectVisitStartedProx
 {
 	{"subscribeBefore", &SubscriptionRegistryProxy<ObjectVisitStartedProxy>::subscribeBefore, true},
 	{"subscribeAfter", &SubscriptionRegistryProxy<ObjectVisitStartedProxy>::subscribeAfter,true},
-	{"getPlayer", LuaMethodWrapper<ObjectVisitStarted, decltype(&ObjectVisitStarted::getPlayer), &ObjectVisitStarted::getPlayer>::invoke, false},
-	{"getHero", LuaMethodWrapper<ObjectVisitStarted, decltype(&ObjectVisitStarted::getHero), &ObjectVisitStarted::getHero>::invoke, false},
-	{"getObject", LuaMethodWrapper<ObjectVisitStarted, decltype(&ObjectVisitStarted::getObject), &ObjectVisitStarted::getObject>::invoke, false},
+	{"getPlayer", LuaMethodWrapper<&ObjectVisitStarted::getPlayer>::invoke,  false},
+	{"getHero",   LuaMethodWrapper<&ObjectVisitStarted::getHero>::invoke,    false},
+	{"getObject", LuaMethodWrapper<&ObjectVisitStarted::getObject>::invoke,  false},
 };
 
-}
-}
 }
 
 

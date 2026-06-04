@@ -25,7 +25,7 @@ LuaStack::LuaStack(lua_State * L_):
 {
 }
 
-void LuaStack::balance()
+void LuaStack::restoreInitialTop()
 {
 	lua_settop(L, initialTop);
 }
@@ -68,11 +68,6 @@ int LuaStack::absindex(int idx)
 		return idx;
 
 	return lua_gettop(L) + 1 + idx;
-}
-
-void LuaStack::pushByIndex(lua_Integer index)
-{
-	lua_pushvalue(L, index);
 }
 
 void LuaStack::pushNil()
@@ -158,49 +153,57 @@ void LuaStack::push(const JsonNode & value)
 	}
 }
 
-bool LuaStack::tryGet(int position, bool & value)
+void LuaStack::get(int position, bool & value)
 {
 	if(!lua_isboolean(L, position))
-		return false;
+	{
+		const char * actualType = lua_typename(L, lua_type(L, position));
+		throw LuaApiException(std::string("Invalid Lua value! Expected boolean at position ") + std::to_string(position) + ", but found " + actualType);
+	}
 	value = (lua_toboolean(L, position) != 0);
-	return true;
 }
 
-bool LuaStack::tryGet(int position, double & value)
+void LuaStack::get(int position, double & value)
 {
 	if(!lua_isnumber(L, position))
-		return false;
+	{
+		const char * actualType = lua_typename(L, lua_type(L, position));
+		throw LuaApiException(std::string("Invalid Lua value! Expected number at position ") + std::to_string(position) + ", but found " + actualType);
+	}
 	value = lua_tonumber(L, position);
-	return true;
 }
 
-bool LuaStack::tryGetInteger(int position, lua_Integer & value)
+void LuaStack::getInteger(int position, lua_Integer & value)
 {
 	if(!lua_isnumber(L, position))
-		return false;
-
+	{
+		const char * actualType = lua_typename(L, lua_type(L, position));
+		throw LuaApiException(std::string("Invalid Lua value! Expected integer at position ") + std::to_string(position) + ", but found " + actualType);
+	}
 	value = lua_tointeger(L, position);
-	return true;
 }
 
-bool LuaStack::tryGet(int position, std::string & value)
+void LuaStack::get(int position, std::string & value)
 {
 	if(!lua_isstring(L, position))
-		return false;
+	{
+		const char * actualType = lua_typename(L, lua_type(L, position));
+		throw LuaApiException(std::string("Invalid Lua value! Expected string at position ") + std::to_string(position) + ", but found " + actualType);
+	}
 
 	size_t len = 0;
 	const auto *raw = lua_tolstring(L, position, &len);
 	value = std::string(raw, len);
-
-	return true;
 }
 
-bool LuaStack::tryGet(int position, int3 & value)
+void LuaStack::get(int position, int3 & value)
 {
-	return tryGet(position, value.x) && tryGet(position+1, value.y) && tryGet(position+2, value.z);
+	get(position,   value.x);
+	get(position+1, value.y);
+	get(position+2, value.z);
 }
 
-bool LuaStack::tryGet(int position, JsonNode & value)
+void LuaStack::get(int position, JsonNode & value)
 {
 	auto type = lua_type(L, position);
 	value.setModScope("game");
@@ -209,14 +212,16 @@ bool LuaStack::tryGet(int position, JsonNode & value)
 	{
 	case LUA_TNIL:
 		value.clear();
-		return true;
+		return;
 	case LUA_TNUMBER:
-		return tryGet(position, value.Float());
+		get(position, value.Float());
+		return;
 	case LUA_TBOOLEAN:
 		value.Bool() = (lua_toboolean(L, position) != 0);
-		return true;
+		return;
 	case LUA_TSTRING:
-		return tryGet(position, value.String());
+		get(position, value.String());
+		return;
 	case LUA_TTABLE:
 		{
 			JsonNode asVector;
@@ -229,11 +234,15 @@ bool LuaStack::tryGet(int position, JsonNode & value)
 				/* 'key' (at index -2) and 'value' (at index -1) */
 
 				JsonNode fieldValue;
-				if(!tryGet(lua_gettop(L), fieldValue))
+				try
+				{
+					get(lua_gettop(L), fieldValue);
+				}
+				catch(...)
 				{
 					lua_pop(L, 2);
 					value.clear();
-					return false;
+					throw;
 				}
 
 				lua_pop(L, 1); //pop value
@@ -253,7 +262,7 @@ bool LuaStack::tryGet(int position, JsonNode & value)
 				else if(lua_isstring(L, -1))
 				{
 					std::string key;
-					tryGet(-1, key);
+					get(-1, key);
 					asStruct[key] = fieldValue;
 				}
 			}
@@ -267,10 +276,12 @@ bool LuaStack::tryGet(int position, JsonNode & value)
 				std::swap(value, asStruct);
 			}
 		}
-		return true;
+		return;
 	default:
-		value.clear();
-		return false;
+		{
+			const char * actualType = lua_typename(L, type);
+			throw LuaApiException(std::string("Unsupported Lua type for JsonNode: ") + actualType);
+		}
 	}
 }
 

@@ -67,6 +67,8 @@ class CPlayerInterface : public CGameInterface
 	const std::string QUICKSAVE_PATH = "Saves/Quicksave";
 
 	std::list<std::shared_ptr<CInfoWindow>> dialogs; //queue of dialogs awaiting to be shown (not currently shown!)
+	std::shared_ptr<WindowBase> pendingLevelUpDialog;
+	int pendingLevelUpRequestID = -1;
 
 	std::unique_ptr<HeroMovementController> movementController;
 	std::unique_ptr<PathfinderCache> pathfinderCache;
@@ -241,6 +243,7 @@ private:
 	};
 
 	void heroKilled(const CGHeroInstance* hero);
+	void closePendingLevelUpDialog();
 	void townRemoved(const CGTownInstance* town);
 	void garrisonsChanged(std::vector<const CArmedInstance *> objs);
 	void requestReturningToMainMenu(bool won);

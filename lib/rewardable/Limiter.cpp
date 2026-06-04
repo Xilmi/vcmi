@@ -79,13 +79,13 @@ bool Rewardable::Limiter::heroAllowed(const CGHeroInstance * hero) const
 {
 	if(dayOfWeek != 0)
 	{
-		if (hero->cb->getDate(Date::DAY_OF_WEEK) != dayOfWeek)
+		if (hero->cb->getCalendar().getDayOfWeek() != dayOfWeek)
 			return false;
 	}
 
 	if(daysPassed != 0)
 	{
-		if (hero->cb->getDate(Date::DAY) < daysPassed)
+		if (hero->cb->getCalendar().getCurrentDay() < daysPassed)
 			return false;
 	}
 

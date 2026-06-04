@@ -13,7 +13,6 @@
 #include "LuaScriptInstance.h"
 #include "LuaScriptPool.h"
 #include "LuaSpellEffect.h"
-#include "LuaUnitEffect.h"
 
 #include "../lib/GameLibrary.h"
 #include "../lib/spells/effects/SpellEffectService.h"
@@ -46,16 +45,12 @@ void LuaModule::installScripting(spells::effects::SpellEffectService * spellEffe
 {
 	luaSpellEffects = std::make_shared<spells::effects::LuaSpellEffectFactory>(*this);
 	spellEffects->registerFactory("lua", luaSpellEffects);
-
-	luaUnitEffects = std::make_shared<spells::effects::LuaUnitEffectFactory>(*this);
-	spellEffects->registerFactory("luaUnit", luaUnitEffects);
 }
 
 std::unique_ptr<Pool> LuaModule::createPoolInstance(const Environment * ENV) const
 {
 	auto result = std::make_unique<LuaScriptPool>(*this, ENV);
 	luaSpellEffects->registerScripts(result.get());
-	luaUnitEffects->registerScripts(result.get());
 	return result;
 }
 

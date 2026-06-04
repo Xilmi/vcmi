@@ -18,8 +18,6 @@
 
 #include "adventure/AdventureSpellMechanics.h"
 #include "effects/Effects.h"
-#include "effects/Damage.h"
-#include "effects/Timed.h"
 
 #include "../GameLibrary.h"
 #include "../bonuses/Bonus.h"
@@ -98,32 +96,23 @@ public:
 			const CSpell::LevelInfo & levelInfo = s->getLevelInfo(level);
 			assert(levelInfo.battleEffects.isNull());
 
-			if(s->isOffensive())
+			if(!levelInfo.effects.Struct().empty())
 			{
-				//default constructed object should be enough
-				effects->add("directDamage", std::make_shared<effects::Damage>(), level);
+				JsonNode config;
+				config["timed"]["type"].String() = "core:timed";
+				config["timed"]["bonus"] = levelInfo.effects;
+				config.setModScope(s->modScope);
+				loadEffects(config, level);
 			}
-
-			std::shared_ptr<effects::Effect> effect;
-
-			if(!levelInfo.effects.empty())
+			else if(!levelInfo.cumulativeEffects.Struct().empty())
 			{
-				auto * timed = new effects::Timed();
-				timed->cumulative = false;
-				timed->bonus = levelInfo.effects;
-				effect.reset(timed);
+				JsonNode config;
+				config["timed"]["type"].String() = "core:timed";
+				config["timed"]["cumulative"].Bool() = true;
+				config["timed"]["bonus"] = levelInfo.cumulativeEffects;
+				config.setModScope(s->modScope);
+				loadEffects(config, level);
 			}
-
-			if(!levelInfo.cumulativeEffects.empty())
-			{
-				auto * timed = new effects::Timed();
-				timed->cumulative = true;
-				timed->bonus = levelInfo.cumulativeEffects;
-				effect.reset(timed);
-			}
-
-			if(effect)
-				effects->add("timed", effect, level);
 		}
 	}
 };
@@ -325,7 +314,7 @@ bool BaseMechanics::adaptGenericProblem(Problem & target) const
 	// %s recites the incantations but they seem to have no effect.
 	text.appendLocalString(EMetaText::GENERAL_TXT, 541);
 	assert(caster);
-	caster->getCasterName(text);
+	text.replaceTextID(caster->getCasterNameTextID());
 
 	target.add(std::move(text), spells::Problem::NORMAL);
 	return false;
@@ -354,7 +343,7 @@ bool BaseMechanics::adaptProblem(ESpellCastProblem source, Problem & target) con
 				//The %s prevents %s from casting 3rd level or higher spells.
 				text.appendLocalString(EMetaText::GENERAL_TXT, 536);
 				text.replaceName(b->sid.as<ArtifactID>());
-				caster->getCasterName(text);
+				text.replaceTextID(caster->getCasterNameTextID());
 				target.add(std::move(text), spells::Problem::NORMAL);
 			}
 			else if(b && b->source == BonusSource::TERRAIN_OVERLAY && LIBRARY->battlefields()->getById(b->sid.as<BattleField>())->identifier == "cursed_ground")
@@ -404,6 +393,11 @@ SpellID BaseMechanics::getSpellId() const
 std::string BaseMechanics::getSpellName() const
 {
 	return owner->getNameTranslated();
+}
+
+std::string BaseMechanics::getCasterNameTextID() const
+{
+	return caster->getCasterNameTextID();
 }
 
 int32_t BaseMechanics::getSpellLevel() const
@@ -538,6 +532,13 @@ const CGHeroInstance * BaseMechanics::getHeroCaster() const
 	return caster->getHeroCaster();
 }
 
+const battle::Unit * BaseMechanics::getUnitCaster() const
+{
+	if (caster->getHeroCaster() != nullptr)
+		return nullptr;
+	return battle()->battleGetUnitByID(static_cast<uint32_t>(caster->getCasterUnitId()));
+}
+
 std::vector<AimType> BaseMechanics::getTargetTypes() const
 {
 	std::vector<AimType> ret;
@@ -548,7 +549,7 @@ std::vector<AimType> BaseMechanics::getTargetTypes() const
 		auto spellTargetType = owner->getTargetType();
 
 		if(isMassive())
-			spellTargetType = AimType::NO_TARGET;
+			spellTargetType = AimType::NOTHING;
 		else if(spellTargetType == AimType::OBSTACLE)
 			spellTargetType = AimType::LOCATION;
 

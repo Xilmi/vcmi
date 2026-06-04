@@ -464,17 +464,17 @@ PlayerColor CUnitState::getCasterOwner() const
 	return env->unitEffectiveOwner(this);
 }
 
-void CUnitState::getCasterName(MetaString & text) const
+std::string CUnitState::getCasterNameTextID() const
 {
-	//always plural name in case of spell cast.
-	addNameReplacement(text, true);
+	const auto * creature = creatureId().toEntity(LIBRARY);
+	return creature->getNamePluralTextID();
 }
 
 void CUnitState::getCastDescription(const spells::Spell * spell, const battle::Units & attacked, MetaString & text) const
 {
 	text.appendLocalString(EMetaText::GENERAL_TXT, 565);//The %s casts %s
 	//todo: use text 566 for single creature
-	getCasterName(text);
+	text.replaceTextID(getCasterNameTextID());
 	text.replaceName(spell->getId());
 }
 

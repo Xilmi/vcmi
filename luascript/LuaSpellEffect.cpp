@@ -24,6 +24,7 @@
 
 static const std::string APPLICABLE_GENERAL = "applicableGeneral";
 static const std::string APPLICABLE_TARGET = "applicableTarget";
+static const std::string FILTER_TARGET = "filterTarget";
 static const std::string TRANSFORM_TARGET = "transformTarget";
 static const std::string APPLY = "apply";
 //static const std::string INITIALIZE = "initialize";
@@ -74,7 +75,7 @@ LuaSpellEffect::~LuaSpellEffect() = default;
 void LuaSpellEffect::adjustTargetTypes(std::vector<TargetType> & types, const Mechanics * m) const
 {
 	std::shared_ptr<LuaContext> context = resolveScript(m);
-	context->callMethod<void>(ADJUST_TARGET_TYPES, parameters, types);
+	types = context->callMethod<std::vector<TargetType>>(ADJUST_TARGET_TYPES, parameters, m, types);
 }
 
 void LuaSpellEffect::adjustAffectedHexes(BattleHexArray & hexes, const Mechanics * m, const Target & spellTarget) const
@@ -100,7 +101,7 @@ bool LuaSpellEffect::applicableGeneral(Problem & problem, const Mechanics * m) c
 bool LuaSpellEffect::applicableTarget(Problem & problem, const Mechanics * m, const Target & target) const
 {
 	std::shared_ptr<scripting::LuaContext> context = resolveScript(m);
-	bool result = context->callMethod<bool>(APPLICABLE_TARGET, parameters, &problem, m, target);
+	bool result = context->callMethod<bool>(APPLICABLE_TARGET, parameters, m, &problem, target);
 	return result;
 }
 
@@ -112,7 +113,8 @@ void LuaSpellEffect::apply(ServerCallback * server, const Mechanics * m, const T
 
 Target LuaSpellEffect::filterTarget(const Mechanics * m, const Target & target) const
 {
-	return target;
+	std::shared_ptr<scripting::LuaContext> context = resolveScript(m);
+	return context->callMethod<Target>(FILTER_TARGET, parameters, m, target);
 }
 
 Target LuaSpellEffect::transformTarget(const Mechanics * m, const Target & aimPoint, const Target & spellTarget) const

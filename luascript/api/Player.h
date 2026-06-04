@@ -14,9 +14,7 @@
 
 #include "../LuaWrapper.h"
 
-namespace scripting
-{
-namespace api
+namespace scripting::api
 {
 
 class PlayerProxy : public OpaqueWrapper<const Player, PlayerProxy>
@@ -27,7 +25,6 @@ public:
 
 };
 
-}
 }
 
 VCMI_LIB_NAMESPACE_END

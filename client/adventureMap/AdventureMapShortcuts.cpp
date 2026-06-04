@@ -765,7 +765,7 @@ bool AdventureMapShortcuts::optionViewStatistic()
 {
 	if(!GAME->interface()->makingTurn)
 		return false;
-	auto day = GAME->interface()->cb->getDate(Date::DAY);
+	auto day = GAME->interface()->cb->getCalendar().getCurrentDay();
 	return optionInMapView() && day > 1;
 }
 

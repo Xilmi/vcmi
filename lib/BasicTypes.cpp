@@ -181,7 +181,7 @@ ui32 ACreature::getMovementRange(int turn) const
 	return std::max(0, getBonusBearer()->valOfBonuses(Selector::type()(BonusType::STACKS_SPEED).And(Selector::turns(turn)), cachingStrSS));
 }
 
-bool ACreature::isLiving() const //TODO: theoreticaly there exists "LIVING" bonus in stack experience documentation
+bool ACreature::isLiving() const
 {
 	return getBonusBearer()->hasBonusOfType(BonusType::LIVING);
 }

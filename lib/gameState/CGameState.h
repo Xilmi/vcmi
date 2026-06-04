@@ -183,8 +183,7 @@ public:
 		return false;
 	}
 
-	static int getDate(int day, Date mode);
-	int getDate(Date mode=Date::DAY) const override; //mode=0 - total days in game, mode=1 - day of week, mode=2 - current week, mode=3 - current month
+	Calendar getCalendar() const override;
 
 	const scripting::Pool & getScriptContextPool() const final;
 

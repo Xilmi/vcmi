@@ -13,75 +13,37 @@
 
 #include "../../../lib/json/JsonNode.h"
 #include "../../../lib/spells/ISpellMechanics.h"
+#include "../../../lib/texts/MetaString.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-namespace scripting
-{
-namespace api
+namespace scripting::api
 {
 using ::spells::Problem;
 using ::spells::Mechanics;
 
-const std::vector<SpellProblemProxy::CustomRegType> SpellProblemProxy::REGISTER_CUSTOM =
+void ProblemProxy::addCustom(Problem * problem, const JsonNode & config)
 {
-	{"addCustom", LuaCallWrapper<&SpellProblemProxy::addCustom>::invoke, false},
-	{"addGeneric", LuaCallWrapper<&SpellProblemProxy::addGeneric>::invoke, false},
-	{"addStandard", LuaCallWrapper<&SpellProblemProxy::addStandard>::invoke, false},
+	problem->add(MetaString::createFromLua(config));
+}
+
+void ProblemProxy::addGeneric(Problem * problem, const Mechanics * mechanics)
+{
+	mechanics->adaptGenericProblem(*problem);
+}
+
+void ProblemProxy::addStandard(Problem * problem, const Mechanics * mechanics, ESpellCastProblem spellProblem)
+{
+	mechanics->adaptProblem(spellProblem, *problem);
+}
+
+const std::vector<ProblemProxy::CustomRegType> ProblemProxy::REGISTER_CUSTOM =
+{
+	{"addCustom",   LuaFunctionWrapper<&ProblemProxy::addCustom>::invoke,   false},
+	{"addGeneric",  LuaFunctionWrapper<&ProblemProxy::addGeneric>::invoke,  false},
+	{"addStandard", LuaFunctionWrapper<&ProblemProxy::addStandard>::invoke, false},
 };
 
-int SpellProblemProxy::addCustom(lua_State * L)
-{
-	LuaStack S(L);
-
-	Problem * object = nullptr;
-	JsonNode metaStringConfig;
-
-	S.getNonNullOrThrow(1, object);
-	S.getOrThrow(2, metaStringConfig);
-
-	MetaString metaString;
-	for (const auto & entry : metaStringConfig["append"].Vector())
-		metaString.appendTextID(entry.String());
-
-	for (const auto & entry : metaStringConfig["replace"].Vector())
-		metaString.replaceTextID(entry.String());
-
-	object->add(std::move(metaString));
-	return S.retVoid();
-}
-
-int SpellProblemProxy::addGeneric(lua_State * L)
-{
-	LuaStack S(L);
-
-	Problem * problem = nullptr;
-	const Mechanics * mechanics = nullptr;
-
-	S.getNonNullOrThrow(1, problem);
-	S.getNonNullOrThrow(2, mechanics);
-
-	mechanics->adaptGenericProblem(*problem);
-	return S.retVoid();
-}
-
-int SpellProblemProxy::addStandard(lua_State * L)
-{
-	LuaStack S(L);
-
-	Problem * problem = nullptr;
-	const Mechanics * mechanics = nullptr;
-	ESpellCastProblem spellProblem = ESpellCastProblem::OK;
-
-	S.getNonNullOrThrow(1, problem);
-	S.getNonNullOrThrow(2, mechanics);
-	S.getOrThrow(3, spellProblem);
-
-	mechanics->adaptProblem(spellProblem, *problem);
-	return S.retVoid();
-}
-
-}
 }
 
 VCMI_LIB_NAMESPACE_END

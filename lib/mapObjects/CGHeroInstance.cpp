@@ -866,10 +866,9 @@ PlayerColor CGHeroInstance::getCasterOwner() const
 	return tempOwner;
 }
 
-void CGHeroInstance::getCasterName(MetaString & text) const
+std::string CGHeroInstance::getCasterNameTextID() const
 {
-	//FIXME: use local name, MetaString need access to gamestate as hero name is part of map object
-	text.replaceRawString(getNameTranslated());
+	return getNameTextID();
 }
 
 void CGHeroInstance::getCastDescription(const spells::Spell * spell, const battle::Units & attacked, MetaString & text) const
@@ -878,7 +877,7 @@ void CGHeroInstance::getCastDescription(const spells::Spell * spell, const battl
 	const int textIndex = singleTarget ? 195 : 196;
 
 	text.appendLocalString(EMetaText::GENERAL_TXT, textIndex);
-	getCasterName(text);
+	text.replaceTextID(getCasterNameTextID());
 	text.replaceName(spell->getId());
 	if(singleTarget)
 		attacked.at(0)->addNameReplacement(text, true);

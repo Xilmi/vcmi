@@ -35,7 +35,7 @@
 #include "../../lib/battle/CPlayerBattleCallback.h"
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/spells/ISpellMechanics.h"
-#include "../../lib/spells/effects/UnitEffect.h"
+#include "../../lib/spells/effects/Effect.h"
 #include "../../lib/spells/Problem.h"
 #include "../../lib/spells/CSpell.h"
 #include "../../lib/texts/CGeneralTextHandler.h"

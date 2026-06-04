@@ -17,7 +17,6 @@ VCMI_LIB_NAMESPACE_BEGIN
 namespace spells::effects
 {
 class LuaSpellEffectFactory;
-class LuaUnitEffectFactory;
 }
 
 namespace scripting
@@ -25,6 +24,8 @@ namespace scripting
 
 class LuaScriptInstance;
 
+/// Top-level Lua scripting service loaded as a DLL plugin by ScriptingHandler; owns script factories and creates script pools.
+/// Entry point exposed to the engine via GetNewModule() and GetAiName() C exports.
 class LuaModule final : public Service
 {
 public:
@@ -40,7 +41,6 @@ private:
 	using ScriptMap = std::map<std::string, ScriptPtr>;
 
 	std::shared_ptr<spells::effects::LuaSpellEffectFactory> luaSpellEffects;
-	std::shared_ptr<spells::effects::LuaUnitEffectFactory> luaUnitEffects;
 };
 }
 

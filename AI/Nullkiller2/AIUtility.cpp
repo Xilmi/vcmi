@@ -563,7 +563,10 @@ bool isWeeklyRevisitable(const PlayerColor & playerID, const CGObjectInstance * 
 
 	//TODO: allow polling of remaining creatures in dwelling
 	if(const auto * rewardable = dynamic_cast<const CRewardableObject *>(obj))
-		return rewardable->configuration.getResetDuration() == 7;
+	{
+		const auto & reset = rewardable->configuration.resetParameters;
+		return (reset.weeks == 1 && reset.days == 0 && reset.months == 0) || (reset.days == 7 && reset.weeks == 0 && reset.months == 0);
+	}
 
 	if(dynamic_cast<const CGDwelling *>(obj))
 		return true;

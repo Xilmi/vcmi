@@ -82,6 +82,8 @@ void EffectFixture::setUp()
 	EXPECT_CALL(mechanicsMock, getBattleID()).WillRepeatedly(Return(BattleID()));
 	EXPECT_CALL(mechanicsMock, getHeroCaster()).WillRepeatedly(Return(nullptr));
 
+	EXPECT_CALL(*battleFake, getBattleID()).Times(AtLeast(0));
+
 	EXPECT_CALL(*battleFake, getScriptContextPool()).WillRepeatedly(ReturnRef(*pool));
 
 	EXPECT_CALL(servicesMock, creatures()).WillRepeatedly(Return(&creatureServiceMock));

@@ -19,6 +19,7 @@
 #include "../battle/Unit.h"
 #include "../bonuses/BonusSelector.h"
 #include "../GameLibrary.h"
+#include "../json/JsonBonus.h"
 #include "../texts/CGeneralTextHandler.h"
 
 #include <vcmi/spells/Caster.h>
@@ -44,7 +45,7 @@ CSpell::CSpell():
 	offensive(false),
 	special(true),
 	nonMagical(false),
-	targetType(spells::AimType::NO_TARGET)
+	targetType(spells::AimType::NOTHING)
 {
 	levels.resize(GameConstants::SPELL_SCHOOL_LEVELS);
 }
@@ -252,7 +253,7 @@ bool CSpell::isSpecial() const
 
 bool CSpell::hasEffects() const
 {
-	return !levels[0].effects.empty() || !levels[0].cumulativeEffects.empty();
+	return !levels[0].effects.Struct().empty() || !levels[0].cumulativeEffects.Struct().empty();
 }
 
 bool CSpell::hasBattleEffects() const
@@ -339,21 +340,26 @@ void CSpell::getEffects(std::vector<Bonus> & lst, const int level, const bool cu
 
 	const auto & levelObject = levels.at(level);
 
-	if(levelObject.effects.empty() && levelObject.cumulativeEffects.empty())
+	const auto & effectsJson = cumulative ? levelObject.cumulativeEffects : levelObject.effects;
+
+	if(effectsJson.Struct().empty())
 	{
 		logGlobal->error("This spell (%s) has no effects for level %d", getNameTranslated(), level);
 		return;
 	}
 
-	const auto & effects = cumulative ? levelObject.cumulativeEffects : levelObject.effects;
-
-	lst.reserve(lst.size() + effects.size());
-
-	for(const auto& b : effects)
+	for(const auto & [name, bonusNode] : effectsJson.Struct())
 	{
-		Bonus nb(*b);
+		auto b = JsonUtils::parseBonus(bonusNode);
+		if(!b)
+			continue;
+		const bool usePowerAsValue = bonusNode["val"].isNull();
+		if(usePowerAsValue)
+			b->val = levelObject.power;
+		b->sid = BonusSourceID(id);
+		b->source = BonusSource::SPELL_EFFECT;
 
-		//use configured duration if present
+		Bonus nb(*b);
 		if(nb.turnsRemain == 0)
 			nb.turnsRemain = duration;
 		if(maxDuration)

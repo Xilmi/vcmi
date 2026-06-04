@@ -88,7 +88,7 @@ private:
 	BonusValueCache unlimited;
 };
 
-class DLL_LINKAGE CHealth
+class DLL_LINKAGE CHealth final
 {
 public:
 	explicit CHealth(const battle::Unit * Owner);
@@ -184,7 +184,7 @@ public:
 
 	PlayerColor getCasterOwner() const override;
 	const CGHeroInstance * getHeroCaster() const override;
-	void getCasterName(MetaString & text) const override;
+	std::string getCasterNameTextID() const override;
 	void getCastDescription(const spells::Spell * spell, const battle::Units & attacked, MetaString & text) const override;
 	int32_t manaLimit() const override;
 

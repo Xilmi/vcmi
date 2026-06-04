@@ -1010,14 +1010,15 @@ ObjectInstanceID CMap::allocateUniqueInstanceID()
 void CMap::parseUidCounter()
 {
 	int max_index = -1;
-	for (const auto& entry : instanceNames) {
-		const std::string& key = entry.first;
+
+	auto updateMaxIndex = [&](const std::string & key)
+	{
 		const size_t pos = key.find_last_of('_');
 
 		// Validate underscore position
 		if (pos == std::string::npos || pos + 1 >= key.size()) {
 			logGlobal->error("Instance name '%s' is not valid.", key);
-			continue;
+			return;
 		}
 
 		const std::string index_part = key.substr(pos + 1);
@@ -1030,6 +1031,16 @@ void CMap::parseUidCounter()
 		}
 		catch (const std::out_of_range&) {
 			logGlobal->error("Instance name %s index part is overflow.", key);
+		}
+	};
+
+	for (const auto & entry : instanceNames) {
+		updateMaxIndex(entry.first);
+	}
+
+	for (const auto & hero : heroesPool) {
+		if (hero && !hero->instanceName.empty()) {
+			updateMaxIndex(hero->instanceName);
 		}
 	}
 

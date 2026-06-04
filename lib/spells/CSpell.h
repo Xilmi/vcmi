@@ -79,8 +79,8 @@ public:
 		std::vector<int> range = { 0 };
 
 		//TODO: remove these two when AI will understand special effects
-		std::vector<std::shared_ptr<Bonus>> effects; //deprecated
-		std::vector<std::shared_ptr<Bonus>> cumulativeEffects; //deprecated
+		JsonNode effects; //deprecated
+		JsonNode cumulativeEffects; //deprecated
 
 		JsonNode battleEffects;
 		JsonNode adventureEffect;

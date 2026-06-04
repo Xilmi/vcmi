@@ -25,19 +25,19 @@ namespace scripting::api::library
 
 const std::vector<ArtifactProxy::CustomRegType> ArtifactProxy::REGISTER_CUSTOM =
 {
-	{"getIconIndex", LuaMethodWrapper<Artifact, decltype(&Entity::getIconIndex), &Entity::getIconIndex>::invoke, false},
-	{"getIndex", LuaMethodWrapper<Artifact, decltype(&Entity::getIndex), &Entity::getIndex>::invoke, false},
-	{"getJsonKey", LuaMethodWrapper<Artifact, decltype(&Entity::getJsonKey), &Entity::getJsonKey>::invoke, false},
-	{"getName", LuaMethodWrapper<Artifact, decltype(&Entity::getNameTranslated), &Entity::getNameTranslated>::invoke, false},
+	{"getIconIndex",   LuaMethodWrapper<&Entity::getIconIndex, Artifact>::invoke,           false},
+	{"getIndex",       LuaMethodWrapper<&Entity::getIndex, Artifact>::invoke,               false},
+	{"getJsonKey",     LuaMethodWrapper<&Entity::getJsonKey, Artifact>::invoke,             false},
+	{"getName",        LuaMethodWrapper<&Entity::getNameTranslated, Artifact>::invoke,      false},
 
-	{"getId", LuaMethodWrapper<Artifact, decltype(&EntityT<ArtifactID>::getId), &EntityT<ArtifactID>::getId>::invoke, false},
-	{"getBonusBearer", LuaMethodWrapper<Artifact, decltype(&IConstBonusProvider::getBonusBearer), &IConstBonusProvider::getBonusBearer>::invoke, false},
+	{"getId",          LuaMethodWrapper<&EntityT<ArtifactID>::getId, Artifact>::invoke,     false},
+	{"getBonusBearer", LuaMethodWrapper<&IConstBonusProvider::getBonusBearer, Artifact>::invoke, false},
 
-	{"getDescription", LuaMethodWrapper<Artifact, decltype(&Artifact::getDescriptionTranslated), &Artifact::getDescriptionTranslated>::invoke, false},
-	{"getEventText", LuaMethodWrapper<Artifact, decltype(&Artifact::getEventTranslated), &Artifact::getEventTranslated>::invoke, false},
-	{"isBig", LuaMethodWrapper<Artifact, decltype(&Artifact::isBig), &Artifact::isBig>::invoke, false},
-	{"isTradable", LuaMethodWrapper<Artifact, decltype(&Artifact::isTradable), &Artifact::isTradable>::invoke, false},
-	{"getPrice", LuaMethodWrapper<Artifact, decltype(&Artifact::getPrice), &Artifact::getPrice>::invoke, false},
+	{"getDescription", LuaMethodWrapper<&Artifact::getDescriptionTranslated>::invoke,      false},
+	{"getEventText",   LuaMethodWrapper<&Artifact::getEventTranslated>::invoke,            false},
+	{"isBig",          LuaMethodWrapper<&Artifact::isBig>::invoke,                         false},
+	{"isTradable",     LuaMethodWrapper<&Artifact::isTradable>::invoke,                    false},
+	{"getPrice",       LuaMethodWrapper<&Artifact::getPrice>::invoke,                      false},
 };
 
 }

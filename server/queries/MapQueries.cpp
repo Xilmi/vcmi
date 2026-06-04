@@ -254,14 +254,14 @@ void CHeroLevelUpDialogQuery::onAdded(PlayerColor color)
 
 void CHeroLevelUpDialogQuery::onExposure(QueryPtr topQuery)
 {
-	if(prompted)
-		return;
-
 	if(answer)
 	{
 		owner->popIfTop(*this);
 		return;
 	}
+
+	if(prompted)
+		return;
 
 	for(auto color : players)
 	{

@@ -17,6 +17,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 namespace scripting::api
 {
 
+/// Interface implemented by each proxy wrapper type; pushes the Lua metatable (and static table) for that type.
 class Registar
 {
 public:
@@ -25,6 +26,7 @@ public:
 	virtual void pushMetatable(lua_State * L) const = 0;
 };
 
+/// Singleton that maps C++ type names to their Registar; used by LuaStack to attach metatables and by LuaContext to expose all types.
 class Registry final : public boost::noncopyable
 {
 	using RegistryData = std::map<std::string, std::shared_ptr<Registar>>;

@@ -134,6 +134,11 @@ void CCommanderSkillIcon::setObject(std::shared_ptr<CIntObject> newObject)
 void CCommanderSkillIcon::clickPressed(const Point & cursorPosition)
 {
 	callback();
+	select();
+}
+
+void CCommanderSkillIcon::select()
+{
 	isSelected = true;
 	redraw();
 }
@@ -437,7 +442,7 @@ CStackWindow::ButtonsSection::ButtonsSection(CStackWindow * owner, int yOffset)
 		parent->switchButtons[parent->activeTab]->disable();
 	}
 
-	exit = std::make_shared<CButton>(Point(382, 5), AnimationPath::builtin("hsbtns.def"), LIBRARY->generaltexth->zelp[447], [this](){ parent->close(); }, EShortcut::GLOBAL_RETURN);
+	exit = std::make_shared<CButton>(Point(382, 5), AnimationPath::builtin("hsbtns.def"), LIBRARY->generaltexth->zelp[447], [this](){ parent->submitSelection(); }, EShortcut::GLOBAL_RETURN);
 }
 
 CStackWindow::CommanderMainSection::CommanderMainSection(CStackWindow * owner, int yOffset)
@@ -543,6 +548,9 @@ CStackWindow::CommanderMainSection::CommanderMainSection(CStackWindow * owner, i
 
 			icon->hoverText = abilityDescription;
 			icon->text = abilityDescription;
+
+			if(parent->selectedSkill == static_cast<si32>(skillID))
+				parent->setSelection(skillID, icon);
 
 			return icon;
 		};
@@ -861,10 +869,34 @@ CStackWindow::CStackWindow(const CCommanderInstance * commander, std::vector<ui3
 
 CStackWindow::~CStackWindow() = default;
 
+void CStackWindow::setCloseOnSelection(bool value)
+{
+	closeOnSelection = value;
+}
+
+void CStackWindow::submitSelection()
+{
+	if(!selectionSubmitted)
+	{
+		if(info->levelupInfo && !info->levelupInfo->skills.empty())
+			info->levelupInfo->callback(vstd::find_pos(info->levelupInfo->skills, selectedSkill));
+
+		selectionSubmitted = true;
+
+		if(!closeOnSelection)
+		{
+			deactivate();
+			return;
+		}
+	}
+
+	close();
+}
+
 void CStackWindow::close()
 {
-	if(info->levelupInfo && !info->levelupInfo->skills.empty())
-		info->levelupInfo->callback(vstd::find_pos(info->levelupInfo->skills, selectedSkill));
+	if(!selectionSubmitted && info->levelupInfo && !info->levelupInfo->skills.empty())
+		return;
 
 	CWindowObject::close();
 }
@@ -1140,6 +1172,7 @@ void CStackWindow::setSelection(si32 newSkill, std::shared_ptr<CCommanderSkillIc
 			newIcon->text = getSkillDescription(newSkill, true); //update currently selected icon's message to show upgrade description
 		}
 	}
+	newIcon->select();
 }
 
 std::shared_ptr<CIntObject> CStackWindow::switchTab(size_t index)

@@ -517,7 +517,7 @@ CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std
 	portrait = std::make_shared<CHeroArea>(170, 66, hero);
 	portrait->addClickCallback(nullptr);
 	portrait->addRClickCallback([hero](){ ENGINE->windows().createAndPushWindow<CRClickPopupInt>(std::make_shared<CHeroWindow>(hero)); });
-	ok = std::make_shared<CButton>(Point(297, 413), AnimationPath::builtin("IOKAY"), CButton::tooltip(), std::bind(&CLevelWindow::close, this), EShortcut::GLOBAL_ACCEPT);
+	ok = std::make_shared<CButton>(Point(297, 413), AnimationPath::builtin("IOKAY"), CButton::tooltip(), std::bind(&CLevelWindow::submitSelection, this), EShortcut::GLOBAL_ACCEPT);
 
 	//%s has gained a level.
 	mainTitle = std::make_shared<CLabel>(192, 33, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, boost::str(boost::format(LIBRARY->generaltexth->allTexts[444]) % hero->getNameTranslated()));
@@ -563,7 +563,7 @@ void CLevelWindow::createSkillBox()
 		for(auto & skill : skillsToShow)
 		{
 			auto comp = std::make_shared<CSelectableComponent>(ComponentType::SEC_SKILL, skill, hero->getSecSkillLevel(SecondarySkill(skill))+1, CComponent::medium);
-			comp->onChoose = std::bind(&CLevelWindow::close, this);
+			comp->onChoose = std::bind(&CLevelWindow::submitSelection, this);
 			comps.push_back(comp);
 		}
 
@@ -574,32 +574,55 @@ void CLevelWindow::createSkillBox()
 	redraw();
 }
 
-void CLevelWindow::close()
+void CLevelWindow::setCloseOnSelection(bool value)
 {
-	int idx = -1;
+	closeOnSelection = value;
+}
 
-	if(box)
-		idx = box->selectedIndex();
-
-	// If there are skills available, we must not close without producing a valid choice
-	// For a single available option, auto-pick it
-	if(!skills.empty())
+void CLevelWindow::submitSelection()
+{
+	if(!selectionSubmitted)
 	{
-		if(idx == -1)
+		int idx = -1;
+
+		if(box)
+			idx = box->selectedIndex();
+
+		// If there are skills available, we must not close without producing a valid choice
+		// For a single available option, auto-pick it
+		if(!skills.empty())
 		{
-			if(skills.size() == 1)
-				idx = 0;
-			else
-				return; // require explicit selection
+			if(idx == -1)
+			{
+				if(skills.size() == 1)
+					idx = 0;
+				else
+					return; // require explicit selection
+			}
+
+			const auto & chosen = sortedSkills[(idx + skillViewOffset) % skills.size()];
+			auto it = std::find(skills.begin(), skills.end(), chosen);
+
+			cb(std::distance(skills.begin(), it));
 		}
 
-		const auto & chosen = sortedSkills[(idx + skillViewOffset) % skills.size()];
-		auto it = std::find(skills.begin(), skills.end(), chosen);
+		selectionSubmitted = true;
+		GAME->interface()->showingDialog->setFree();
 
-		cb(std::distance(skills.begin(), it));
+		if(!closeOnSelection)
+		{
+			deactivate();
+			return;
+		}
 	}
 
-	GAME->interface()->showingDialog->setFree();
+	close();
+}
+
+void CLevelWindow::close()
+{
+	if(!selectionSubmitted && !skills.empty())
+		return;
 
 	CWindowObject::close();
 }

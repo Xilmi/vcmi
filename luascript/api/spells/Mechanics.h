@@ -15,18 +15,19 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-	namespace scripting
+namespace scripting::api
 {
-	namespace api
+	class MechanicsProxy : public RawPointerWrapper<::spells::Mechanics, MechanicsProxy>
 	{
-		class SpellsMechanicsProxy : public RawPointerWrapper<::spells::Mechanics, SpellsMechanicsProxy>
-		{
-		public:
-			using Wrapper = RawPointerWrapper<::spells::Mechanics, SpellsMechanicsProxy>;
+	public:
+		using Wrapper = RawPointerWrapper<::spells::Mechanics, MechanicsProxy>;
 
-			static const std::vector<typename Wrapper::CustomRegType> REGISTER_CUSTOM;
-		};
-	}
+		static const std::vector<typename Wrapper::CustomRegType> REGISTER_CUSTOM;
+
+		static bool ownerMatchesUnit(const ::spells::Mechanics * m, const battle::Unit * unit);
+		static const ::spells::Spell * getSpellByKey(const ::spells::Mechanics * m, const std::string & key);
+		static std::string getPluralFormTextID(const ::spells::Mechanics * m, const std::string & baseTextID, int32_t count);
+	};
 }
 
 VCMI_LIB_NAMESPACE_END

@@ -18,9 +18,7 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-namespace scripting
-{
-namespace api
+namespace scripting::api
 {
 
 class StackInstanceProxy : public RawPointerWrapper<const CStackInstance, StackInstanceProxy>
@@ -31,7 +29,6 @@ public:
 };
 
 
-}
 }
 
 VCMI_LIB_NAMESPACE_END

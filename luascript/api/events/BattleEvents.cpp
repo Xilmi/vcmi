@@ -15,15 +15,11 @@
 #include "../../LuaCallWrapper.h"
 #include "../Registry.h"
 #include "../../../lib/battle/Unit.h"
-#include "SubscriptionRegistryProxy.h"
+#include "SubscriptionRegistry.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-namespace scripting
-{
-namespace api
-{
-namespace events
+namespace scripting::api::events
 {
 using ::events::ApplyDamage;
 
@@ -39,31 +35,13 @@ const std::vector<ApplyDamageProxy::CustomRegType> ApplyDamageProxy::REGISTER_CU
 		&SubscriptionRegistryProxy<ApplyDamageProxy>::subscribeAfter,
 		true
 	},
-	{
-		"getInitialDamage",
-		LuaMethodWrapper<ApplyDamage, decltype(&ApplyDamage::getInitialDamage), &ApplyDamage::getInitialDamage>::invoke,
-		false
-	},
-	{
-		"getDamage",
-		LuaMethodWrapper<ApplyDamage, decltype(&ApplyDamage::getDamage), &ApplyDamage::getDamage>::invoke,
-		false
-	},
-	{
-		"setDamage",
-		LuaMethodWrapper<ApplyDamage, decltype(&ApplyDamage::setDamage), &ApplyDamage::setDamage>::invoke,
-		false
-	},
-	{
-		"getTarget",
-		LuaMethodWrapper<ApplyDamage, decltype(&ApplyDamage::getTarget), &ApplyDamage::getTarget>::invoke,
-		false
-	},
+	{"getInitialDamage", LuaMethodWrapper<&ApplyDamage::getInitialDamage>::invoke, false},
+	{"getDamage",        LuaMethodWrapper<&ApplyDamage::getDamage>::invoke,        false},
+	{"setDamage",        LuaMethodWrapper<&ApplyDamage::setDamage>::invoke,        false},
+	{"getTarget",        LuaMethodWrapper<&ApplyDamage::getTarget>::invoke,        false},
 
 };
 
-}
-}
 }
 
 
