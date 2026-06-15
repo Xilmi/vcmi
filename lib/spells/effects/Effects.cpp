@@ -16,7 +16,9 @@
 
 #include "../ISpellMechanics.h"
 
-#include "../../serializer/JsonSerializeFormat.h"
+#include "../../GameLibrary.h"
+#include "../../json/JsonNode.h"
+#include "../../modding/IdentifierStorage.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -25,12 +27,6 @@ namespace spells
 {
 namespace effects
 {
-
-void Effects::add(const std::string & name, const std::shared_ptr<Effect>& effect, const int level)
-{
-	effect->name = name;
-	data.at(level)[name] = effect;
-}
 
 bool Effects::applicable(Problem & problem, const Mechanics * m) const
 {
@@ -129,31 +125,30 @@ Effects::EffectsToApply Effects::prepare(const Mechanics * m, const Target & aim
 	return effectsToApply;
 }
 
-void Effects::serializeJson(JsonSerializeFormat & handler, const int level, const std::string & spellScope, const std::string & spellIdentifier)
+Effects::EffectsMap Effects::loadJson(const JsonNode & effectMap, const std::string & spellScope, const std::string & spellIdentifier)
 {
-	assert(!handler.saving);
+	EffectsMap result;
 
-	const JsonNode & effectMap = handler.getCurrent();
-
-	for(const auto & p : effectMap.Struct())
+	for(const auto & [name, raw] : effectMap.Struct())
 	{
-		const std::string & name = p.first;
+		SpellEffectID effectID(*LIBRARY->identifiers()->getIdentifier("spellEffect", raw["type"]));
 
-		auto guard = handler.enterStruct(name);
-		SpellEffectID effectID(*LIBRARY->identifiers()->getIdentifier("spellEffect", p.second["type"]));
-
-		LIBRARY->spellEffects()->validateEffect(effectID, p.second, spellScope + ":" + spellIdentifier + " effect " + name);
+		JsonNode data = raw;
+		LIBRARY->spellEffects()->prepareEffect(effectID, data, spellScope, spellIdentifier, name);
 
 		auto effect = LIBRARY->spellEffects()->create(effectID);
-		if(effect)
-		{
-			effect->name = name;
-			effect->spellScope = spellScope;
-			effect->spellIdentifier = spellIdentifier;
-			effect->serializeJson(handler);
-			add(name, effect, level);
-		}
+		if(!effect)
+			continue;
+
+		effect->name = name;
+		effect->spellScope = spellScope;
+		effect->spellIdentifier = spellIdentifier;
+		effect->init(std::move(data));
+
+		result.emplace(name, std::move(effect));
 	}
+
+	return result;
 }
 
 }

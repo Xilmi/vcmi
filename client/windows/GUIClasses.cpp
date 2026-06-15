@@ -590,7 +590,11 @@ void CLevelWindow::submitSelection()
 
 		// If there are skills available, we must not close without producing a valid choice
 		// For a single available option, auto-pick it
-		if(!skills.empty())
+		if(skills.empty())
+		{
+			cb(0);
+		}
+		else
 		{
 			if(idx == -1)
 			{

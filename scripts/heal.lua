@@ -53,7 +53,7 @@ end
 
 --- Returns HP and unit count change for hover tooltip.
 function Script:getHealthChange(mechanics, spellTarget)
-	local result = { hpDelta = 0, unitsDelta = 0, unitType = -1 }
+	local result = { hpDelta = 0, unitsDelta = 0 }
 	for _, dest in ipairs(spellTarget) do
 		local unit = dest.unit
 		if unit then
@@ -61,7 +61,7 @@ function Script:getHealthChange(mechanics, spellTarget)
 			local healedHP, resurrected = copy:heal(mechanics:getEffectValue(), self:getHealLevel(), self:getHealPower())
 			result.hpDelta   = result.hpDelta   + healedHP
 			result.unitsDelta = result.unitsDelta + resurrected
-			result.unitType  = unit:getCreature():getIndex()
+			result.unitType  = unit:getCreature()
 		end
 	end
 	return result
@@ -69,31 +69,32 @@ end
 
 --- Heals each target unit and emits battle log messages.
 function Script:apply(mechanics, server, target)
-	local battleID    = mechanics:getBattleID()
+	local battle       = mechanics:getBattle()
 	local isUnitCaster = mechanics:getHeroCaster() == nil
 
 	for _, dest in ipairs(target) do
 		local unit = dest.unit
 		if unit then
 			local healedHP, resurrected = server:healUnit(
-				battleID, unit, mechanics:getEffectValue(), self:getHealLevel(), self:getHealPower())
+				battle, unit, mechanics:getEffectValue(), self:getHealLevel(), self:getHealPower())
 
 			if resurrected > 0 then
 				local textID = resurrected == 1 and "core.genrltxt.117" or "core.genrltxt.116"
 				local nameTextID = unit:getCreature():getNameTextID(unit:getCount())
-				server:appendLog(battleID, {
-					append  = { textID },
-					replace = { resurrected, nameTextID }
+				server:appendLog(battle, {
+					append         = { textID },
+					replaceStrings = { nameTextID },
+					replaceNumbers = { resurrected }
 				})
 			elseif healedHP > 0 and isUnitCaster then
 				local casterUnit = mechanics:getUnitCaster()
-				server:appendLog(battleID, {
-					append  = { "core.genrltxt.414" },
-					replace = {
-						casterUnit:getCreature():getNameSingularTextID(),
-						unit:getCreature():getNameSingularTextID(),
-						healedHP
-					}
+				server:appendLog(battle, {
+					append         = { "core.genrltxt.414" },
+					replaceStrings = {
+						casterUnit:getCreature():getNameTextID(1),
+						unit:getCreature():getNameTextID(1)
+					},
+					replaceNumbers = { healedHP }
 				})
 			end
 		end

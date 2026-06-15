@@ -42,6 +42,7 @@ end
 --- Raise demons from each target corpse and remove the corpse.
 function Script:apply(mechanics, server, target)
 	local creatureType = LIBRARY:getCreatureByName(self.id)
+	local battle       = mechanics:getBattle()
 
 	for _, dest in ipairs(target) do
 		local targetStack = dest.unit
@@ -51,10 +52,10 @@ function Script:apply(mechanics, server, target)
 			break
 		end
 
-		local hex = mechanics:getBattle():getAvailableHex(
+		local hex = battle:getAvailableHex(
 			creatureType,
 			mechanics:getCasterSide(),
-			targetStack:getPosition():toInteger()
+			targetStack:getPosition()
 		)
 
 		if not hex:isValid() then
@@ -69,19 +70,18 @@ function Script:apply(mechanics, server, target)
 			break
 		end
 
-		server:createUnit(
-			mechanics:getBattleID(),
-			mechanics:getBattle():getNextUnitId(),
+		server:addUnit(
+			battle,
 			{
 				count    = finalAmount,
-				type     = creatureType:getJsonKey(),
+				type     = creatureType,
 				side     = mechanics:getCasterSide(),
-				position = hex:toInteger(),
+				position = hex,
 				summoned = not self.permanent
 			}
 		)
 
-		server:removeUnit(mechanics:getBattleID(), targetStack)
+		server:removeUnit(battle, targetStack)
 	end
 end
 
@@ -95,12 +95,12 @@ function Script:getHealthChange(mechanics, spellTarget)
 			return {
 				hpDelta    = 0,
 				unitsDelta = amount,
-				unitType   = creatureType:getIndex()
+				unitType   = creatureType
 			}
 		end
 	end
 
-	return { hpDelta = 0, unitsDelta = 0, unitType = -1 }
+	return { hpDelta = 0, unitsDelta = 0 }
 end
 
 return Script

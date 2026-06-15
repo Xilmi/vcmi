@@ -68,11 +68,12 @@ echo "Copying resources..."
 cp "$REPO_ROOT/clientapp/icons/vcmiclient.512x512.png" "$APP_DIR/usr/share/icons/hicolor/512x512/apps/vcmiclient.png"
 cp "$REPO_ROOT/launcher/vcmilauncher.desktop" "$APP_DIR/usr/share/applications/"
 
-# Copy config and Mods
+# Copy resources directories
 # These are symlinks in the build dir, so we copy the actual folders from repo root
 echo "Copying config and Mods..."
 cp -r "$REPO_ROOT/config" "$APP_DIR/usr/bin/"
 cp -r "$REPO_ROOT/Mods" "$APP_DIR/usr/bin/"
+cp -r "$REPO_ROOT/scripts" "$APP_DIR/usr/bin/"
 
 # Set up version
 if [[ -z "$VERSION" ]]; then

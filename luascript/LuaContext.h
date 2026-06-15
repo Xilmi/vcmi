@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "LuaScriptInstance.h"
 #include "LuaStack.h"
 #include "LuaReference.h"
 #include "../lib/json/JsonNode.h"
@@ -27,7 +28,7 @@ class LuaReference;
 class LuaContext final : public Context
 {
 public:
-	LuaContext(const Script * source, const Environment * env_);
+	LuaContext(const LuaScriptInstance * source, const Environment * env_);
 	~LuaContext();
 
 	/// Runs script once to perform its initialization
@@ -47,13 +48,20 @@ private:
 	std::mutex mutex;
 	lua_State * L;
 
-	const Script * script;
+	const LuaScriptInstance * script;
 
 	const Environment * env;
 
 	std::shared_ptr<LuaReference> modules;
-	std::shared_ptr<LuaReference> scriptClosure;
 	std::shared_ptr<LuaReference> scriptTable;
+
+	/// Loads one Lua chunk from source. On success the chunk function is at the top of the stack.
+	/// Returns false on compile failure with the error string left on the stack.
+	bool loadLayerChunk(const std::string & sourceText, const std::string & identifier);
+
+	/// Replaces the environment of the chunk on top of the stack so that the global `Base`
+	/// resolves to the given base table, while other globals fall back through __index = _G.
+	void installChunkEnvWithBase(LuaReference & base);
 
 	//log error and return nil from LuaCFunction
 	int errorRetVoid(const std::string & message);

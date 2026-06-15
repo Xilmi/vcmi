@@ -3,7 +3,7 @@
 	"$schema" : "http://json-schema.org/draft-04/schema",
 	"title" : "VCMI spell school format",
 	"description" : "Format used to define new spell schools in VCMI",
-	"required" : [ "type", "script", "schema" ],
+	"required" : [ "type", "script", "schema", "patches" ],
 	"additionalProperties" : false,
 	"properties" : {
 		"type" : {
@@ -20,6 +20,20 @@
 		"script" : {
 			"type" : "string",
 			"description" : "path to the script that represents this effect"
+		},
+		"stringRegistrations" : {
+			"type" : "array",
+			"items" : {
+				"type" : "string",
+				"description" : "path to the script that represents this effect"
+			}
+		},
+		"patches" : {
+			"type" : "array",
+			"items" : {
+				"type" : "string",
+				"description" : "list of patches that modify this script"
+			}
 		},
 		"schema" : {
 			"type" : "object",

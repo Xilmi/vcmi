@@ -22,21 +22,24 @@
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/spells/CSpellHandler.h"
 
+#include "../mapcontroller.h"
+#include "PickObjectDelegate.h"
 #include "abilitieswidget.h"
-#include "townbuildingswidget.h"
-#include "towneventswidget.h"
-#include "townspellswidget.h"
 #include "armywidget.h"
-#include "messagewidget.h"
-#include "rewardswidget.h"
-#include "questwidget.h"
 #include "heroartifactswidget.h"
 #include "heroskillswidget.h"
 #include "herospellwidget.h"
+#include "messagewidget.h"
 #include "portraitwidget.h"
 #include "PickObjectDelegate.h"
 #include "playerselectionwidget.h"
 #include "../mapcontroller.h"
+#include "questwidget.h"
+#include "rewardswidget.h"
+#include "scholarwidget.h"
+#include "townbuildingswidget.h"
+#include "towneventswidget.h"
+#include "townspellswidget.h"
 
 //===============IMPLEMENT OBJECT INITIALIZATION FUNCTIONS================
 Initializer::Initializer(MapController & controller, CGObjectInstance * o, const PlayerColor & pl)
@@ -453,16 +456,24 @@ void Inspector::updateProperties(CRewardableObject * o)
 	if(!o)
 		return;
 
-	if(o->ID == MapObjectID::WITCH_HUT)
+    BaseInspectorItemDelegate * delegate = nullptr;
+
+	switch(o->ID)
 	{
-		auto * delegate = new AbilitiesDelegate(controller, *o);
-		addProperty(QObject::tr("Abilities"), PropertyEditorPlaceholder(), delegate, false);
+		case MapObjectID::WITCH_HUT:
+		{
+			delegate = new AbilitiesDelegate(controller, *o);
+			break;
+		}
+		case MapObjectID::SCHOLAR:
+		{
+			delegate = new ScholarDelegate(controller, *o);
+			break;
+		}
+		default:
+			delegate = new RewardsDelegate(*controller.map(), *o);
 	}
-	else
-	{
-		auto * delegate = new RewardsDelegate(*controller.map(), *o);
-		addProperty(QObject::tr("Reward"), PropertyEditorPlaceholder(), delegate, false);
-	}
+	addProperty(QObject::tr("Reward"), PropertyEditorPlaceholder(), delegate, false);
 }
 
 void Inspector::updateProperties(CGPandoraBox * o)

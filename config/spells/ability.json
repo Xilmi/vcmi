@@ -17,7 +17,8 @@
 				"battleEffects" : {
 					"petrification" : {
 						"type" : "core:timed",
-						"battleLogMessage" : { "singular" : "@core.genrltxt.558", "plural" : "@core.genrltxt.559" },
+						"battleLogSingular" : "@core.genrltxt.558",
+						"battleLogPlural" : "@core.genrltxt.559",
 						"bonus" : {
 							"notActive" : {
 								"val" : 0,
@@ -75,7 +76,8 @@
 				"battleEffects" : {
 					"poisoning" : {
 						"type" : "core:timed",
-						"battleLogMessage" : { "singular" : "@core.genrltxt.561", "plural" : "@core.genrltxt.562" },
+						"battleLogSingular" : "@core.genrltxt.561",
+						"battleLogPlural" : "@core.genrltxt.562",
 						"bonus" : {
 							"poison" : {
 								"val" : 30,
@@ -123,7 +125,8 @@
 				"battleEffects" : {
 					"binding" : {
 						"type" : "core:timed",
-						"battleLogMessage" : { "singular" : "@core.genrltxt.560", "plural" : "@core.genrltxt.560" },
+						"battleLogSingular" : "@core.genrltxt.560",
+						"battleLogPlural" : "@core.genrltxt.560",
 						"bonus" : {
 							"bindEffect" : {
 								"val" : 0,
@@ -158,7 +161,8 @@
 				"battleEffects" : {
 					"illness" : {
 						"type" : "core:timed",
-						"battleLogMessage" : { "singular" : "@core.genrltxt.553", "plural" : "@core.genrltxt.554" },
+						"battleLogSingular" : "@core.genrltxt.553",
+						"battleLogPlural" : "@core.genrltxt.554",
 						"bonus" : {
 							"attack" : {
 								"val" : -2,
@@ -206,7 +210,8 @@
 				"battleEffects" : {
 					"paralysis" : {
 						"type" : "core:timed",
-						"battleLogMessage" : { "singular" : "@core.genrltxt.563", "plural" : "@core.genrltxt.564" },
+						"battleLogSingular" : "@core.genrltxt.563",
+						"battleLogPlural" : "@core.genrltxt.564",
 						"bonus" : {
 							"notActive" : {
 								"val" : 0,

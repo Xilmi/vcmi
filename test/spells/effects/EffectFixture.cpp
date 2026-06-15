@@ -16,8 +16,11 @@
 #include "../../../lib/networkPacks/PacksForClientBattle.h"
 #include "../../../lib/networkPacks/SetStackEffect.h"
 
-#include "../../../lib/serializer/JsonDeserializer.h"
 #include "../../../lib/spells/effects/SpellEffectService.h"
+
+#include "../../../lib/GameLibrary.h"
+#include "../../../lib/modding/IdentifierStorage.h"
+#include "../../../lib/modding/ModScope.h"
 
 bool battle::operator==(const Destination& left, const Destination& right)
 {
@@ -61,8 +64,7 @@ void EffectFixture::setupEffect(const JsonNode & effectConfig)
 
 	JsonNode effectConfigActual = effectConfig;
 	effectConfigActual.setModScope("game");
-	JsonDeserializer deser(nullptr, effectConfigActual);
-	subject->serializeJson(deser);
+	subject->init(std::move(effectConfigActual));
 }
 
 
@@ -91,7 +93,12 @@ void EffectFixture::setUp()
 
 	ON_CALL(*battleFake, getUnitsIf(_)).WillByDefault(Invoke(&unitsFake, &battle::UnitsFake::getUnitsIf));
 	ON_CALL(mechanicsMock, spells()).WillByDefault(Return(&spellServiceMock));
+	EXPECT_CALL(servicesMock, spells()).WillRepeatedly(Return(&spellServiceMock));
 	ON_CALL(spellServiceMock, getById(_)).WillByDefault(Return(&spellStub));
+	EXPECT_CALL(spellServiceMock, getByName(_)).Times(AnyNumber()).WillRepeatedly(Invoke([](const std::string & name){
+		return LIBRARY->spells()->getByName(name);
+	}));
+	EXPECT_CALL(servicesMock, spellSchools()).Times(AnyNumber()).WillRepeatedly(Return(LIBRARY->spellSchools()));
 
 	ON_CALL(serverMock, getRNG()).WillByDefault(Return(&rngMock));
 
@@ -102,6 +109,11 @@ void EffectFixture::setUp()
 	ON_CALL(serverMock, apply(Matcher<StacksInjured &>(_))).WillByDefault(Invoke(battleFake.get(),  &battle::BattleFake::accept<StacksInjured>));
 	ON_CALL(serverMock, apply(Matcher<BattleObstaclesChanged &>(_))).WillByDefault(Invoke(battleFake.get(),  &battle::BattleFake::accept<BattleObstaclesChanged>));
 	ON_CALL(serverMock, apply(Matcher<CatapultAttack &>(_))).WillByDefault(Invoke(battleFake.get(),  &battle::BattleFake::accept<CatapultAttack>));
+}
+
+static int getIntRange(int lower, int upper)
+{
+	return (lower + upper)/2;
 }
 
 static int64_t getInt64Range(int64_t lower, int64_t upper)
@@ -117,6 +129,7 @@ static double getDoubleRange(double lower, double upper)
 void EffectFixture::setupDefaultRNG()
 {
 	EXPECT_CALL(serverMock, getRNG()).Times(AtLeast(0));
+	EXPECT_CALL(rngMock, nextInt(_,_)).WillRepeatedly(Invoke(&getIntRange));
 	EXPECT_CALL(rngMock, nextInt64(_,_)).WillRepeatedly(Invoke(&getInt64Range));
 	EXPECT_CALL(rngMock, nextDouble(_,_)).WillRepeatedly(Invoke(&getDoubleRange));
 }

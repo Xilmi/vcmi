@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../helper.h"
 #include "heroskillswidget.h"
 #include "ui_heroskillswidget.h"
 #include "inspector.h"
@@ -30,6 +31,7 @@ HeroSkillsWidget::HeroSkillsWidget(CGHeroInstance & h, QWidget *parent) :
 	hero(h)
 {
 	ui->setupUi(this);
+	Helper::decorateDialog(this);
 
 	ui->labelAttack->setText(QString::fromStdString(NPrimarySkill::names[0]));
 	ui->labelDefence->setText(QString::fromStdString(NPrimarySkill::names[1]));

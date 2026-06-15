@@ -148,10 +148,10 @@ public:
 	bool battleHasWallPenalty(const IBonusBearer * shooter, const BattleHex & shooterPosition, const BattleHex & destHex) const;
 	bool battleHasShootingPenalty(const battle::Unit * shooter, const BattleHex & destHex) const;
 
-	BattleHex wallPartToBattleHex(EWallPart part) const;
-	EWallPart battleHexToWallPart(const BattleHex & hex) const; //returns part of destructible wall / gate / keep under given hex or -1 if not found
+	BattleHex wallPartToBattleHex(EWallPart part) const override;
+	EWallPart battleHexToWallPart(const BattleHex & hex) const override; //returns part of destructible wall / gate / keep under given hex or -1 if not found
 	bool isWallPartPotentiallyAttackable(EWallPart wallPart) const; // returns true if the wall part is potentially attackable (independent of wall state), false if not
-	bool isWallPartAttackable(EWallPart wallPart) const; // returns true if the wall part is actually attackable, false if not
+	bool isWallPartAttackable(EWallPart wallPart) const override; // returns true if the wall part is actually attackable, false if not
 	BattleHexArray getAttackableWallParts() const;
 
 	si8 battleMinSpellLevel(BattleSide side) const; //calculates maximum spell level possible to be cast on battlefield - takes into account artifacts of both heroes; if no effects are set, 0 is returned

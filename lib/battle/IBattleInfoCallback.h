@@ -13,6 +13,8 @@
 #include "GameConstants.h"
 #include "BattleHexArray.h"
 
+#include "../constants/Enumerations.h"
+
 #include <vcmi/Entity.h>
 #include <vcmi/scripting/ApiTags.h>
 
@@ -66,8 +68,10 @@ public:
 
 	virtual si8 battleTacticDist() const = 0; //returns tactic distance in current tactics phase; 0 if not in tactics phase
 	virtual BattleSide battleGetTacticsSide() const = 0; //returns which side is in tactics phase, undefined if none (?)
+	virtual bool battleHasNativeStack(BattleSide side) const = 0;
 
 	virtual uint32_t battleNextUnitId() const = 0;
+	virtual int32_t nextObstacleId() const = 0; //returns next available obstacle ID
 
 	virtual battle::Units battleGetUnitsIf(const battle::UnitFilter & predicate) const = 0;
 
@@ -82,6 +86,15 @@ public:
 	//blocking obstacles makes tile inaccessible, others cause special effects (like Land Mines, Moat, Quicksands)
 	virtual std::vector<std::shared_ptr<const CObstacleInstance>> battleGetAllObstaclesOnPos(const BattleHex & tile, bool onlyBlocking = true) const = 0;
 	virtual std::vector<std::shared_ptr<const CObstacleInstance>> getAllAffectedObstaclesByStack(const battle::Unit * unit, const BattleHexArray & passed) const = 0;
+	virtual std::vector<std::shared_ptr<const CObstacleInstance>> battleGetAllObstacles(std::optional<BattleSide> perspective = std::nullopt) const = 0;
+
+	virtual bool hasFortifications() const = 0;
+	virtual bool hasMoat() const = 0;
+	virtual EWallState battleGetWallState(EWallPart partOfWall) const = 0;
+	virtual bool isWallPartAttackable(EWallPart wallPart) const = 0;
+	virtual BattleHex wallPartToBattleHex(EWallPart part) const = 0;
+	virtual EWallPart battleHexToWallPart(const BattleHex & hex) const = 0;
+	virtual BattleHex getTowerShooterHex(EWallPart part) const = 0;
 };
 
 VCMI_LIB_NAMESPACE_END

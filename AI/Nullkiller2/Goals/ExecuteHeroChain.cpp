@@ -145,9 +145,9 @@ void ExecuteHeroChain::accept(AIGateway * aiGw)
 					{
 						throw cannotFulfillGoalException("Path is nondeterministic.");
 					}
-					
+
 					node->specialAction->execute(aiGw, hero);
-					
+
 					if(!heroPtr.isVerified())
 					{
 						logAi->error("Hero %s was lost trying to execute special action. Exit hero chain.", heroPtr.nameOrDefault());
@@ -226,7 +226,7 @@ void ExecuteHeroChain::accept(AIGateway * aiGw)
 
 				auto sourceWhirlpool = findWhirlpool(hero->visitablePos());
 				auto targetWhirlpool = findWhirlpool(node->coord);
-				
+
 				if(i != chainPath.nodes.size() - 1 && sourceWhirlpool.hasValue() && sourceWhirlpool == targetWhirlpool)
 				{
 					logAi->trace("AI exited whirlpool at %s but expected at %s", hero->visitablePos().toString(), node->coord.toString());

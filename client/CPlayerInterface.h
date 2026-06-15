@@ -66,7 +66,13 @@ class CPlayerInterface : public CGameInterface
 
 	const std::string QUICKSAVE_PATH = "Saves/Quicksave";
 
-	std::list<std::shared_ptr<CInfoWindow>> dialogs; //queue of dialogs awaiting to be shown (not currently shown!)
+	struct PendingDialog
+	{
+		bool dropOnTurnEnd = false;
+		std::function<void()> show;
+	};
+
+	std::list<PendingDialog> dialogs; //queue of dialogs awaiting to be shown (not currently shown!)
 	std::shared_ptr<WindowBase> pendingLevelUpDialog;
 	int pendingLevelUpRequestID = -1;
 

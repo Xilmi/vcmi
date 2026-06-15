@@ -76,7 +76,8 @@ TEST_F(ObstacleTest, NotApplicableTargetWhenHexBlockedByUnit)
 
 	EXPECT_CALL(mechanicsMock, isMassive()).WillRepeatedly(Return(false));
 	EXPECT_CALL(mechanicsMock, requiresClearTiles()).WillRepeatedly(Return(true));
-	EXPECT_CALL(mechanicsMock, getSpellName()).WillRepeatedly(Return(std::string("Obstacle")));
+	EXPECT_CALL(mechanicsMock, adaptProblem(Eq(ESpellCastProblem::NO_APPROPRIATE_TARGET), _))
+		.WillRepeatedly(Return(false));
 	EXPECT_CALL(*battleFake, getUnitsIf(_)).Times(AtLeast(0));
 
 	Target target;
@@ -91,7 +92,8 @@ TEST_F(ObstacleTest, NotApplicableTargetWhenEmptyTarget)
 
 	EXPECT_CALL(mechanicsMock, isMassive()).WillRepeatedly(Return(false));
 	EXPECT_CALL(mechanicsMock, requiresClearTiles()).WillRepeatedly(Return(true));
-	EXPECT_CALL(mechanicsMock, getSpellName()).WillRepeatedly(Return(std::string("Obstacle")));
+	EXPECT_CALL(mechanicsMock, adaptProblem(Eq(ESpellCastProblem::NO_APPROPRIATE_TARGET), _))
+		.WillRepeatedly(Return(false));
 
 	EXPECT_FALSE(subject->applicableTarget(problemMock, &mechanicsMock, Target()));
 }
@@ -149,9 +151,11 @@ public:
 	void captureObstaclePack()
 	{
 		EXPECT_CALL(serverMock, apply(Matcher<BattleObstaclesChanged &>(_)))
-			.WillOnce(Invoke([this](BattleObstaclesChanged & pack)
+			.Times(AnyNumber())
+			.WillRepeatedly(Invoke([this](const BattleObstaclesChanged & pack)
 			{
-				capturedPack = pack;
+				for(const auto & change : pack.changes)
+					capturedPack.changes.push_back(change);
 			}));
 	}
 
@@ -159,7 +163,8 @@ public:
 	{
 		EXPECT_CALL(mechanicsMock, getEffectPower()).WillRepeatedly(Return(5));
 		EXPECT_CALL(mechanicsMock, getEffectLevel()).WillRepeatedly(Return(2));
-		EXPECT_CALL(mechanicsMock, getSpellIndex()).WillRepeatedly(Return(13));
+		EXPECT_CALL(mechanicsMock, getSpell()).WillRepeatedly(Return(&spellStub));
+		EXPECT_CALL(spellStub, getId()).WillRepeatedly(Return(SpellID(13)));
 	}
 
 protected:

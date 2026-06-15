@@ -14,6 +14,7 @@
 #include <vstd/RNG.h>
 
 #include "../../../lib/battle/CUnitState.h"
+#include "../../../lib/CCreatureHandler.h"
 #include "../../../lib/json/JsonNode.h"
 
 #include "mock/mock_UnitEnvironment.h"
@@ -513,7 +514,7 @@ TEST_F(HealApplyOneOffTest, GetHealthChangeReturnsHealedHP)
 
 	EXPECT_EQ(result.hpDelta, unitHP - 1);
 	EXPECT_EQ(result.unitsDelta, 0);
-	EXPECT_EQ(result.unitType, CreatureID(unitId));
+	EXPECT_EQ(result.unitType, static_cast<const Creature *>(pikeman));
 }
 
 TEST_F(HealApplyOneOffTest, ApplyResurrectsFullyDeadUnit)

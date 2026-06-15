@@ -130,7 +130,7 @@ std::vector<SlotInfo>::iterator ArmyManager::getBestUnitForScout(std::vector<Slo
 	auto fastest = boost::min_element(army, [&](const SlotInfo & left, const SlotInfo & right) -> bool
 	{
 		uint64_t leftUnitPower = left.power / left.count;
-		uint64_t rightUnitPower = left.power / left.count;
+		uint64_t rightUnitPower = right.power / right.count;
 		bool leftUnitIsWeak = leftUnitPower < maxUnitValue || left.creature->getLevel() < 4;
 		bool rightUnitIsWeak = rightUnitPower < maxUnitValue || right.creature->getLevel() < 4;
 

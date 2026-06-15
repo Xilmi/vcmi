@@ -40,8 +40,11 @@ private:
 template<typename IdentifierType>
 std::set<IdentifierType> JsonKeyExtractor::filterKeys(const JsonNode & value, const std::set<IdentifierType> & valuesSet, const Variables & variables)
 {
+    // if value is string do not filter value through valueSet. It allows objects like scholar to override map settings
+    // (i.e grant a skill that is blocked by map settings). It is intentional.
+    // TODO: refactor class so this behaviour is clearly reflected by api.
 	if(value.isString())
-		return {decodeKey<IdentifierType>(value, variables)};
+        return {decodeKey<IdentifierType>(value, variables)};
 
 	assert(value.isStruct());
 

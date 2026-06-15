@@ -52,7 +52,7 @@ CZipOutputStream::CZipOutputStream(CZipSaver * owner_, zipFile archive, const st
 						nullptr,//password
 						0,//crcForCrypting
 						20,//versionMadeBy
-						0,//flagBase
+						(1 << 11),//flagBase - UTF-8 file names
 						0//zip64
 						);
 

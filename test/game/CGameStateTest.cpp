@@ -173,6 +173,8 @@ public:
 			pset.color = PlayerColor(i);
 			pset.connectedPlayerIDs.insert(static_cast<PlayerConnectionID>(i));
 			pset.name = "Player";
+			// Avoid order-dependent random starting artifacts in tests that set hero stats directly.
+			pset.bonus = PlayerStartingBonus::GOLD;
 
 			pset.castle = pinfo.defaultCastle();
 			pset.hero = pinfo.defaultHero();
@@ -454,7 +456,7 @@ TEST_F(CGameStateTest, battleInterference)
 		"targetSourceType" : "SECONDARY_SKILL",
 		"valueType" : "PERCENT_TO_TARGET_TYPE",
 		"propagator" : "BATTLE_WIDE",
-		"propagationUpdater" : [ "TIMES_HERO_LEVEL", "BONUS_OWNER_UPDATER" ]
+		"propagationUpdater" : [ "TIMES_HERO_LEVEL", "BONUS_OWNER_UPDATER" ],
 		"limiters" : [ "OPPOSITE_SIDE" ]
 	}
 	)";
@@ -483,6 +485,9 @@ TEST_F(CGameStateTest, battleInterference)
 
 	defender->setPrimarySkill(PrimarySkill::SPELL_POWER, 100, ChangeValueMode::ABSOLUTE);
 	defender->level = 10;
+
+	ASSERT_EQ(attacker->getPrimSkillLevel(PrimarySkill::SPELL_POWER), 100);
+	ASSERT_EQ(defender->getPrimSkillLevel(PrimarySkill::SPELL_POWER), 100);
 
 	startTestBattle(attacker, defender);
 

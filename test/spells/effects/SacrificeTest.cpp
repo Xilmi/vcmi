@@ -14,6 +14,7 @@
 #include <vstd/RNG.h>
 
 #include "../../../lib/battle/CUnitState.h"
+#include "../../../lib/CCreatureHandler.h"
 #include "../../../lib/json/JsonNode.h"
 
 #include "mock/mock_UnitEnvironment.h"
@@ -309,7 +310,7 @@ TEST_F(SacrificeGetHealthChangeTest, EmptyTargetReturnsZero)
 
 	EXPECT_EQ(result.hpDelta, 0);
 	EXPECT_EQ(result.unitsDelta, 0);
-	EXPECT_EQ(result.unitType, CreatureID::NONE);
+	EXPECT_EQ(result.unitType, nullptr);
 }
 
 TEST_F(SacrificeGetHealthChangeTest, DeadTargetReturnsMaxResurrectionValue)
@@ -332,7 +333,7 @@ TEST_F(SacrificeGetHealthChangeTest, DeadTargetReturnsMaxResurrectionValue)
 
 	EXPECT_EQ(result.hpDelta, (int64_t)baseAmount * unitHP);
 	EXPECT_EQ(result.unitsDelta, (int64_t)baseAmount);
-	EXPECT_EQ(result.unitType, CreatureID(unitId));
+	EXPECT_EQ(result.unitType, static_cast<const Creature *>(CreatureID(unitId).toCreature()));
 }
 
 TEST_F(SacrificeGetHealthChangeTest, AliveTargetReturnsCalculatedHealWithNegativeUnitsDelta)
@@ -362,7 +363,7 @@ TEST_F(SacrificeGetHealthChangeTest, AliveTargetReturnsCalculatedHealWithNegativ
 
 	EXPECT_EQ(result.hpDelta, expectedHpDelta);
 	EXPECT_EQ(result.unitsDelta, -(int64_t)victimCount);
-	EXPECT_EQ(result.unitType, CreatureID(unitId));
+	EXPECT_EQ(result.unitType, static_cast<const Creature *>(CreatureID(unitId).toCreature()));
 }
 
 class SacrificeApplyTest : public Test, public EffectFixture

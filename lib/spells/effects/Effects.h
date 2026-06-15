@@ -32,8 +32,6 @@ public:
 
 	virtual ~Effects() = default;
 
-	void add(const std::string & name, const std::shared_ptr<Effect>& effect, const int level);
-
 	bool applicable(Problem & problem, const Mechanics * m) const;
 	bool applicable(Problem & problem, const Mechanics * m, const Target & aimPoint, const Target & spellTarget) const;
 
@@ -41,7 +39,8 @@ public:
 
 	EffectsToApply prepare(const Mechanics * m, const Target & aimPoint, const Target & spellTarget) const;
 
-	void serializeJson(JsonSerializeFormat & handler, const int level, const std::string & spellScope, const std::string & spellIdentifier);
+	/// Builds the effects map for a single spell level from its JSON config.
+	static EffectsMap loadJson(const JsonNode & effectMap, const std::string & spellScope, const std::string & spellIdentifier);
 };
 
 

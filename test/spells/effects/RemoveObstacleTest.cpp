@@ -187,9 +187,10 @@ public:
 	void captureObstaclePack()
 	{
 		EXPECT_CALL(serverMock, apply(Matcher<BattleObstaclesChanged &>(_)))
-			.WillOnce(Invoke([this](BattleObstaclesChanged & pack)
+			.WillRepeatedly(Invoke([this](const BattleObstaclesChanged & pack)
 			{
-				capturedPack = pack;
+				for(const auto & change : pack.changes)
+					capturedPack.changes.push_back(change);
 			}));
 	}
 

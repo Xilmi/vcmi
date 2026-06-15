@@ -1332,11 +1332,8 @@ void GameStatePackVisitor::visitStartAction(StartAction & pack)
 		{
 			case EActionType::DEFEND:
 				st->waiting = false;
-				st->defending = true;
-				st->defendingAnim = true;
 				break;
 			case EActionType::WAIT:
-				st->defendingAnim = false;
 				st->waiting = true;
 				st->waitedThisTurn = true;
 				break;
@@ -1350,7 +1347,6 @@ void GameStatePackVisitor::visitStartAction(StartAction & pack)
 				else
 				{
 					st->waiting = false;
-					st->defendingAnim = false;
 					st->movedThisRound = true;
 				}
 				st->castSpellThisTurn = true;
@@ -1360,7 +1356,6 @@ void GameStatePackVisitor::visitStartAction(StartAction & pack)
 				break;
 			default: //any active stack action - attack, catapult, heal, spell...
 				st->waiting = false;
-				st->defendingAnim = false;
 				st->movedThisRound = true;
 				break;
 		}
@@ -1619,11 +1614,11 @@ void BattleStatePackVisitor::visitCatapultAttack(CatapultAttack & pack)
 	if(town->fortificationsLevel().wallsHealth == 0)
 		throw std::runtime_error("CatapultAttack without walls!");
 
-	for(const auto & part : pack.attackedParts)
-	{
-		auto newWallState = SiegeInfo::applyDamage(battleState.getWallState(part.attackedPart), part.damageDealt);
-		battleState.setWallState(part.attackedPart, newWallState);
-	}
+	auto newWallState = SiegeInfo::applyDamage(battleState.getWallState(pack.attackedPart), pack.damageDealt);
+	battleState.setWallState(pack.attackedPart, newWallState);
+
+	if(pack.killedTowerShooter != -1)
+		battleState.removeUnit(pack.killedTowerShooter);
 }
 
 void BattleStatePackVisitor::visitBattleObstaclesChanged(BattleObstaclesChanged & pack)

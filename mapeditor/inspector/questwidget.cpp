@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../helper.h"
 #include "questwidget.h"
 #include "ui_questwidget.h"
 #include "../mapcontroller.h"
@@ -37,6 +38,7 @@ QuestWidget::QuestWidget(MapController & _controller, CQuest & _sh, QWidget *par
 {
 	setAttribute(Qt::WA_DeleteOnClose, true);
 	ui->setupUi(this);
+	Helper::decorateDialog(this);
 	ui->lDayOfWeek->addItem(tr("None"));
 	for(int i = 1; i <= 7; ++i)
 		ui->lDayOfWeek->addItem(tr("Day %1").arg(i));

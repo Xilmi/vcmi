@@ -243,7 +243,7 @@ void MainWindow::dragEnterEvent(QDragEnterEvent* event)
 {
 	if(event->mimeData()->hasUrls())
 		for(const auto & url : event->mimeData()->urls())
-			for(const auto & ending : QStringList({".zip", ".h3m", ".h3c", ".vmap", ".vcmp", ".json", ".exe"}))
+			for(const auto & ending : QStringList({".zip", ".vsgm1", ".h3m", ".h3c", ".vmap", ".vcmp", ".json", ".exe"}))
 				if(url.fileName().endsWith(ending, Qt::CaseInsensitive))
 				{
 					event->acceptProposedAction();

@@ -57,7 +57,7 @@ end
 
 --- Returns health change preview data for hover tooltip.
 function Script:getHealthChange(mechanics, spellTarget)
-	return { hpDelta = 0, unitsDelta = 0, unitType = -1 }
+	return { hpDelta = 0, unitsDelta = 0 }
 end
 
 --- Adjusts the spell's required target types. Return the (possibly modified) types array.
@@ -119,9 +119,8 @@ function Script:transformByRange(mechanics, aimPoint, spellTarget)
 	local targetsOrder = {}
 
 	local function addUnit(unit)
-		local id = unit:unitId()
-		if not targetsSet[id] then
-			targetsSet[id] = unit
+		if not targetsSet[unit] then
+			targetsSet[unit] = true
 			table.insert(targetsOrder, unit)
 		end
 	end
@@ -189,7 +188,7 @@ function Script:transformByChain(mechanics, aimPoint, spellTarget, chainLength)
 
 	local function buildPossibleHexes()
 		local units = battle:getUnitsIf(function(u)
-			return isEligible(u) and not processedIds[u:unitId()]
+			return isEligible(u) and not processedIds[u]
 		end)
 		if #units == 0 then return nil end
 		local hexes = units[1]:getHexes()
@@ -226,7 +225,7 @@ function Script:transformByChain(mechanics, aimPoint, spellTarget, chainLength)
 			end
 		elseif isEligible(unit) and wouldResist then
 			-- unit skipped, no resistance animation (H3 logic); don't advance targetIndex
-			processedIds[unit:unitId()] = true
+			processedIds[unit] = true
 			local hexes = buildPossibleHexes()
 			if not hexes then break end
 			destHex = destHex:getClosestTile(unit:unitSide(), hexes)
@@ -235,7 +234,7 @@ function Script:transformByChain(mechanics, aimPoint, spellTarget, chainLength)
 			table.insert(effectTarget, {})
 		end
 
-		processedIds[unit:unitId()] = true
+		processedIds[unit] = true
 
 		local hexes = buildPossibleHexes()
 		if not hexes then break end

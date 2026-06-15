@@ -10,6 +10,11 @@
 
 #pragma once
 
+#include <QObject>
+
+class QDialog;
+class QToolButton;
+
 #include "../lib/filesystem/ResourcePath.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
@@ -21,8 +26,25 @@ VCMI_LIB_NAMESPACE_END
 
 VCMI_LIB_USING_NAMESPACE
 
+class CloseButtonPositioner : public QObject
+{
+	Q_OBJECT
+public:
+	CloseButtonPositioner(QDialog * parent, QToolButton * btn);
+
+protected:
+	bool eventFilter(QObject * obj, QEvent * ev) override;
+
+private:
+	void reposition();
+
+	QDialog * dialog;
+	QToolButton * closeButton;
+};
+
 namespace Helper
 {
+	void decorateDialog(QDialog * dialog);
 	std::unique_ptr<CMap> openMapInternal(const QString &, IGameInfoCallback *);
 	std::shared_ptr<CampaignState> openCampaignInternal(const QString &);
 	std::map<std::string, std::shared_ptr<CRmgTemplate>> openTemplateInternal(const QString &);

@@ -47,6 +47,8 @@ JsonNode makeHexPatch(std::initializer_list<int> hexes)
 class MoatApplyTest : public Test, public EffectFixture
 {
 public:
+	const SpellID testSpellId = SpellID::CURSE;
+
 	MoatApplyTest()
 		: EffectFixture("core:moat")
 	{
@@ -57,9 +59,11 @@ public:
 	void captureObstaclePack()
 	{
 		EXPECT_CALL(serverMock, apply(Matcher<BattleObstaclesChanged &>(_)))
-			.WillOnce(Invoke([this](BattleObstaclesChanged & pack)
+			.Times(AnyNumber())
+			.WillRepeatedly(Invoke([this](const BattleObstaclesChanged & pack)
 			{
-				capturedPack = pack;
+				for(const auto & change : pack.changes)
+					capturedPack.changes.push_back(change);
 			}));
 	}
 
@@ -67,8 +71,9 @@ public:
 	{
 		EXPECT_CALL(mechanicsMock, getEffectPower()).WillRepeatedly(Return(5));
 		EXPECT_CALL(mechanicsMock, getEffectLevel()).WillRepeatedly(Return(2));
-		EXPECT_CALL(mechanicsMock, getSpellIndex()).WillRepeatedly(Return(1));
-		EXPECT_CALL(mechanicsMock, getSpellId()).WillRepeatedly(Return(SpellID(SpellID::NONE)));
+		EXPECT_CALL(mechanicsMock, getSpell()).WillRepeatedly(Return(&spellStub));
+		EXPECT_CALL(spellStub, getId()).WillRepeatedly(Return(testSpellId));
+		EXPECT_CALL(spellStub, getJsonKey()).WillRepeatedly(Return(SpellID::encode(testSpellId.getNum())));
 		EXPECT_CALL(mechanicsMock, isMassive()).WillRepeatedly(Return(true));
 	}
 
@@ -196,7 +201,7 @@ TEST_F(MoatApplyTest, AppliesBonuses)
 	EXPECT_CALL(*battleFake, getDefendedTown()).WillRepeatedly(Return(fakeTown.get()));
 	EXPECT_CALL(*battleFake, getAllObstacles()).WillRepeatedly(Return(IBattleInfo::ObstacleCList()));
 	setDefaultApplyExpectations();
-	EXPECT_CALL(serverMock, apply(Matcher<BattleObstaclesChanged &>(_))).Times(1);
+	captureObstaclePack();
 
 	GiveBonus capturedBonus;
 	bool bonusCaptured = false;
@@ -216,7 +221,7 @@ TEST_F(MoatApplyTest, AppliesBonuses)
 	EXPECT_EQ(capturedBonus.bonus.type, BonusType::PRIMARY_SKILL);
 	EXPECT_EQ(capturedBonus.bonus.val, -3);
 	EXPECT_EQ(capturedBonus.bonus.duration, BonusDuration::ONE_BATTLE);
-	EXPECT_EQ(capturedBonus.bonus.source, BonusSource::TOWN_STRUCTURE);
+	EXPECT_EQ(capturedBonus.bonus.source, BonusSource::SPELL_EFFECT);
 }
 
 }

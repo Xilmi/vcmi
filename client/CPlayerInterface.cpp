@@ -67,7 +67,7 @@
 #include "windows/InfoWindows.h"
 #include "windows/settings/SettingsMainWindow.h"
 
-#include "../lib/callback/CDynLibHandler.h"
+#include "../lib/callback/AIFactory.h"
 #include "../lib/CConfigHandler.h"
 #include "../lib/GameLibrary.h"
 #include "../lib/texts/CGeneralTextHandler.h"
@@ -226,8 +226,8 @@ void CPlayerInterface::playerEndsTurn(PlayerColor player)
 		closeAllDialogs();
 
 		// remove all pending dialogs that do not expect query answer
-		vstd::erase_if(dialogs, [](const std::shared_ptr<CInfoWindow> & window){
-						   return window->ID == QueryID::NONE;
+		vstd::erase_if(dialogs, [](const PendingDialog & dialog){
+						   return dialog.dropOnTurnEnd;
 					   });
 	}
 }
@@ -527,50 +527,75 @@ void CPlayerInterface::receivedResource()
 void CPlayerInterface::heroGotLevel(const CGHeroInstance *hero, PrimarySkill pskill, std::vector<SecondarySkill>& skills, QueryID queryID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
-	waitWhileDialog();
-	ENGINE->sound().playSound(soundBase::heroNewLevel);
+	auto availableSkills = skills;
 
-	closePendingLevelUpDialog();
-
-	const bool closeImmediately = queryID < 0;
-	pendingLevelUpRequestID = closeImmediately ? LEVEL_UP_REQUEST_NONE : LEVEL_UP_REQUEST_WAITING_FOR_REPLY;
-
-	auto levelWindow = std::make_shared<CLevelWindow>(hero, pskill, skills, [this, queryID](ui32 selection)
+	auto showLevelUpDialog = [this, hero, pskill, availableSkills = std::move(availableSkills), queryID]() mutable
 	{
-		if(queryID < 0)
-			return;
+		closePendingLevelUpDialog();
 
-		pendingLevelUpRequestID = cb->selectionMade(selection, queryID);
-	});
+		const bool closeImmediately = queryID < 0;
+		pendingLevelUpRequestID = closeImmediately ? LEVEL_UP_REQUEST_NONE : LEVEL_UP_REQUEST_WAITING_FOR_REPLY;
 
-	levelWindow->setCloseOnSelection(closeImmediately);
-	if(!closeImmediately)
-		pendingLevelUpDialog = levelWindow;
+		ENGINE->sound().playSound(soundBase::heroNewLevel);
+		auto levelWindow = std::make_shared<CLevelWindow>(hero, pskill, availableSkills, [this, queryID](ui32 selection)
+		{
+			if(queryID < 0)
+				return;
 
-	ENGINE->windows().pushWindow(levelWindow);
+			pendingLevelUpRequestID = cb->selectionMade(selection, queryID);
+		});
+
+		levelWindow->setCloseOnSelection(closeImmediately);
+		if(!closeImmediately)
+			pendingLevelUpDialog = levelWindow;
+
+		ENGINE->windows().pushWindow(levelWindow);
+	};
+
+	if(showingDialog->isBusy() || !dialogs.empty())
+	{
+		dialogs.push_back({false, std::move(showLevelUpDialog)});
+		return;
+	}
+
+	waitWhileDialog();
+	showLevelUpDialog();
 }
 
 void CPlayerInterface::commanderGotLevel(const CCommanderInstance * commander, std::vector<ui32> skills, QueryID queryID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
-	waitWhileDialog();
-	ENGINE->sound().playSound(soundBase::heroNewLevel);
-
-	closePendingLevelUpDialog();
-
-	const bool closeImmediately = queryID < 0;
-	pendingLevelUpRequestID = closeImmediately ? LEVEL_UP_REQUEST_NONE : LEVEL_UP_REQUEST_WAITING_FOR_REPLY;
-	auto levelWindow = std::make_shared<CStackWindow>(commander, skills, [this, queryID](ui32 selection)
+	auto showLevelUpDialog = [this, commander, skills = std::move(skills), queryID]() mutable
 	{
-		if(queryID < 0)
-			return;
+		closePendingLevelUpDialog();
 
-		pendingLevelUpRequestID = cb->selectionMade(selection, queryID);
-	});
-	levelWindow->setCloseOnSelection(closeImmediately);
-	if(!closeImmediately)
-		pendingLevelUpDialog = levelWindow;
-	ENGINE->windows().pushWindow(levelWindow);
+		const bool closeImmediately = queryID < 0;
+		pendingLevelUpRequestID = closeImmediately ? LEVEL_UP_REQUEST_NONE : LEVEL_UP_REQUEST_WAITING_FOR_REPLY;
+
+		ENGINE->sound().playSound(soundBase::heroNewLevel);
+		auto levelWindow = std::make_shared<CStackWindow>(commander, skills, [this, queryID](ui32 selection)
+		{
+			if(queryID < 0)
+				return;
+
+			pendingLevelUpRequestID = cb->selectionMade(selection, queryID);
+		});
+
+		levelWindow->setCloseOnSelection(closeImmediately);
+		if(!closeImmediately)
+			pendingLevelUpDialog = levelWindow;
+
+		ENGINE->windows().pushWindow(levelWindow);
+	};
+
+	if(showingDialog->isBusy() || !dialogs.empty())
+	{
+		dialogs.push_back({false, std::move(showLevelUpDialog)});
+		return;
+	}
+
+	waitWhileDialog();
+	showLevelUpDialog();
 }
 
 void CPlayerInterface::heroInGarrisonChange(const CGTownInstance *town)
@@ -791,6 +816,8 @@ void CPlayerInterface::battleCatapultAttacked(const BattleID & battleID, const C
 	BATTLE_EVENT_POSSIBLE_RETURN;
 
 	battleInt->stackIsCatapulting(ca);
+	if(ca.killedTowerShooter != -1)
+		battleInt->stackRemoved(static_cast<uint32_t>(ca.killedTowerShooter));
 }
 
 void CPlayerInterface::battleNewRound(const BattleID & battleID) //called at the beginning of each turn, round=-1 is the tactic phase, round=0 is the first "normal" turn
@@ -1081,7 +1108,13 @@ void CPlayerInterface::showInfoDialog(const std::string &text, const std::vector
 	}
 	else
 	{
-		dialogs.push_back(temp);
+		dialogs.push_back({true, [this, temp, soundID]()
+		{
+			ENGINE->sound().playSound(static_cast<soundBase::soundID>(soundID));
+			showingDialog->setBusy();
+			movementController->requestMovementAbort(); // interrupt movement to show dialog
+			ENGINE->windows().pushWindow(temp);
+		}});
 	}
 }
 
@@ -1554,8 +1587,7 @@ void CPlayerInterface::update()
 	//if there are any waiting dialogs, show them
 	if (makingTurn && !dialogs.empty() && !showingDialog->isBusy())
 	{
-		showingDialog->setBusy();
-		ENGINE->windows().pushWindow(dialogs.front());
+		dialogs.front().show();
 		dialogs.pop_front();
 	}
 }
@@ -1927,7 +1959,7 @@ bool CPlayerInterface::capturedAllEvents()
 
 void CPlayerInterface::prepareAutoFightingAI(const BattleID &bid, const CCreatureSet *army1, const CCreatureSet *army2, int3 tile, const CGHeroInstance *hero1, const CGHeroInstance *hero2, BattleSide side)
 {
-	autofightingAI = CDynLibHandler::getNewBattleAI(settings["ai"]["combatAlliedAI"].String());
+	autofightingAI = AIFactory::createBattleAI(settings["ai"]["combatAlliedAI"].String());
 
 	AutocombatPreferences autocombatPreferences = AutocombatPreferences();
 	autocombatPreferences.enableSpellsUsage = settings["battle"]["enableAutocombatSpells"].Bool();

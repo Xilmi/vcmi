@@ -448,22 +448,11 @@ struct DLL_LINKAGE BattleObstaclesChanged : public CPackForClient
 
 struct DLL_LINKAGE CatapultAttack : public CPackForClient
 {
-	struct AttackInfo
-	{
-		si16 destinationTile;
-		EWallPart attackedPart;
-		ui8 damageDealt;
-
-		template <typename Handler> void serialize(Handler & h)
-		{
-			h & destinationTile;
-			h & attackedPart;
-			h & damageDealt;
-		}
-	};
-
 	BattleID battleID = BattleID::NONE;
-	std::vector< AttackInfo > attackedParts;
+	EWallPart attackedPart = EWallPart::INVALID;
+	si16 destinationTile = 0;
+	ui8 damageDealt = 0;
+	int32_t killedTowerShooter = -1; //unit ID of tower shooter killed by this attack, or -1 if none
 	int attacker = -1; //if -1, then a spell caused this
 
 	void visitTyped(ICPackVisitor & visitor) override;
@@ -471,7 +460,10 @@ struct DLL_LINKAGE CatapultAttack : public CPackForClient
 	template <typename Handler> void serialize(Handler & h)
 	{
 		h & battleID;
-		h & attackedParts;
+		h & attackedPart;
+		h & destinationTile;
+		h & damageDealt;
+		h & killedTowerShooter;
 		h & attacker;
 		assert(battleID != BattleID::NONE);
 	}

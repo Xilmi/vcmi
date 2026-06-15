@@ -36,12 +36,15 @@ public:
 	LuaSpellEffectFactory(scripting::LuaModule & host);
 	virtual ~LuaSpellEffectFactory();
 
-	void initialize(const std::string & scope, const std::string & name) override;
-	std::shared_ptr<Effect> create(const std::string & scope, const std::string & name) const override;
+	void initialize(const std::string & effectId,
+		const std::string & scope, const std::string & name,
+		const std::vector<PatchEntry> & patches) override;
+	std::shared_ptr<Effect> create(const std::string & effectId) const override;
 
 	void registerScripts(scripting::LuaScriptPool * pool);
 
 private:
+	/// effect id -> script mapping
 	std::map<std::string, std::unique_ptr<scripting::LuaScriptInstance> > loadedScripts;
 	scripting::LuaModule & host;
 };
@@ -72,7 +75,7 @@ public:
 	SpellEffectValue getHealthChange(const Mechanics * m, const Target & spellTarget) const override;
 
 protected:
-	void serializeJsonEffect(JsonSerializeFormat & handler) override;
+	void initImpl(JsonNode data) override;
 
 private:
 	const LuaScriptInstance * script;

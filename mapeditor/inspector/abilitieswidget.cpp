@@ -185,7 +185,6 @@ QWidget * AbilitiesDelegate::createEditor(QWidget * parent, const QStyleOptionVi
 
 void AbilitiesDelegate::setEditorData(QWidget * editor, const QModelIndex & index) const
 {
-	logGlobal->error("set editor data!");
 	if(auto * aw = qobject_cast<AbilitiesWidget *>(editor))
 	{
 		aw->loadData();

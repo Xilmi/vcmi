@@ -8,42 +8,28 @@ This page describes the internal working of the Lua scripting module. For usage 
 - (MAJOR) expand usage of scripts:
   - convert HotA map scripts into Lua form
   - convert HotA (and possibly - H3) Seer Huts into scripts
-  - Move all spell effects to Lua form:
-    - LocationEffect
-    - RemoveObstacle -> LocationEffect
-    - Catapult -> LocationEffect
-    - Obstacle -> LocationEffect
-    - Moat -> Obstacle
-    - review ServerCallbackProxy API and expand / cleanup it
+  - review ServerCallbackProxy API and expand / cleanup it
   - Implement support for scriptable map objects
   - Move damage calculator, or at least - damage formula to Lua, based on [existing PR](https://github.com/vcmi/vcmi/pull/5135)
   - Move map movement point limit calculation to Lua
   - Move starting armies and starting town building randomization to lua?
   - switch battle events to use scripts
-- Document public scripting API. Decide approach on how to handle it:
-  - Use .md form and place them as part of our docs, accessible from website
-  - Use [Lua Language Server format](https://luals.github.io/wiki/definition-files/) to make docs accessible from IDE
-  - Both .md and Lua Language Server
-  - Document everything in code and make exporter to both .md and Lua Language Server
-- Review existing API and ensure that it follows rules described here:
-  - Make sure that all method names are verbs, not nouns. Including spell script methods
-  - try to remove or at least reduce usage of abbreviations
-  - Remove usage of numeric identifiers from script. In cases where entity does not exists such as `PlayerColor`, replace them with copyable API class
-  - Review UnitState class and check its mutable methods - do we need all of those? Should we name them differently?
-- Add "preprocess" or "initialize" function to initialize parameters (e.g. load string ID and resolve it to Creature type)
-- decide how to handle inheritance in Lua API. For example a lot of classes would need methods like getAllBonuses
-- consider changing list of exported methods to std::array in header. Or even add some registerMethods() and have this as implementation detail (and also support inheritance?)
-- reconsider approach to mutable methods (like BattleHexArrayProxy). Either remove or provide better API bindings approach for such cases
-- consider removing excessive namespace from scripting API, have all API classes directly in scripting::api namespace
-- remove getSpellByKey from Mechanics
-- try to remove remaining hardcoded bits of SpellID's CLONE, TELEPORT, SACRIFICE, STONE_GAZE, SLAYER, AIR_SHIELD, POISON, RESURRECTION, FIRE_SHIELD, DEATH_STARE, as well as some entries in .lua
-- implement comparison operator of exposed API classes by auto-implementing `__eq` Lua field for all exported classes
-- consider wrapping Lua userdata into std::any for better type safety
-- check if there is a way to wrap Lua function into C++ wrapper and pass it into LuaFunctionWrapper, or even LuaMethodWrapper
-- decide how to handle MetaString in Lua API. Make it Lua serializeable?
-- add guards against loading values from .json with same name as methods in Lua spell effect script
-- `battleLogMessage` entries in timed spell effects without a leading `@` are currently ignored in Lua scripts; C++ resolved them as hierarchical text IDs (`spell.{scope}.{id}.{effectName}.battleLogMessage.{field}`). Support for this needs to be added to the Lua Timed effect and the scripting infrastructure.
-  - add suport for list of strings that effect wants to register?
+- Review API and decide how to handle following cases:
+  - reconsider approach to mutable methods (like BattleHexArrayProxy). Either remove or provide better API bindings approach for such cases. Or convert it to pure Lua class
+  - Actually use comparison operator of exposed API classes - currently hard to change without breaking tests
+  - consider wrapping Lua userdata into std::any for better type safety, or at least pass classes other than LuaCopyable as ApiShared / ApiPointer
+  - check if there is a way to wrap Lua function into C++ wrapper and pass it into LuaFunctionWrapper, or even LuaMethodWrapper
+  - add guards against loading values from .json with same name as methods in Lua spell effect script
+
+## Future improvements
+
+- Review UnitState class and check its mutable methods - do we need all of those? Should we name them differently?
+- Expand API of classes related to spell effects
+- Spell Effect: Add "preprocess" or "initialize" function to initialize parameters (e.g. load string ID and resolve it to Creature type). Would require some way to store references to Lua table in different LuaContext's in LuaSpellEffect class, for example - shared_ptr<LuaReference> in LuaContext, and weak_ptr<LuaReference> in LuaSpellEffect.
+- Review usage of numeric identifiers from script such as `PlayerColor` - replace them with enum or with copyable API class.
+- Remove final usage of unitID access by script - to set addinfo of bind bonus to unit that initiated binding. Perhaps unify this logic with Clone and treat it as some sort of "unit link" where two units are linked together unless *something* happens (unit dies / moves / unit bonus removed)
+- Decide on how to expose random generator to scripting. Currently only generation of integer in range is exposed, but we have way more options, including ability roll system. Expose as separate api class?
+- try to remove remaining hardcoded bits of SpellID's: CLONE, STONE_GAZE, SLAYER, AIR_SHIELD, POISON, RESURRECTION, FIRE_SHIELD, DEATH_STARE, as well as some entries in .lua
 
 ## General rules
 
@@ -59,6 +45,21 @@ Global state of a Lua script must never change - script should not make assumpti
 - Method names must be verbs: `getFoo`, `isFoo`, `setFoo`, `run`, `update`
 - Library classes, such as Creature must be passed as pointer like `const Creature *`, not as identifier like `CreatureID`
 - If you need to expose identifier, prefer exposing its string form, like one provided via `getJsonKey`
+
+## Documenting the public scripting API
+
+Every binding registered by a proxy carries a description string at the registration site (see the `R.method<...>("name", "description")` pattern in any of the `api/<category>/Xxx.cpp` files). Running
+
+```sh
+./vcmiserver --export-lua-docs <output-dir>
+```
+
+regenerates two reference files from those descriptions:
+
+- `API.md` — Markdown reference, one section per Lua type with a table of method / signature / description.
+- `api.lua` — [Lua Language Server](https://luals.github.io/wiki/definition-files/) stub: `---@meta` header, `---@class` per type, per-method `---@param`/`---@return` annotations. Drop into a luals `Lua.workspace.library` path to get autocomplete in modders' editors.
+
+Both files are emitted from the same `DocRegistrar` pass that the runtime metatable build also goes through, so they stay in lockstep with the host bindings — there is no separate source of truth to keep in sync.
 
 ## Script conventions
 

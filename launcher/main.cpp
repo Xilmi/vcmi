@@ -23,6 +23,9 @@
 # if __has_include("QIOSIntegrationPlugin.h")
 #  include "QIOSIntegrationPlugin.h"
 # endif
+# ifdef ENABLE_EDITOR
+#  include "../mapeditor/editorbridge.h"
+# endif
 int argcForClient;
 char ** argvForClient;
 #elif defined(VCMI_ANDROID)
@@ -139,6 +142,8 @@ void startEditor(const QStringList & args)
 #ifdef ENABLE_EDITOR
 # ifdef VCMI_ANDROID
 	QtAndroid::androidActivity().callMethod<void>("openMapEditor");
+# elif defined(VCMI_IOS)
+	openMapEditor();
 # else
 	startExecutable(pathToQString(VCMIDirs::get().mapEditorPath()), args);
 # endif

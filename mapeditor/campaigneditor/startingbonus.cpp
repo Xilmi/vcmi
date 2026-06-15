@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../helper.h"
 #include "startingbonus.h"
 #include "ui_startingbonus.h"
 
@@ -30,7 +31,7 @@ StartingBonus::StartingBonus(PlayerColor color, std::shared_ptr<CMap> map, Campa
 	color(color)
 {
 	ui->setupUi(this);
-
+	Helper::decorateDialog(this);
 	setWindowTitle(tr("Edit Starting Bonus"));
 	
 	setWindowModality(Qt::ApplicationModal);

@@ -95,18 +95,23 @@ TEST_P(TimedApplyTest, ChangesBonuses)
 		bonus.sid = BonusSourceID(testSpellId);
 	}
 
+	auto accumulate = [&actualBonus](uint32_t, const std::vector<Bonus> & b)
+	{
+		actualBonus.insert(actualBonus.end(), b.begin(), b.end());
+	};
+
 	if(cumulative)
 	{
-		EXPECT_CALL(*battleFake, addUnitBonus(Eq(unitId), _)).WillOnce(SaveArg<1>(&actualBonus));
+		EXPECT_CALL(*battleFake, addUnitBonus(Eq(unitId), _)).Times(2).WillRepeatedly(Invoke(accumulate));
 	}
 	else
 	{
-		EXPECT_CALL(*battleFake, updateUnitBonus(Eq(unitId), _)).WillOnce(SaveArg<1>(&actualBonus));
+		EXPECT_CALL(*battleFake, updateUnitBonus(Eq(unitId), _)).Times(2).WillRepeatedly(Invoke(accumulate));
 	}
 
 	setDefaultExpectations();
 
-	EXPECT_CALL(serverMock, apply(Matcher<SetStackEffect &>(_))).Times(1);
+	EXPECT_CALL(serverMock, apply(Matcher<SetStackEffect &>(_))).Times(2);
 
 	subject->apply(&serverMock, &mechanicsMock, target);
 

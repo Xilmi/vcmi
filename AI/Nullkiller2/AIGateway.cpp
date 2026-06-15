@@ -630,9 +630,8 @@ void AIGateway::showBlockingDialog(const std::string & text, const std::vector<C
 	{
 		int sel = 0;
 
-		if(selection) //select from multiple components -> take the last one (they'bool executeTask(Goals::TTask task);re indexed [1-size])
+		if(selection) // select the last component; they are indexed in range [1, size]
 			sel = components.size();
-
 		{
 				std::unique_lock mxLock(nullkiller->aiStateMutex);
 

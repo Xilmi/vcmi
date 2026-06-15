@@ -49,7 +49,8 @@ private slots:
 	void on_actionSave_triggered();
 	void on_actionCampaignProperties_triggered();
 	void on_actionScenarioProperties_triggered();
-	
+    void on_actionExit_triggered();
+
 private:
 	bool getAnswerAboutUnsavedChanges();
 	void setTitle();

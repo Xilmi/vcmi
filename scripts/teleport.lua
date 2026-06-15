@@ -55,7 +55,7 @@ end
 function Script:apply(mechanics, server, target)
 	local unit    = target[1].unit
 	local destHex = target[2].hex
-	server:moveUnit(mechanics:getBattleID(), unit, destHex, true)
+	server:moveUnit(mechanics:getBattle(), unit, destHex, true)
 end
 
 return Script

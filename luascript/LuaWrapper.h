@@ -11,6 +11,7 @@
 #pragma once
 
 #include "LuaCallWrapper.h"
+#include "api/LuaRegistrar.h"
 
 /*
  * Original code is LunaWrapper by nornagon.
@@ -27,13 +28,6 @@ namespace scripting
 
 namespace detail
 {
-	struct CustomRegType
-	{
-		const char * name;
-		lua_CFunction functor;
-		bool isStatic;
-	};
-
 	template <typename P, typename U>
 	struct Dispatcher
 	{
@@ -46,15 +40,9 @@ namespace detail
 
 			lua_newtable(L);
 
-			for(auto & reg : ProxyType::REGISTER_CUSTOM)
-			{
-				if(!reg.isStatic)
-				{
-					lua_pushstring(L, reg.name);
-					lua_pushcclosure(L, reg.functor, 0);
-					lua_rawset(L, -3);
-				}
-			}
+			api::LuaRegistrar reg(L, lua_gettop(L));
+			ProxyType::registerMethods(reg);
+
 			lua_rawset(L, -3);
 		}
 
@@ -115,13 +103,21 @@ public:
 	using UDataType = ObjectType *;
 	using CUDataType = const ObjectType *;
 
-	using CustomRegType = detail::CustomRegType;
-
 	static_assert(std::is_base_of_v<TagRawPointer, ObjectType>, "Class must inherit from ApiRawPointer to be used with this class!");
 	static_assert(!std::is_base_of_v<TagSharedPointer, ObjectType>, "Class must not inherit from ApiSharedPointer to be used with this class!");
 	static_assert(!std::is_base_of_v<TagCopyable, ObjectType>, "Class must not inherit from ApiCopyable to be used with this class!");
 
-	void pushMetatable(lua_State * L) const override final
+	void collectDocs(api::MethodRegistrar & sink) const final
+	{
+		Proxy::registerMethods(sink);
+	}
+
+	std::string_view getDescription() const final
+	{
+		return Proxy::luaDescription;
+	}
+
+	void pushMetatable(lua_State * L) const final
 	{
 		static const auto KEY = api::Registry::get()->getTypeName<UDataType>();
 		static auto S_KEY = api::Registry::get()->getTypeName<CUDataType>();
@@ -144,9 +140,33 @@ public:
 	}
 
 protected:
-	void adjustMetatable(lua_State * L) const override
+	void adjustMetatable(lua_State * L) const final
 	{
 		detail::Dispatcher<Proxy, UDataType>::setIndexTable(L);
+
+		lua_pushstring(L, "__eq");
+		lua_pushcfunction(L, &equalityImpl);
+		lua_rawset(L, -3);
+	}
+
+private:
+	static int equalityImpl(lua_State * L)
+	{
+		void * lhsRaw = lua_touserdata(L, 1);
+		void * rhsRaw = lua_touserdata(L, 2);
+
+		if(!lhsRaw || !rhsRaw)
+		{
+			lua_pushboolean(L, 0);
+			return 1;
+		}
+
+		// Userdata block holds a T* (or const T*) by value; read both as void* to compare addresses.
+		void * lhsPtr = *static_cast<void **>(lhsRaw);
+		void * rhsPtr = *static_cast<void **>(rhsRaw);
+
+		lua_pushboolean(L, lhsPtr == rhsPtr ? 1 : 0);
+		return 1;
 	}
 };
 
@@ -157,11 +177,19 @@ class SharedPointerWrapper : public RegistarBase
 public:
 	using ObjectType = typename std::remove_cv_t<T>;
 	using UDataType = std::shared_ptr<T>;
-	using CustomRegType = detail::CustomRegType;
-
 	static_assert(std::is_base_of_v<TagSharedPointer, ObjectType>, "Class must inherit from ApiSharedPointer to be used with this class!");
 	static_assert(!std::is_base_of_v<TagRawPointer, ObjectType>, "Class must not inherit from ApiRawPointer to be used with this class!");
 	static_assert(!std::is_base_of_v<TagCopyable, ObjectType>, "Class must not inherit from ApiCopyable to be used with this class!");
+
+	void collectDocs(api::MethodRegistrar & sink) const final
+	{
+		Proxy::registerMethods(sink);
+	}
+
+	std::string_view getDescription() const final
+	{
+		return Proxy::luaDescription;
+	}
 
 	static int constructor(lua_State * L)
 	{
@@ -172,7 +200,7 @@ public:
 		return 1;
 	}
 
-	void pushMetatable(lua_State * L) const override final
+	void pushMetatable(lua_State * L) const final
 	{
 		static const auto KEY = api::Registry::get()->getTypeName<UDataType>();
 
@@ -194,9 +222,32 @@ public:
 		adjustStaticTable(L);
 	}
 protected:
-	void adjustMetatable(lua_State * L) const override
+	void adjustMetatable(lua_State * L) const final
 	{
 		detail::Dispatcher<Proxy, UDataType>::setIndexTable(L);
+
+		lua_pushstring(L, "__eq");
+		lua_pushcfunction(L, &equalityImpl);
+		lua_rawset(L, -3);
+	}
+
+private:
+	static int equalityImpl(lua_State * L)
+	{
+		void * lhsRaw = lua_touserdata(L, 1);
+		void * rhsRaw = lua_touserdata(L, 2);
+
+		if(!lhsRaw || !rhsRaw)
+		{
+			lua_pushboolean(L, 0);
+			return 1;
+		}
+
+		auto * lhs = static_cast<UDataType *>(lhsRaw);
+		auto * rhs = static_cast<UDataType *>(rhsRaw);
+
+		lua_pushboolean(L, lhs->get() == rhs->get() ? 1 : 0);
+		return 1;
 	}
 };
 
@@ -207,11 +258,19 @@ class CopyableWrapper : public RegistarBase
 public:
 	using ObjectType = typename std::remove_cv_t<T>;
 	using UDataType = T;
-	using CustomRegType = detail::CustomRegType;
-
 	static_assert(std::is_base_of_v<TagCopyable, ObjectType>, "Class must inherit from ApiCopyable to be used with this class!");
 	static_assert(!std::is_base_of_v<TagRawPointer, ObjectType>, "Class must not inherit from ApiRawPointer to be used with this class!");
 	static_assert(!std::is_base_of_v<TagSharedPointer, ObjectType>, "Class must not inherit from ApiSharedPointer to be used with this class!");
+
+	void collectDocs(api::MethodRegistrar & sink) const final
+	{
+		Proxy::registerMethods(sink);
+	}
+
+	std::string_view getDescription() const final
+	{
+		return Proxy::luaDescription;
+	}
 
 	static int constructor(lua_State * L)
 	{
@@ -222,7 +281,7 @@ public:
 		return 1;
 	}
 
-	void pushMetatable(lua_State * L) const override final
+	void pushMetatable(lua_State * L) const final
 	{
 		static const auto KEY = api::Registry::get()->getTypeName<UDataType>();
 
@@ -244,9 +303,35 @@ public:
 		adjustStaticTable(L);
 	}
 protected:
-	void adjustMetatable(lua_State * L) const override
+	void adjustMetatable(lua_State * L) const final
 	{
 		detail::Dispatcher<Proxy, UDataType>::setIndexTable(L);
+
+		if constexpr(std::equality_comparable<UDataType>)
+		{
+			lua_pushstring(L, "__eq");
+			lua_pushcfunction(L, &equalityImpl);
+			lua_rawset(L, -3);
+		}
+	}
+
+private:
+	static int equalityImpl(lua_State * L) requires std::equality_comparable<UDataType>
+	{
+		void * lhsRaw = lua_touserdata(L, 1);
+		void * rhsRaw = lua_touserdata(L, 2);
+
+		if(!lhsRaw || !rhsRaw)
+		{
+			lua_pushboolean(L, 0);
+			return 1;
+		}
+
+		auto * lhs = static_cast<UDataType *>(lhsRaw);
+		auto * rhs = static_cast<UDataType *>(rhsRaw);
+
+		lua_pushboolean(L, *lhs == *rhs ? 1 : 0);
+		return 1;
 	}
 };
 

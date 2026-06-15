@@ -25,19 +25,6 @@ function Script:convertBonuses(mechanics)
 		nb.sourceType = "SPELL_EFFECT"
 		nb.sourceID = spellKey
 
-		-- Shield/AirShield: val in config is the reduction percentage; stored inverted
-		if (spellKey == "core:shield" or spellKey == "core:airShield")
-			and nb.type == "GENERAL_DAMAGE_REDUCTION" then
-			nb.val = 100 - (nb.val or 0)
-		end
-
-		-- Bind: store caster unit ID when cast by a unit (not a hero)
-		if spellKey == "core:bind" and nb.type == "BIND_EFFECT" then
-			if not mechanics:getHeroCaster() then
-				nb.addInfo = mechanics:getUnitCaster():unitId()
-			end
-		end
-
 		converted[name] = nb
 	end
 
@@ -92,7 +79,7 @@ function Script:applyHeroSpecialty(mechanics, buffer, unit)
 	end
 end
 
-function Script:describeEffect(server, battleID, unit, bonuses, singular, plural)
+function Script:describeEffect(server, battle, unit, bonuses)
 	-- Age spell: STACK_HEALTH bonus with negative val gets a custom message
 	for _, nb in pairs(bonuses) do
 		if nb.type == "STACK_HEALTH" and (nb.val or 0) < 0 then
@@ -107,36 +94,29 @@ function Script:describeEffect(server, battleID, unit, bonuses, singular, plural
 			local ageTextID = unit:getCount() == 1
 				and "core.genrltxt.551"
 				or  "core.genrltxt.552"
-			server:appendLog(battleID, {
-				append  = { ageTextID },
-				replace = { unit:getCreature():getNameTextID(unit:getCount()), lost }
+			server:appendLog(battle, {
+				append         = { ageTextID },
+				replaceStrings = { unit:getCreature():getNameTextID(unit:getCount()) },
+				replaceNumbers = { lost }
 			})
 			return
 		end
 	end
 
-	if not plural or plural == "" then return end
+	if not self.battleLogPlural or self.battleLogPlural == "" then return end
 
-	local textID = (singular and singular ~= "" and unit:getCount() == 1) and singular or plural
+	local textID = (self.battleLogSingular and self.battleLogSingular ~= "" and unit:getCount() == 1) and self.battleLogSingular or self.battleLogPlural
 	local nameTextID = unit:getCreature():getNameTextID(unit:getCount())
-	server:appendLog(battleID, {
-		append  = { textID },
-		replace = { nameTextID }
+	server:appendLog(battle, {
+		append         = { textID },
+		replaceStrings = { nameTextID }
 	})
 end
 
 function Script:apply(mechanics, server, target)
-	local battleID = mechanics:getBattleID()
+	local battle   = mechanics:getBattle()
 	local describe = server:describeChanges()
 	local converted = self:convertBonuses(mechanics)
-
-	local singular, plural
-	if self.battleLogMessage then
-		local s = self.battleLogMessage.singular
-		local p = self.battleLogMessage.plural
-		singular = (s and #s > 1 and s:sub(1, 1) == "@") and s:sub(2) or nil
-		plural   = (p and #p > 1 and p:sub(1, 1) == "@") and p:sub(2) or nil
-	end
 
 	for _, dest in ipairs(target) do
 		local unit = dest.unit
@@ -150,10 +130,12 @@ function Script:apply(mechanics, server, target)
 		self:applyHeroSpecialty(mechanics, buffer, unit)
 
 		if describe then
-			self:describeEffect(server, battleID, unit, buffer, singular, plural)
+			self:describeEffect(server, battle, unit, buffer)
 		end
 
-		server:applyUnitBonuses(battleID, unit, buffer, self.cumulative or false)
+		for _, nb in pairs(buffer) do
+			server:addUnitBonus(battle, unit, nb, self.cumulative or false)
+		end
 
 		::continue::
 	end

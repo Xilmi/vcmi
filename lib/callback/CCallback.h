@@ -13,8 +13,7 @@
 #include "CBattleCallback.h"
 #include "IGameActionCallback.h"
 
-// in static AI build this file gets included into libvcmi
-#ifdef STATIC_AI
+#ifdef VCMI_LIB_NAMESPACE
 VCMI_LIB_USING_NAMESPACE
 #endif
 

@@ -71,10 +71,6 @@ public:
 	static MetaString createFromTextID(const std::string & value);
 	/// Creates MetaString and appends provided name string to it
 	static MetaString createFromName(const GameResID& id);
-	/// Creates MetaString from a Lua-style config table.
-	/// In "append"/"replace" arrays: string entries are treated as text IDs,
-	/// number entries call appendNumber/replaceNumber respectively.
-	static MetaString createFromLua(const JsonNode & config);
 
 	/// Appends local string to resulting string
 	void appendLocalString(EMetaText type, ui32 serial);

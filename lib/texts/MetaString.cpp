@@ -48,22 +48,6 @@ MetaString MetaString::createFromName(const GameResID& id)
 	return result;
 }
 
-MetaString MetaString::createFromLua(const JsonNode & config)
-{
-	MetaString result;
-	for (const auto & entry : config["append"].Vector())
-		result.appendTextID(entry.String());
-
-	for (const auto & entry : config["replace"].Vector())
-	{
-		if (entry.isString())
-			result.replaceTextID(entry.String());
-		else if (entry.isNumber())
-			result.replaceNumber(entry.Integer());
-	}
-	return result;
-}
-
 void MetaString::appendLocalString(EMetaText type, ui32 serial)
 {
 	message.push_back(EMessage::APPEND_LOCAL_STRING);

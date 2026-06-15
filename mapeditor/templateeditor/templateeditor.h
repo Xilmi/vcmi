@@ -46,6 +46,7 @@ private slots:
 	void on_actionZoom_reset_triggered();
 	void on_actionAddZone_triggered();
 	void on_actionRemoveZone_triggered();
+	void on_actionExit_triggered();
 	void on_comboBoxTemplateSelection_activated(int index);
 	void on_pushButtonAddSubTemplate_clicked();
 	void on_pushButtonRemoveSubTemplate_clicked();

@@ -25,6 +25,7 @@
 #include "../vcmiqt/launcherdirs.h"
 #include "../vcmiqt/jsonutils.h"
 #include "windownewmap.h"
+#include "helper.h"
 #include "ui_windownewmap.h"
 #include "mainwindow.h"
 #include "generatorprogress.h"
@@ -35,7 +36,7 @@ WindowNewMap::WindowNewMap(QWidget *parent) :
 {
 	ui->setupUi(this);
 
-	setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
+	Helper::decorateDialog(this);
 
 	setAttribute(Qt::WA_DeleteOnClose);
 

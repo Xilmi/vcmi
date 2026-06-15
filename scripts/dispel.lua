@@ -7,7 +7,7 @@ function Script:getDispelableBonuses(mechanics, unit)
 	return unit:getBonuses(function(bonus)
 		if bonus:getSource() ~= ENUM.BonusSource.spellEffect then return false end
 		if bonus:getSourceID() == currentSpellKey then return false end
-		local sourceSpell = mechanics:getSpellByKey(bonus:getSourceID())
+		local sourceSpell = LIBRARY:getSpellByName(bonus:getSourceID())
 		if not sourceSpell then return false end
 		if sourceSpell:isPersistent() then return false end
 		if sourceSpell:isAdventure()  then return false end
@@ -24,7 +24,7 @@ function Script:isValidTarget(mechanics, unit)
 end
 
 function Script:apply(mechanics, server, target)
-	local battleID    = mechanics:getBattleID()
+	local battle       = mechanics:getBattle()
 	local positiveOnly = self.dispelPositive and not self.dispelNegative and not self.dispelNeutral
 
 	for _, dest in ipairs(target) do
@@ -33,12 +33,12 @@ function Script:apply(mechanics, server, target)
 			local bonuses = self:getDispelableBonuses(mechanics, unit)
 			if bonuses:size() > 0 then
 				if positiveOnly and server:describeChanges() then
-					server:appendLog(battleID, {
-						append  = { "core.genrltxt.555" },
-						replace = { unit:getCreature():getNamePluralTextID() }
+					server:appendLog(battle, {
+						append         = { "core.genrltxt.555" },
+						replaceStrings = { unit:getCreature():getNameTextID(0) }
 					})
 				end
-				server:removeUnitBonuses(battleID, unit, bonuses)
+				server:removeUnitBonuses(battle, unit, bonuses)
 			end
 		end
 	end

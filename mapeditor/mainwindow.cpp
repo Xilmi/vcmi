@@ -1886,3 +1886,8 @@ void EditorMainWindow::on_toolSelect_toggled(bool checked)
 		ui->tabWidget->setCurrentIndex(0);
 	}
 }
+
+void EditorMainWindow::on_actionExit_triggered()
+{
+	close();
+}

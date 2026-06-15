@@ -313,15 +313,15 @@ void CModHandler::load()
 
 	content->loadCustom();
 
-	for(const TModID & modName : activeMods)
-		loadTranslation(modName);
-
 	logMod->info("\tLoading mod data");
 	LIBRARY->creh->loadCrExpMod();
 	LIBRARY->identifiersHandler->finalize();
 	logMod->info("\tResolving identifiers");
 
 	content->afterLoadFinalization();
+	for(const TModID & modName : activeMods)
+		loadTranslation(modName);
+
 	logMod->info("\tHandlers post-load finalization");
 	logMod->info("\tAll game content loaded");
 }

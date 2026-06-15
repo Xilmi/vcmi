@@ -12,6 +12,8 @@
 
 #include <vcmi/Environment.h>
 
+#include <boost/filesystem/path.hpp>
+
 VCMI_LIB_NAMESPACE_BEGIN
 
 namespace spells::effects
@@ -37,7 +39,6 @@ public:
 	virtual ~Script() = default;
 
 	virtual std::string getIdentifier() const = 0;
-	virtual const std::string & getSource() const = 0;
 };
 
 class DLL_LINKAGE Pool
@@ -57,6 +58,10 @@ public:
 
 	virtual std::unique_ptr<Pool> createPoolInstance(const Environment * ENV) const = 0;
 
+	/// Writes Markdown and Lua Language Server reference files describing every exposed API type
+	/// into the given output directory. Used by `vcmiserver --export-lua-docs <path>` to keep
+	/// the modder-facing scripting reference in sync with the host bindings.
+	virtual void exportDocs(const boost::filesystem::path & outDir) const = 0;
 };
 
 }

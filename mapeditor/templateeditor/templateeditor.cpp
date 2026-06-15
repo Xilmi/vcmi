@@ -1301,3 +1301,8 @@ void TemplateEditor::on_pushButtonEntitiesBannedHeroes_clicked()
 	EntityIds entitiesVariant = std::ref(templates[selectedTemplate]->bannedHeroes);
 	EntitiesSelector::showEntitiesSelector(entitiesVariant);
 }
+
+void TemplateEditor::on_actionExit_triggered()
+{
+	close();
+}

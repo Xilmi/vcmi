@@ -185,6 +185,13 @@ public:
 		return result;
 	}
 
+	[[nodiscard]] BattleHex copyToNorthWest() const { return cloneInDirection(TOP_LEFT,     false); }
+	[[nodiscard]] BattleHex copyToNorthEast() const { return cloneInDirection(TOP_RIGHT,    false); }
+	[[nodiscard]] BattleHex copyToEast()      const { return cloneInDirection(RIGHT,        false); }
+	[[nodiscard]] BattleHex copyToSouthEast() const { return cloneInDirection(BOTTOM_RIGHT, false); }
+	[[nodiscard]] BattleHex copyToSouthWest() const { return cloneInDirection(BOTTOM_LEFT,  false); }
+	[[nodiscard]] BattleHex copyToWest()      const { return cloneInDirection(LEFT,         false); }
+
 	[[nodiscard]] static uint8_t getDistance(const BattleHex & hex1, const BattleHex & hex2) noexcept
 	{
 		int y1 = hex1.getY();

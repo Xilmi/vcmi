@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../helper.h"
 #include "townbuildingswidget.h"
 #include "ui_townbuildingswidget.h"
 #include "mapeditorroles.h"
@@ -127,6 +128,7 @@ TownBuildingsWidget::TownBuildingsWidget(CGTownInstance & t, QWidget *parent) :
 	ui(new Ui::TownBuildingsWidget)
 {
 	ui->setupUi(this);
+	Helper::decorateDialog(this);
 	ui->treeView->setModel(&model);
 	//ui->treeView->setColumnCount(3);
 	model.setHorizontalHeaderLabels(QStringList() << tr("Type") << tr("Enabled") << tr("Built"));

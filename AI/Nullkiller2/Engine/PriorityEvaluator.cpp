@@ -822,7 +822,14 @@ public:
 		if(evaluationContext.evaluator.aiNk->cc->getTile(task->tile)->roadType != RoadId::NO_ROAD)
 			evaluationContext.explorePriority = 1;
 		if(evaluationContext.explorePriority == 0)
-			evaluationContext.explorePriority = 3;
+		{
+			if(tilesDiscovered >= 20)
+				evaluationContext.explorePriority = 1;
+			else if(tilesDiscovered >= 10)
+				evaluationContext.explorePriority = 2;
+			else
+				evaluationContext.explorePriority = 3;
+		}
 	}
 };
 

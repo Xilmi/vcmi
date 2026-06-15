@@ -34,6 +34,7 @@
 #include "../../lib/networkPacks/StackLocation.h"
 #include "../../lib/pathfinder/TurnInfo.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
+#include "../TurnStartVisitScheduler.h"
 
 #include <vstd/RNG.h>
 
@@ -149,15 +150,20 @@ void NewTurnProcessor::onPlayerTurnStarted(PlayerColor which)
 	for (const auto * t : playerState->getTowns())
 		handleTownEvents(t);
 
+	std::deque<PendingTurnStartVisit> visits;
+
 	for (const auto * t : playerState->getTowns())
 	{
 		//garrison hero first - consistent with original H3 Mana Vortex and Battle Scholar Academy levelup windows order
-		if (t->getGarrisonHero() != nullptr)
-			gameHandler->objectVisited(t, t->getGarrisonHero());
+		if(t->getGarrisonHero() != nullptr)
+			visits.push_back({which, t->id, t->getGarrisonHero()->id});
 
-		if (t->getVisitingHero() != nullptr)
-			gameHandler->objectVisited(t, t->getVisitingHero());
+		if(t->getVisitingHero() != nullptr)
+			visits.push_back({which, t->id, t->getVisitingHero()->id});
 	}
+
+	gameHandler->turnStartVisitScheduler->enqueue(which, std::move(visits));
+	gameHandler->turnStartVisitScheduler->processNext(which);
 }
 
 void NewTurnProcessor::onPlayerTurnEnded(PlayerColor which)

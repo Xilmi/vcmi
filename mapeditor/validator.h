@@ -15,6 +15,7 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 class CMap;
+class CGObjectInstance;
 VCMI_LIB_NAMESPACE_END
 
 VCMI_LIB_USING_NAMESPACE
@@ -51,6 +52,14 @@ private:
 
 	QRect screenGeometry;
 
+	template<typename IdentifierType>
+	static bool presetIsValid(
+        const CMap * map,
+		std::shared_ptr<CGObjectInstance> object,
+		const std::string & category,
+		const std::string & name,
+		const std::set<IdentifierType> & allowedEntities
+	);
 	void showValidationResults(const CMap * map);
 	void adjustWindowSize();
 };

@@ -11,7 +11,7 @@
 
 #include "Effect.h"
 
-#include "../../serializer/JsonSerializeFormat.h"
+#include "../../json/JsonNode.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -30,11 +30,11 @@ bool Effect::applicableTarget(Problem & problem, const Mechanics * m, const Targ
 	return true;
 }
 
-void Effect::serializeJson(JsonSerializeFormat & handler)
+void Effect::init(JsonNode data)
 {
-	handler.serializeBool("indirect", indirect, false);
-	handler.serializeBool("optional", optional, false);
-	serializeJsonEffect(handler);
+	indirect = data["indirect"].Bool();
+	optional = data["optional"].Bool();
+	initImpl(std::move(data));
 }
 
 }

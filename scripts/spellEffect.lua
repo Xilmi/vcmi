@@ -2,13 +2,6 @@ local Script = {}
 Script.__index = Script
 Script.type = "spellEffect"
 
--- TODO
--- initializes parameters of the script using spell effect json
--- returns converted parameters that contain resolved identifiers
-function Script:initialize()
-	return self
-end
-
 --- Returns true if specified target can be affected by the spell
 --- if target can not be affected, script needs to call `problem:add`
 --- to explain the reason to the player

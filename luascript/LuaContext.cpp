@@ -10,6 +10,7 @@
 #include "StdInc.h"
 #include "LuaContext.h"
 
+#include "LuaScriptInstance.h"
 #include "LuaStack.h"
 #include "LuaReference.h"
 
@@ -23,6 +24,14 @@
 #include <vstd/StringUtils.h>
 #include <vcmi/ServerCallback.h>
 #include <vcmi/Services.h>
+
+// LuaJIT and Lua 5.1 expose globals via LUA_GLOBALSINDEX and chunk environments via setfenv.
+// Lua 5.2+ replaces both with the _ENV upvalue and a registry slot LUA_RIDX_GLOBALS.
+#if LUA_VERSION_NUM == 501
+#	define VCMI_LUA_PUSH_GLOBALS(L) lua_pushvalue((L), LUA_GLOBALSINDEX)
+#else
+#	define VCMI_LUA_PUSH_GLOBALS(L) lua_rawgeti((L), LUA_REGISTRYINDEX, LUA_RIDX_GLOBALS)
+#endif
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -87,7 +96,7 @@ int LuaContext::luaPrint(lua_State *L) {
 	return 0;
 }
 
-LuaContext::LuaContext(const Script * source, const Environment * env_):
+LuaContext::LuaContext(const LuaScriptInstance * source, const Environment * env_):
 	L(luaL_newstate()),
 	script(source),
 	env(env_)
@@ -138,7 +147,6 @@ LuaContext::LuaContext(const Script * source, const Environment * env_):
 LuaContext::~LuaContext()
 {
 	modules.reset();
-	scriptClosure.reset();
 	scriptTable.reset();
 	lua_close(L);
 }
@@ -208,36 +216,72 @@ bool LuaContext::hasFunction(const std::string & name)
 void LuaContext::initialize()
 {
 	std::lock_guard guard(mutex);
-	int ret = luaL_loadbuffer(L, script->getSource().c_str(), script->getSource().size(), script->getIdentifier().c_str());
 
-	if(ret)
+	std::shared_ptr<LuaReference> head;
+
+	for(const auto & layer : script->layers)
 	{
-		logScript->error("Script '%s' failed to compile: %s", script->getIdentifier(), toStringRaw(-1));
-		lua_settop(L, 0);
-		return;
+		const bool isBase = (&layer == &script->layers.front());
+
+		if(!loadLayerChunk(layer.sourceText, layer.identifier))
+		{
+			logMod->error("Script layer '%s' failed to compile: %s", layer.identifier, toStringRaw(-1));
+			lua_settop(L, 0);
+			if(isBase) break; else continue;
+		}
+
+		// For patch layers, inject `Base` into the chunk's environment so the patch can refer to it
+		// without an explicit require. The base layer keeps the default global env.
+		if(head)
+			installChunkEnvWithBase(*head);
+
+		if(lua_pcall(L, 0, 1, 0))
+		{
+			logMod->error("Script layer '%s' failed to run: %s", layer.identifier, toStringRaw(-1));
+			lua_settop(L, 0);
+			if(isBase) break; else continue;
+		}
+
+		if(!lua_istable(L, -1))
+		{
+			logMod->error("Script layer '%s' did not return a table", layer.identifier);
+			lua_settop(L, 0);
+			if(isBase) break; else continue;
+		}
+
+		// LuaReference ctor pops the table off the stack into the registry.
+		head = std::make_shared<LuaReference>(L);
 	}
 
-	scriptClosure = std::make_shared<LuaReference>(L);
-	lua_settop(L, 0);
-	scriptClosure->push();
+	if(head)
+		scriptTable = head;
+}
 
-	ret = lua_pcall(L, 0, 1, 0);
+bool LuaContext::loadLayerChunk(const std::string & sourceText, const std::string & identifier)
+{
+	return luaL_loadbuffer(L, sourceText.c_str(), sourceText.size(), identifier.c_str()) == 0;
+}
 
-	if(ret)
-	{
-		logScript->error("Script '%s' failed to run: %s", script->getIdentifier(), toStringRaw(-1));
-		lua_settop(L, 0);
-		return;
-	}
+void LuaContext::installChunkEnvWithBase(LuaReference & base)
+{
+	// Stack on entry: ..., chunk
+	lua_newtable(L);                                  // ..., chunk, env
+	base.push();                                      // ..., chunk, env, base
+	lua_setfield(L, -2, "Base");                      // ..., chunk, env
 
-	if(!lua_istable(L, -1))
-	{
-		logScript->error("Script '%s' did not return a table", script->getIdentifier());
-		lua_settop(L, 0);
-		return;
-	}
+	lua_newtable(L);                                  // ..., chunk, env, mt
+	VCMI_LUA_PUSH_GLOBALS(L);                         // ..., chunk, env, mt, _G
+	lua_setfield(L, -2, "__index");                   // ..., chunk, env, mt
+	lua_setmetatable(L, -2);                          // ..., chunk, env (with mt)
 
-	scriptTable = std::make_shared<LuaReference>(L);
+#if LUA_VERSION_NUM == 501
+	// setfenv(chunk, env); chunk is at -2, env at -1. Always succeeds for Lua functions; pops env.
+	lua_setfenv(L, -2);
+#else
+	// 5.2+: replace the first upvalue (_ENV) of the chunk; chunks from luaL_loadbuffer always have it.
+	lua_setupvalue(L, -2, 1);
+#endif
+	// Stack: ..., chunk
 }
 
 int LuaContext::errorRetVoid(const std::string & message)

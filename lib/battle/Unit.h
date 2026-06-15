@@ -178,7 +178,7 @@ public:
 	virtual HealInfo heal(int64_t & amount, EHealLevel level, EHealPower power) = 0;
 };
 
-class DLL_LINKAGE UnitInfo
+class DLL_LINKAGE UnitInfo final : public scripting::ApiSerializable<UnitInfo>
 {
 public:
     uint32_t id = 0;
@@ -192,6 +192,16 @@ public:
 
 	void save(JsonNode & data);
 	void load(uint32_t id_, const JsonNode & data);
+
+	template<typename Serializer>
+	void serializeScript(Serializer & s)
+	{
+		s("count",    count,    "Number of creatures in the stack.");
+		s("type",     type,     "Creature type of this stack.");
+		s("side",     side,     "Battle side the stack belongs to (attacker or defender).");
+		s("position", position, "Position of the stack on the battlefield. For double-wide units this is their front hex");
+		s("summoned", summoned, "True if the stack was summoned mid-battle and was not part of the initial army.");
+	}
 };
 
 }

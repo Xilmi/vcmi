@@ -9,6 +9,7 @@
  */
 
 #include "StdInc.h"
+#include "../helper.h"
 
 #include "objectselector.h"
 #include "ui_objectselector.h"
@@ -29,7 +30,7 @@ ObjectSelector::ObjectSelector(ObjectConfig & obj) :
 	advObjects(getAdventureMapItems())
 {
 	ui->setupUi(this);
-
+	Helper::decorateDialog(this);
 	setWindowTitle(tr("Object Selector"));
 	
 	setWindowModality(Qt::ApplicationModal);

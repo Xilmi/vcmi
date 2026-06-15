@@ -134,7 +134,9 @@ private slots:
 
 	void on_actionh3c_converter_triggered();
 
-	void on_actionLock_triggered();
+    void on_actionExit_triggered();
+
+    void on_actionLock_triggered();
 
 	void on_actionUnlock_triggered();
 

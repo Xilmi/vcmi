@@ -11,6 +11,7 @@
 #include "StdInc.h"
 
 #include "entitiesselector.h"
+#include "../helper.h"
 #include "ui_entitiesselector.h"
 
 #include "../../lib/GameLibrary.h"
@@ -65,7 +66,7 @@ EntitiesSelector::EntitiesSelector(EntityIds & entities) :
 	entitiesSelected(entities)
 {
 	ui->setupUi(this);
-	setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
+	Helper::decorateDialog(this);
 
 	setWindowModality(Qt::ApplicationModal);
 

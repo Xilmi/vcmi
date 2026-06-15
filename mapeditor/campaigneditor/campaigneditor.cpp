@@ -477,3 +477,8 @@ std::unique_ptr<CMap> CampaignEditor::tryToOpenMap(QWidget* parent, std::shared_
 		return nullptr;
 	}
 }
+
+void CampaignEditor::on_actionExit_triggered()
+{
+	close();
+}

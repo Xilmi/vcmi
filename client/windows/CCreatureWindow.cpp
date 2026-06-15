@@ -878,8 +878,13 @@ void CStackWindow::submitSelection()
 {
 	if(!selectionSubmitted)
 	{
-		if(info->levelupInfo && !info->levelupInfo->skills.empty())
-			info->levelupInfo->callback(vstd::find_pos(info->levelupInfo->skills, selectedSkill));
+		if(info->levelupInfo)
+		{
+			if(info->levelupInfo->skills.empty())
+				info->levelupInfo->callback(0);
+			else
+				info->levelupInfo->callback(vstd::find_pos(info->levelupInfo->skills, selectedSkill));
+		}
 
 		selectionSubmitted = true;
 

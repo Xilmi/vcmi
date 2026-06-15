@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../helper.h"
 #include "scenarioproperties.h"
 #include "ui_scenarioproperties.h"
 #include "startingbonus.h"
@@ -34,6 +35,7 @@ ScenarioProperties::ScenarioProperties(std::shared_ptr<CampaignState> campaignSt
 	cb(cb)
 {
 	ui->setupUi(this);
+	Helper::decorateDialog(this);
 	setWindowTitle(tr("Scenario Properties"));
 	
 	setWindowModality(Qt::ApplicationModal);

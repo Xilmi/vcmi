@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../helper.h"
 #include "rewardswidget.h"
 #include "ui_rewardswidget.h"
 #include "../../lib/GameLibrary.h"
@@ -41,7 +42,7 @@ RewardsWidget::RewardsWidget(CMap & m, CRewardableObject & p, QWidget *parent) :
 	ui(new Ui::RewardsWidget)
 {
 	ui->setupUi(this);
-
+	Helper::decorateDialog(this);
 	//fill core elements
 	for(const auto & s : Rewardable::VisitModeString)
 		ui->visitMode->addItem(QString::fromUtf8(s.data(), s.size()));

@@ -10,16 +10,17 @@
 
 #pragma once
 
+#include <vcmi/Creature.h>
 #include <vcmi/spells/Magic.h>
 
 #include "../../constants/EntityIdentifiers.h"
+#include "../../json/JsonNode.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
 class BattleHex;
 class BattleHexArray;
 class CBattleInfoCallback;
-class JsonSerializeFormat;
 class ServerCallback;
 
 namespace vstd
@@ -43,13 +44,13 @@ struct SpellEffectValue : public scripting::ApiSerializable<SpellEffectValue>
 {
 	int64_t hpDelta = 0; // positive -> healed health points, negative -> damage
 	int64_t unitsDelta = 0; // positive -> resurrected / summoned (demons) / animated (undeads), negative -> kills
-	CreatureID unitType = CreatureID::NONE; // type of creatures summoned / resurrected / animated / etc.
+	const Creature * unitType = nullptr; // type of creatures summoned / resurrected / animated / etc.
 
 	SpellEffectValue & operator+=(const SpellEffectValue & rhs) noexcept
 	{
 		hpDelta += rhs.hpDelta;
 		unitsDelta += rhs.unitsDelta;
-		if(unitType == CreatureID::NONE)
+		if(unitType == nullptr)
 			unitType = rhs.unitType;
 
 		return *this;
@@ -58,9 +59,9 @@ struct SpellEffectValue : public scripting::ApiSerializable<SpellEffectValue>
 	template<typename Serializer>
 	void serializeScript(Serializer & s)
 	{
-		s("hpDelta", hpDelta);
-		s("unitsDelta", unitsDelta);
-		s("unitType", unitType);
+		s("hpDelta",    hpDelta,    "Signed change in unit health (negative for damage, positive for healing).");
+		s("unitsDelta", unitsDelta, "Signed change in stack count (creatures killed or resurrected).");
+		s("unitType",   unitType,   "Creature type associated with the effect, if any.");
 	}
 };
 
@@ -99,11 +100,12 @@ public:
 	// Returns total damage or heal amount that this spell will result in when cast on unit
 	virtual SpellEffectValue getHealthChange(const Mechanics * m, const Target & spellTarget) const { return {};}
 
-	/// Serializes (or deserializes) parameters of Effect
-	void serializeJson(JsonSerializeFormat & handler);
+	/// Initializes Effect from its (already preprocessed) JSON definition.
+	/// Reads common flags from the node and delegates the rest to initImpl.
+	void init(JsonNode data);
 
 protected:
-	virtual void serializeJsonEffect(JsonSerializeFormat & handler) = 0;
+	virtual void initImpl(JsonNode data) = 0;
 };
 
 }

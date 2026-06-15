@@ -51,6 +51,7 @@ class QueriesProcessor;
 class CObjectVisitQuery;
 class NewTurnProcessor;
 class IGameServer;
+class TurnStartVisitScheduler;
 
 class CGameHandler : public Environment, public IGameEventCallback
 {
@@ -60,6 +61,7 @@ public:
 	std::unique_ptr<HeroPoolProcessor> heroPool;
 	std::unique_ptr<BattleProcessor> battles;
 	std::unique_ptr<QueriesProcessor> queries;
+	std::unique_ptr<TurnStartVisitScheduler> turnStartVisitScheduler;
 	std::unique_ptr<TurnOrderProcessor> turnOrder;
 	std::unique_ptr<TurnTimerHandler> turnTimerHandler;
 	std::unique_ptr<NewTurnProcessor> newTurnProcessor;
@@ -113,6 +115,7 @@ public:
 	bool removeObject(const CGObjectInstance * obj, const PlayerColor & initiator) override;
 	void setOwner(const CGObjectInstance * obj, PlayerColor owner) override;
 	void giveExperience(const CGHeroInstance * hero, TExpType val) override;
+	void giveExperienceWithoutLevelUp(const CGHeroInstance * hero, TExpType val);
 	void giveStackExperience(const CArmedInstance * army, TExpType val);
 	void changePrimSkill(const CGHeroInstance * hero, PrimarySkill which, si64 val, ChangeValueMode mode) override;
 	void changeSecSkill(const CGHeroInstance * hero, SecondarySkill which, int val, ChangeValueMode mode) override;
