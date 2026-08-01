@@ -18,8 +18,6 @@
 #include "../lib/serializer/GameConnectionID.h"
 #include "../lib/serializer/PlayerConnectionID.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 struct SideInBattle;
 class IMarket;
 class SpellCastEnvironment;
@@ -37,8 +35,6 @@ struct NewTurn;
 struct CGarrisonOperationPack;
 struct SetResources;
 struct NewStructures;
-
-VCMI_LIB_NAMESPACE_END
 
 class HeroPoolProcessor;
 class CVCMIServer;
@@ -113,6 +109,7 @@ public:
 	void changeSpells(const CGHeroInstance * hero, bool give, const std::set<SpellID> &spells) override;
 	void setResearchedSpells(const CGTownInstance * town, int level, const std::vector<SpellID> & spells, bool accepted) override;
 	bool removeObject(const CGObjectInstance * obj, const PlayerColor & initiator) override;
+	void addQuest(const PlayerColor & player, const QuestInfo & quest) override;
 	void setOwner(const CGObjectInstance * obj, PlayerColor owner) override;
 	void giveExperience(const CGHeroInstance * hero, TExpType val) override;
 	void giveExperienceWithoutLevelUp(const CGHeroInstance * hero, TExpType val);
@@ -243,6 +240,7 @@ public:
 	void onAdvInterfaceReady(PlayerColor player);
 	void onNewTurn();
 	void addStatistics(StatisticDataSet &stat) const;
+	void sendQueryResolved(QueryID queryID);
 
 	bool complain(const std::string &problem); //sends message to all clients, prints on the logs and return true
 	void objectVisited( const CGObjectInstance * obj, const CGHeroInstance * h );
@@ -260,10 +258,7 @@ public:
 		h & *turnOrder;
 		h & *turnTimerHandler;
 
-		if (h.hasFeature(Handler::Version::SERVER_STATISTICS))
-		{
-			h & *statistics;
-		}
+		h & *statistics;
 	}
 
 	void sendAndApply(CPackForClient & pack) override;

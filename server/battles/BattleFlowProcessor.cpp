@@ -136,47 +136,10 @@ void BattleFlowProcessor::onBattleStarted(const CBattleInfoCallback & battle)
 {
 	tryPlaceMoats(battle);
 
-	tryLearnEnemySpellsPreBattle(battle, BattleSide::ATTACKER);
-	tryLearnEnemySpellsPreBattle(battle, BattleSide::DEFENDER);
-
 	gameHandler->turnTimerHandler->onBattleStart(battle.getBattle()->getBattleID());
 
 	if (battle.battleGetTacticDist() == 0)
 		onTacticsEnded(battle);
-}
-
-void BattleFlowProcessor::tryLearnEnemySpellsPreBattle(const CBattleInfoCallback & battle, BattleSide side)
-{
-	const auto * learner = battle.battleGetFightingHero(side);
-	const auto * enemy = battle.battleGetFightingHero(battle.otherSide(side));
-
-	if(!learner || !enemy || !learner->hasSpellbook())
-		return;
-
-	const auto eagleEyeLevel = learner->valOfBonuses(BonusType::LEARN_BATTLE_SPELL_LEVEL_LIMIT_PRE_BATTLE);
-	if(eagleEyeLevel <= 0)
-		return;
-
-	const auto eagleEyeChance = learner->valOfBonuses(BonusType::LEARN_BATTLE_SPELL_CHANCE_PRE_BATTLE);
-	if(eagleEyeChance <= 0)
-		return;
-
-	ChangeSpells learnedSpells;
-	learnedSpells.learn = true;
-	learnedSpells.hid = learner->id;
-
-	for(const auto spellID : enemy->getSpellsInSpellbook())
-	{
-		const auto * spell = spellID.toSpell();
-		if(!spell)
-			continue;
-
-		if(spell->getLevel() <= eagleEyeLevel && !learner->spellbookContainsSpell(spell->getId()) && gameHandler->getRandomGenerator().nextInt(99) < eagleEyeChance)
-			learnedSpells.spells.insert(spell->getId());
-	}
-
-	if(!learnedSpells.spells.empty())
-		gameHandler->sendAndApply(learnedSpells);
 }
 
 void BattleFlowProcessor::trySummonGuardians(const CBattleInfoCallback & battle, const CStack * stack)
@@ -258,7 +221,7 @@ void BattleFlowProcessor::castOpeningSpells(const CBattleInfoCallback & battle)
 			int32_t spellLevel = b->parameters ? b->parameters->toNumber() : 3;
 			parameters.setSpellLevel(spellLevel);
 			parameters.setEffectDuration(b->val);
-			parameters.massive = true;
+			parameters.forceMassive = true;
 			parameters.castIfPossible(gameHandler->spellcastEnvironment(), spells::Target());
 		}
 	}
@@ -662,7 +625,7 @@ bool BattleFlowProcessor::tryMakeAutomaticActionOfMeleeUnit(const CBattleInfoCal
 		if(!isReachable)
 			continue;
 
-		BattleHex closestTargetAdjacentHex = boost::min_element(attackableHexes, [&reachabilityCache](const BattleHex & lhs, const BattleHex & rhs)
+		BattleHex closestTargetAdjacentHex = std::ranges::min_element(attackableHexes, [&reachabilityCache](const BattleHex & lhs, const BattleHex & rhs)
 		{
 			return reachabilityCache.distances[lhs.toInt()] < reachabilityCache.distances[rhs.toInt()];
 		})[0];
@@ -926,7 +889,7 @@ void BattleFlowProcessor::removeObstacle(const CBattleInfoCallback & battle, con
 {
 	BattleObstaclesChanged obsRem;
 	obsRem.battleID = battle.getBattle()->getBattleID();
-	obsRem.changes.emplace_back(obstacle.uniqueID, ObstacleChanges::EOperation::REMOVE);
+	obsRem.change = ObstacleChanges(obstacle.uniqueID, ObstacleChanges::EOperation::REMOVE);
 	gameHandler->sendAndApply(obsRem);
 }
 
@@ -970,7 +933,7 @@ void BattleFlowProcessor::stackTurnTrigger(const CBattleInfoCallback & battle, c
 			}
 		}
 
-		if (st->hasBonusOfType(BonusType::POISON))
+		if (st->hasBonusOfType(BonusType::POISON) && !st->waiting)
 		{
 			std::shared_ptr<const Bonus> b = st->getFirstBonus(Selector::source(BonusSource::SPELL_EFFECT, BonusSourceID(SpellID(SpellID::POISON))).And(Selector::type()(BonusType::STACK_HEALTH)));
 			if (b) //TODO: what if not?...
@@ -1037,7 +1000,7 @@ void BattleFlowProcessor::stackTurnTrigger(const CBattleInfoCallback & battle, c
 				parameters.setSpellLevel(bonus->val);
 
 				//todo: recheck effect level
-				if(parameters.castIfPossible(gameHandler->spellcastEnvironment(), spells::Target(1, parameters.massive ? spells::Destination() : spells::Destination(st))))
+				if(parameters.castIfPossible(gameHandler->spellcastEnvironment(), spells::Target(1, parameters.forceMassive ? spells::Destination() : spells::Destination(st))))
 				{
 					cast = true;
 

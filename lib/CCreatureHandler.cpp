@@ -22,6 +22,7 @@
 #include "bonuses/Updaters.h"
 #include "bonuses/BonusParameters.h"
 #include "json/JsonBonus.h"
+#include "json/JsonUtils.h"
 #include "serializer/JsonDeserializer.h"
 #include "serializer/JsonUpdater.h"
 #include "texts/CGeneralTextHandler.h"
@@ -32,8 +33,6 @@
 #include "ExceptionsCommon.h"
 
 #include <vstd/RNG.h>
-
-VCMI_LIB_NAMESPACE_BEGIN
 
 const std::map<CCreature::CreatureQuantityId, std::string> CCreature::creatureQuantityRanges =
 {
@@ -448,6 +447,8 @@ void CCreatureHandler::loadCommanders()
 	data.setModScope(modSource);
 
 	const JsonNode & config = data; // switch to const data accessors
+	
+	commanderResurrectionPrice.resolveFromJson(config["resurrectionPrice"]);
 
 	for (auto bonus : config["bonusPerLevel"].Vector())
 	{
@@ -589,6 +590,11 @@ std::shared_ptr<CCreature> CCreatureHandler::loadFromJson(const std::string & sc
 	cre->serializeJson(handler);
 
 	cre->cost.resolveFromJson(node["cost"]);
+	if(!node["resurrectionPrice"].isNull())
+	{
+		cre->commanderResurrectionPrice.emplace();
+		cre->commanderResurrectionPrice->resolveFromJson(node["resurrectionPrice"]);
+	}
 
 	LIBRARY->generaltexth->registerString(scope, cre->getNameSingularTextID(), node["name"]["singular"]);
 	LIBRARY->generaltexth->registerString(scope, cre->getNamePluralTextID(), node["name"]["plural"]);
@@ -847,6 +853,21 @@ void CCreatureHandler::loadUnitAnimInfo(JsonNode & graphics, CLegacyConfigParser
 		graphics.Struct().erase("missile");
 }
 
+RayColor RayColor::fromJson(const JsonNode & node)
+{
+	RayColor color;
+	color.start.r = node["start"].Vector()[0].Integer();
+	color.start.g = node["start"].Vector()[1].Integer();
+	color.start.b = node["start"].Vector()[2].Integer();
+	color.start.a = node["start"].Vector()[3].Integer();
+
+	color.end.r = node["end"].Vector()[0].Integer();
+	color.end.g = node["end"].Vector()[1].Integer();
+	color.end.b = node["end"].Vector()[2].Integer();
+	color.end.a = node["end"].Vector()[3].Integer();
+	return color;
+}
+
 void CCreatureHandler::loadJsonAnimation(CCreature * cre, const JsonNode & graphics) const
 {
 	cre->animation.timeBetweenFidgets = graphics["timeBetweenFidgets"].Float();
@@ -906,21 +927,7 @@ void CCreatureHandler::loadCreatureJson(CCreature * creature, const JsonNode & c
 	creature->animation.projectileImageName = AnimationPath::fromJson(config["graphics"]["missile"]["projectile"]);
 
 	for(const JsonNode & value : config["graphics"]["missile"]["ray"].Vector())
-	{
-		CCreature::CreatureAnimation::RayColor color;
-
-		color.start.r = value["start"].Vector()[0].Integer();
-		color.start.g = value["start"].Vector()[1].Integer();
-		color.start.b = value["start"].Vector()[2].Integer();
-		color.start.a = value["start"].Vector()[3].Integer();
-
-		color.end.r = value["end"].Vector()[0].Integer();
-		color.end.g = value["end"].Vector()[1].Integer();
-		color.end.b = value["end"].Vector()[2].Integer();
-		color.end.a = value["end"].Vector()[3].Integer();
-
-		creature->animation.projectileRay.push_back(color);
-	}
+		creature->animation.projectileRay.push_back(RayColor::fromJson(value));
 
 	creature->special = config["special"].Bool() || config["disabled"].Bool();
 	creature->excludeFromRandomization = config["excludeFromRandomization"].Bool();
@@ -1310,6 +1317,14 @@ CCreatureHandler::~CCreatureHandler()
 		p.first.clear();
 }
 
+const ResourceSet & CCreatureHandler::getCommanderResurrectionPrice(const CCreature * commander) const
+{
+	if(commander && commander->commanderResurrectionPrice)
+		return *commander->commanderResurrectionPrice;
+
+	return commanderResurrectionPrice;
+}
+
 void CCreatureHandler::afterLoadFinalization()
 {
 	for(auto & creature : objects)
@@ -1336,5 +1351,3 @@ std::set<CreatureID> CCreatureHandler::getDefaultAllowed() const
 
 	return result;
 }
-
-VCMI_LIB_NAMESPACE_END

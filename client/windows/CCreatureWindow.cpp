@@ -603,6 +603,12 @@ CStackWindow::MainSection::MainSection(CStackWindow * owner, int yOffset, bool s
 	};
 
 	animation = std::make_shared<CCreaturePic>(5, 41, parent->info->creature);
+	if(parent->info->commander && !parent->info->commander->alive)
+	{
+		deadCommanderOverlay = std::make_shared<CPicture>(ImagePath::builtin("stackWindow/dead-commander-overlay.png"));
+		deadCommanderOverlay->needRefresh = true;
+		deadCommanderOverlay->moveTo(Point(animation->pos.x + (animation->pos.w - deadCommanderOverlay->pos.w) / 2, animation->pos.y + (animation->pos.h - deadCommanderOverlay->pos.h) / 2));
+	}
 	{
 		const CCreature * cre = parent->info->creature;
 		animationArea = std::make_shared<LRClickableArea>(Rect(5, 41, 100, 130), [cre]()
@@ -640,7 +646,7 @@ CStackWindow::MainSection::MainSection(CStackWindow * owner, int yOffset, bool s
 
 		dmgMultiply += battleStack->valOfBonuses(bonusSelector);
 	}
-		
+
 	static const std::array<std::string, 8> iconNames = {
 		"stackWindow/iconAttack", "stackWindow/iconDefense", "stackWindow/iconShots", "stackWindow/iconDamage",
 		"stackWindow/iconHealth", "stackWindow/iconHealthLeft", "stackWindow/iconSpeed", "stackWindow/iconMana"
@@ -832,7 +838,7 @@ CStackWindow::CStackWindow(const CStackInstance * stack, std::function<void()> d
 		info->upgradeInfo = std::make_optional(UnitView::StackUpgradeInfo(upgradeInfo));
 		info->upgradeInfo->callback = callback;
 	}
-	
+
 	info->dismissInfo = std::make_optional(UnitView::StackDismissInfo());
 	info->dismissInfo->callback = dismiss;
 	info->owner = dynamic_cast<const CGHeroInstance *> (stack->getArmy());
@@ -856,6 +862,17 @@ CStackWindow::CStackWindow(const CCommanderInstance * commander, std::vector<ui3
 	: CWindowObject(BORDERED),
 	info(std::make_unique<UnitView>())
 {
+	initCommanderLevelUpData(commander, skills, callback);
+	init();
+}
+
+CStackWindow::~CStackWindow() = default;
+
+void CStackWindow::initCommanderLevelUpData(const CCommanderInstance * commander, const std::vector<ui32> & skills, const std::function<void(ui32)> & callback)
+{
+	GAME->interface()->showingDialog->setBusy();
+	selectionSubmitted = false;
+
 	info->stackNode = commander;
 	info->creature = commander->getCreature();
 	info->commander = commander;
@@ -864,14 +881,48 @@ CStackWindow::CStackWindow(const CCommanderInstance * commander, std::vector<ui3
 	info->levelupInfo->skills = skills;
 	info->levelupInfo->callback = callback;
 	info->owner = dynamic_cast<const CGHeroInstance *> (commander->getArmy());
-	init();
 }
 
-CStackWindow::~CStackWindow() = default;
-
-void CStackWindow::setCloseOnSelection(bool value)
+void CStackWindow::updateCommanderLevelUpData(const CCommanderInstance * commander, std::vector<ui32> & skills, const std::function<void(ui32)> & callback)
 {
-	closeOnSelection = value;
+	OBJECT_CONSTRUCTION;
+
+	initCommanderLevelUpData(commander, skills, callback);
+
+	if(!background)
+	{
+		init();
+		return;
+	}
+
+	fakeNode.reset();
+	activeBonuses.clear();
+
+	switchButtons.clear();
+	mainSection.reset();
+	activeSpellsSection.reset();
+	commanderMainSection.reset();
+	commanderBonusesSection.reset();
+	bonusesSection.reset();
+	buttonsSection.reset();
+	commanderTab.reset();
+
+	selectedIcon = nullptr;
+	selectedSkill = skills.empty() ? -1 : skills.front();
+	activeTab = 0;
+
+	pos = Rect();
+	initBonusesList();
+	initSections();
+	background->pos = pos;
+
+	setRedrawParent(true);
+	redraw();
+}
+
+bool CStackWindow::isCommanderLevelUpDialog() const
+{
+	return info && info->commander && info->levelupInfo.has_value();
 }
 
 void CStackWindow::submitSelection()
@@ -887,15 +938,11 @@ void CStackWindow::submitSelection()
 		}
 
 		selectionSubmitted = true;
-
-		if(!closeOnSelection)
-		{
-			deactivate();
-			return;
-		}
+		GAME->interface()->showingDialog->setFree();
 	}
 
-	close();
+	if(closeOnSelection)
+		close();
 }
 
 void CStackWindow::close()
@@ -1222,4 +1269,8 @@ void CStackWindow::removeStackArtifact(ArtifactPosition pos)
 		stackArtifact.reset();
 		redraw();
 	}
+}
+void CStackWindow::setCloseOnSelection(bool value)
+{
+	closeOnSelection = value;
 }

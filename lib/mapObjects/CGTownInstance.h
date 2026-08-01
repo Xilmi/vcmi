@@ -14,8 +14,6 @@
 #include "../entities/faction/CFaction.h" // TODO: remove
 #include "../entities/faction/CTown.h" // TODO: remove
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class CCastleEvent;
 class CTown;
 class TownBuildingInstance;
@@ -77,27 +75,13 @@ public:
 	{
 		h & static_cast<CGDwelling&>(*this);
 		h & nameTextId;
-		if (h.version >= Handler::Version::CUSTOM_NAMES)
-			h & customName;
+		h & customName;
 		h & built;
 		h & destroyed;
 		h & identifier;
 
-		if (h.hasFeature(Handler::Version::NO_RAW_POINTERS_IN_SERIALIZER))
-		{
-			h & garrisonHero;
-			h & visitingHero;
-		}
-		else
-		{
-			std::shared_ptr<CGObjectInstance> ptrGarr;
-			std::shared_ptr<CGObjectInstance> ptrVisit;
-			h & ptrGarr;
-			h & ptrVisit;
-
-			garrisonHero = ptrGarr ? ptrGarr->id : ObjectInstanceID();
-			visitingHero = ptrVisit ? ptrVisit->id : ObjectInstanceID();
-		}
+		h & garrisonHero;
+		h & visitingHero;
 
 		h & alignmentToPlayer;
 		h & forbiddenBuildings;
@@ -203,7 +187,7 @@ public:
 	/// INativeTerrainProvider
 	FactionID getFactionID() const override;
 	bool isNativeTerrain(TerrainId terrain) const override;
-	TerrainId getTownSiegeTerrain(TerrainId defaultTerrain) const;
+	TerrainId getBattleTerrain() const override;
 
 	/// Returns ID of war machine that is produced by specified building or NONE if this is not built or if building does not produce war machines
 	ArtifactID getWarMachineInBuilding(BuildingID) const;
@@ -217,6 +201,7 @@ public:
 	void newTurn(IGameEventCallback & gameEvents, IGameRandomizer & gameRandomizer) const override;
 	void onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstance * h) const override;
 	void onHeroLeave(IGameEventCallback & gameEvents, const CGHeroInstance * h) const override;
+	void blockingDialogAnswered(IGameEventCallback & gameEvents, const CGHeroInstance * hero, int32_t answer) const override;
 	void initObj(IGameRandomizer & gameRandomizer) override;
 	void pickRandomObject(IGameRandomizer & gameRandomizer) override;
 	void battleFinished(IGameEventCallback & gameEvents, const CGHeroInstance * hero, const BattleResult & result) const override;
@@ -244,5 +229,3 @@ private:
 	void initializeConfigurableBuildings(IGameRandomizer & gameRandomizer);
 	void initializeNeutralTownGarrison(vstd::RNG & rand);
 };
-
-VCMI_LIB_NAMESPACE_END

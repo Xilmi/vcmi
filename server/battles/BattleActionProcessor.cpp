@@ -354,6 +354,11 @@ bool BattleActionProcessor::doAttackAction(const CBattleInfoCallback & battle, c
 	removeBonuses(battle, stack, attackerBonusesToRemove);
 	removeBonuses(battle, destinationStack, defenderBonusesToRemove);
 
+	// attacking without moving still triggers the obstacle the unit stands on (e.g. moat damage);
+	// units that moved into the obstacle were already charged during the movement above
+	if(movementResult.distance == 0)
+		battle.handleObstacleTriggersForUnit(*gameHandler->spellEnv, *stack);
+
 	return true;
 }
 
@@ -1415,11 +1420,16 @@ void BattleActionProcessor::handleDeathStare(const CBattleInfoCallback & battle,
 
 void BattleActionProcessor::handleAfterAttackCasting(const CBattleInfoCallback & battle, bool ranged, const CStack * attacker, const CStack * defender)
 {
-	if(!attacker->alive() || !defender->alive()) // can be already dead
+	if(!attacker->alive()) // can be already dead, e.g. from retaliation
+		return;
+
+	// attacker's own combat event (e.g. HotA runes) must fire even if the attack wiped out the defender
+	processBattleEventTriggers(battle, CombatEventType::AFTER_ATTACK, attacker, defender);
+
+	if(!defender->alive())
 		return;
 
 	attackCasting(battle, ranged, BonusType::SPELL_AFTER_ATTACK, attacker, defender);
-	processBattleEventTriggers(battle, CombatEventType::AFTER_ATTACK, attacker, defender);
 	processBattleEventTriggers(battle, CombatEventType::AFTER_ATTACKED, defender, attacker);
 
 	if(!defender->alive())
@@ -1553,14 +1563,14 @@ void BattleActionProcessor::applyBattleEffects(const CBattleInfoCallback & battl
 
 	bsa.attackerID = attackerState->unitId();
 	bsa.stackAttacked = def->unitId();
+
+	BattleAttackInfo bai(attackerState.get(), def, distance, bat.shot());
+	bai.deathBlow = bat.deathBlow();
+	bai.doubleDamage = bat.ballistaDoubleDmg();
+	bai.luckyStrike  = bat.lucky();
+	bai.unluckyStrike  = bat.unlucky();
+
 	{
-		BattleAttackInfo bai(attackerState.get(), def, distance, bat.shot());
-
-		bai.deathBlow = bat.deathBlow();
-		bai.doubleDamage = bat.ballistaDoubleDmg();
-		bai.luckyStrike  = bat.lucky();
-		bai.unluckyStrike  = bat.unlucky();
-
 		auto range = battle.calculateDmgRange(bai);
 		bsa.damageAmount = battle.getBattle()->getActualDamage(range.damage, attackerState->getCount(), gameHandler->getRandomGenerator());
 		CStack::prepareAttacked(bsa, gameHandler->getRandomGenerator(), bai.defender->acquireState()); //calculate casualties
@@ -1601,8 +1611,12 @@ void BattleActionProcessor::applyBattleEffects(const CBattleInfoCallback & battl
 		CStack::isMeleeAttackPossible(attackerState.get(), def) // attacked needs to be adjacent to defender for fire shield to trigger (e.g. Dragon Breath attack)
 			)
 	{
-		//TODO: use damage with bonus but without penalties
-		auto fireShieldDamage = (std::min<int64_t>(def->getAvailableHealth(), bsa.damageAmount) * def->valOfBonuses(BonusType::FIRE_SHIELD)) / 100;
+		//H3 reflects Fire Shield from pre-mitigation damage, so a high-defense target still reflects a meaningful amount
+		BattleAttackInfo unmitigated = bai;
+		unmitigated.ignoreDefenseFactors = true;
+		int64_t reflectedBase = battle.calculateDmgRange(unmitigated).damage.max;
+
+		auto fireShieldDamage = (std::min<int64_t>(def->getAvailableHealth(), reflectedBase) * def->valOfBonuses(BonusType::FIRE_SHIELD)) / 100;
 		fireShield.emplace_back(def, fireShieldDamage);
 	}
 }

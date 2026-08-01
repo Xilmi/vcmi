@@ -34,8 +34,6 @@
 class CClient;
 class CGameHandler;
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class CGameState;
 class CArtifact;
 class CGObjectInstance;
@@ -81,6 +79,24 @@ struct DLL_LINKAGE PackageApplied : public CPackForClient
 		h & requestID;
 		h & packType;
 		h & result;
+	}
+};
+
+struct DLL_LINKAGE QueryResolved : public CPackForClient
+{
+	QueryResolved() = default;
+	explicit QueryResolved(QueryID queryID)
+		: queryID(queryID)
+	{
+	}
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	QueryID queryID = QueryID::NONE;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & queryID;
 	}
 };
 
@@ -337,12 +353,14 @@ struct DLL_LINKAGE ChangeSpells : public CPackForClient
 	ui8 learn = 1; //1 - gives spell, 0 - takes
 	ObjectInstanceID hid;
 	std::set<SpellID> spells;
+	bool eagleEyeBonus = false;
 
 	template <typename Handler> void serialize(Handler & h)
 	{
 		h & learn;
 		h & hid;
 		h & spells;
+		h & eagleEyeBonus;
 	}
 };
 
@@ -1555,5 +1573,3 @@ struct DLL_LINKAGE ResponseStatistic : public CPackForClient
 		h & statistic;
 	}
 };
-
-VCMI_LIB_NAMESPACE_END

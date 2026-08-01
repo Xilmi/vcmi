@@ -219,11 +219,11 @@ void CTeleportDialogQuery::notifyObjectAboutRemoval(const CGObjectInstance * vis
 		logGlobal->error("Invalid instance in teleport query");
 }
 
-CTeleportDialogQuery::CTeleportDialogQuery(CGameHandler * owner, const TeleportDialog & td) :
+CTeleportDialogQuery::CTeleportDialogQuery(CGameHandler * owner, const TeleportDialog & dialog) :
 	CDialogQuery(owner, TYPE)
 {
-	this->td = td;
-	addPlayer(gh->gameInfo().getHero(td.hero)->getOwner());
+	td = dialog;
+	addPlayer(gh->gameInfo().getHero(dialog.hero)->getOwner());
 }
 
 CHeroLevelUpDialogQuery::CHeroLevelUpDialogQuery(CGameHandler * owner, const HeroLevelUp & Hlu, const CGHeroInstance * Hero):
@@ -236,6 +236,7 @@ CHeroLevelUpDialogQuery::CHeroLevelUpDialogQuery(CGameHandler * owner, const Her
 void CHeroLevelUpDialogQuery::onRemoval(PlayerColor color)
 {
 	assert(answer);
+	gh->sendQueryResolved(queryID);
 	if(hlu.skills.empty())
 	{
 		logGlobal->trace("Completing hero level-up query. %s gains no secondary skill", hero->getObjectName());
@@ -304,6 +305,7 @@ CCommanderLevelUpDialogQuery::CCommanderLevelUpDialogQuery(CGameHandler * owner,
 void CCommanderLevelUpDialogQuery::onRemoval(PlayerColor color)
 {
 	assert(answer);
+	gh->sendQueryResolved(queryID);
 	if(clu.skills.empty())
 	{
 		logGlobal->trace("Completing commander level-up query. Commander of hero %s gains no skill", hero->getObjectName());

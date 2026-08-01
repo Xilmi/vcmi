@@ -55,8 +55,6 @@
 #include "../battle/Unit.h"
 #include "CConfigHandler.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 const ui32 CGHeroInstance::NO_PATROLLING = std::numeric_limits<ui32>::max();
 
 void CGHeroPlaceholder::serializeJsonOptions(JsonSerializeFormat & handler)
@@ -820,8 +818,20 @@ int64_t CGHeroInstance::getSpellBonus(const spells::Spell * spell, int64_t base,
 
 	base = static_cast<int64_t>(base * (100 + maxSchoolBonus) / 100.0);
 
-	if(affectedStack && affectedStack->creatureLevel() > 0) //Hero specials like Solmyr, Deemer
-		base = static_cast<int64_t>(base * static_cast<double>(100 + valOfBonuses(BonusType::SPECIAL_SPELL_LEV, BonusSubtypeID(spell->getId())) / affectedStack->creatureLevel()) / 100.0);
+	if(affectedStack) //Hero specials like Solmyr, Deemer
+	{
+		const int targetLevel = affectedStack->creatureLevel();
+		const int assumedLevel = std::max(targetLevel, 1);
+		int spellLevPercent = 0;
+
+		// legacy: value is pre-multiplied by hero level (TIMES_HERO_LEVEL), so rounding is multiply-first; kept unchanged for compatibility
+		spellLevPercent += valOfBonuses(BonusType::SPECIAL_SPELL_LEV, BonusSubtypeID(spell->getId())) / assumedLevel;
+
+		// scaling specialty: raw percent per step with H3-correct divide-first rounding; treat level-0 units (war machines) as level 1
+		spellLevPercent += valOfBonuses(BonusType::SPECIAL_SPELL_SCALING, BonusSubtypeID(spell->getId())) * (level / assumedLevel);
+
+		base = static_cast<int64_t>(base * static_cast<double>(100 + spellLevPercent) / 100.0);
+	}
 
 	return base;
 }
@@ -880,7 +890,7 @@ void CGHeroInstance::getCastDescription(const spells::Spell * spell, const battl
 	text.replaceTextID(getCasterNameTextID());
 	text.replaceName(spell->getId());
 	if(singleTarget)
-		attacked.at(0)->addNameReplacement(text, true);
+		attacked.at(0)->addNameReplacement(text, 2);
 }
 
 const CGHeroInstance * CGHeroInstance::getHeroCaster() const
@@ -1804,5 +1814,3 @@ ArtifactID CGHeroInstance::getReplacedWarMachine(ArtifactID artifactID) const
 	return replacedArtifact;
 }
 
-
-VCMI_LIB_NAMESPACE_END

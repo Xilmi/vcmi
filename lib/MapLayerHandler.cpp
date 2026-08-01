@@ -14,8 +14,7 @@
 #include "IGameSettings.h"
 #include "json/JsonNode.h"
 #include "GameLibrary.h"
-
-VCMI_LIB_NAMESPACE_BEGIN
+#include "modding/IdentifierStorage.h"
 
 MapLayerTypeHandler::MapLayerTypeHandler()
 {
@@ -37,6 +36,11 @@ std::shared_ptr<MapLayerType> MapLayerTypeHandler::loadFromJson(
 	info->modScope        = scope;
 
 	LIBRARY->generaltexth->registerString(scope, info->getNameTextID(), json["text"]);
+
+	LIBRARY->identifiers()->requestIdentifierIfNotNull("terrain", json["defaultTerrain"], [info](int32_t terrainIndex)
+	{
+		info->defaultTerrain = TerrainId(terrainIndex);
+	});
 
 	return info;
 }
@@ -75,6 +79,6 @@ std::string MapLayerType::getNameTranslated() const
 MapLayerType::MapLayerType():
 	identifier("empty"),
 	modScope("core"),
-	id(MapLayerId::UNKNOWN)
+	id(MapLayerId::UNKNOWN),
+	defaultTerrain(ETerrainId::WATER)
 {}
-VCMI_LIB_NAMESPACE_END

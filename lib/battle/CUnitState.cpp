@@ -19,8 +19,6 @@
 #include "../serializer/JsonDeserializer.h"
 #include "../serializer/JsonSerializer.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 namespace battle
 {
 ///CAmmo
@@ -536,7 +534,7 @@ bool CUnitState::canShoot() const
 {
 	return
 		shots.canUse(1) &&
-		bonusCache.getBonusValue(UnitBonusValuesProxy::FORGETFULL) <= 1; //advanced+ level
+		bonusCache.getBonusValue(UnitBonusValuesProxy::FORGETFULL) < 100; //100% forgetfulness disables shooting
 }
 
 bool CUnitState::isShooter() const
@@ -1010,5 +1008,3 @@ void CUnitStateDetached::spendMana(ServerCallback * server, const int spellCost)
 }
 
 }
-
-VCMI_LIB_NAMESPACE_END

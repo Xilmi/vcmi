@@ -13,10 +13,8 @@
 #include "../../lib/networkPacks/PacksForClientBattle.h"
 #include "../../lib/battle/BattleSide.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
 class IBattleInfo;
 struct SideInBattle;
-VCMI_LIB_NAMESPACE_END
 
 class CBattleQuery : public CQuery
 {
@@ -52,4 +50,5 @@ public:
 	static constexpr QueryType TYPE = QueryType::BattleDialog;
 	CBattleDialogQuery(CGameHandler * owner, const IBattleInfo * Bi, const std::optional<BattleResult> & Br);
 	void onRemoval(PlayerColor color) override;
+	void onExposure(QueryPtr topQuery) override;
 };

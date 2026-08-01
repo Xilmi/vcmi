@@ -35,16 +35,17 @@
 #include "../widgets/Buttons.h"
 #include "../widgets/Images.h"
 #include "../windows/CCreatureWindow.h"
+#include "../windows/CMarketWindow.h"
 #include "../windows/CMessage.h"
 #include "../windows/CSpellWindow.h"
 #include "../windows/settings/SettingsMainWindow.h"
 
 #include "../../lib/CConfigHandler.h"
-#include "../../lib/CPlayerState.h"
 #include "../../lib/CStack.h"
 #include "../../lib/GameLibrary.h"
 #include "../../lib/StartInfo.h"
 #include "../../lib/battle/BattleInfo.h"
+#include "../../lib/bonuses/BonusEnum.h"
 #include "../../lib/battle/CPlayerBattleCallback.h"
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/entities/artifact/CArtHandler.h"
@@ -53,6 +54,7 @@
 #include "../../lib/mapping/CMapHeader.h"
 #include "../../lib/mapObjects/CGHeroInstance.h"
 #include "../../lib/spells/CSpell.h"
+#include "../../lib/mapObjects/CGTownInstance.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
 
 BattleWindow::BattleWindow(BattleInterface & Owner)
@@ -101,6 +103,11 @@ BattleWindow::BattleWindow(BattleInterface & Owner)
 	addShortcut(EShortcut::BATTLE_TACTICS_END, std::bind(&BattleWindow::bTacticPhaseEnd, this));
 	addShortcut(EShortcut::BATTLE_OPEN_ACTIVE_UNIT, std::bind(&BattleWindow::bOpenActiveUnit, this));
 	addShortcut(EShortcut::BATTLE_OPEN_HOVERED_UNIT, std::bind(&BattleWindow::bOpenHoveredUnit, this));
+
+	addShortcut(EShortcut::BATTLE_TOGGLE_GRID, [this](){ this->toggleBattleSetting("cellBorders"); });
+	addShortcut(EShortcut::BATTLE_TOGGLE_MOUSE_SHADOW, [this](){ this->toggleBattleSetting("mouseShadow"); });
+	addShortcut(EShortcut::BATTLE_TOGGLE_MOVEMENT_SHADOW, [this](){ this->toggleBattleSetting("stackRange"); });
+	addShortcut(EShortcut::BATTLE_TOGGLE_STACK_INFO, [this](){ this->toggleStackInfoWindowsVisibility(); });
 
 	addShortcut(EShortcut::BATTLE_TOGGLE_QUEUE, [this](){ this->toggleQueueVisibility();});
 	addShortcut(EShortcut::BATTLE_TOGGLE_HEROES_STATS, [this](){ this->toggleStickyHeroWindowsVisibility();});
@@ -311,6 +318,27 @@ void BattleWindow::toggleQueueVisibility()
 		showQueue();
 }
 
+void BattleWindow::toggleBattleSetting(const std::string & name)
+{
+	Settings setting = settings.write["battle"][name];
+	setting->Bool() = !setting->Bool();
+	owner.redrawBattlefield();
+}
+
+void BattleWindow::toggleStackInfoWindowsVisibility()
+{
+	Settings setting = settings.write["battle"]["stackInfoBasicPanel"];
+	setting->Bool() = !setting->Bool();
+	bool show = setting->Bool();
+
+	if(attackerStackWindow)
+		attackerStackWindow->setEnabled(show);
+	if(defenderStackWindow)
+		defenderStackWindow->setEnabled(show);
+
+	ENGINE->windows().totalRedraw();
+}
+
 void BattleWindow::hideQueue()
 {
 	if(settings["battle"]["showQueue"].Bool() == false)
@@ -438,7 +466,7 @@ void BattleWindow::updateStackInfoWindow(const CStack * stack)
 {
 	OBJECT_CONSTRUCTION;
 
-	bool showInfoWindows = settings["battle"]["stickyHeroInfoWindows"].Bool();
+	bool showInfoWindows = settings["battle"]["stackInfoBasicPanel"].Bool();
 
 	if(stack && stack->unitSide() == BattleSide::DEFENDER)
 	{
@@ -565,6 +593,12 @@ void BattleWindow::bSurrenderf()
 	if (owner.actionsController->heroSpellcastingModeActive())
 		return;
 
+	if(ownHeroLossEndsScenario())
+	{
+		owner.curInt->showInfoDialog(LIBRARY->generaltexth->translate("vcmi.battle.escapeImpossibleCritical"));
+		return;
+	}
+
 	int cost = owner.getBattle()->battleGetSurrenderCost();
 	if(cost >= 0)
 	{
@@ -580,10 +614,30 @@ void BattleWindow::bSurrenderf()
 	}
 }
 
+bool BattleWindow::ownHeroLossEndsScenario() const
+{
+	const CGHeroInstance * ownHero = nullptr;
+	if(owner.attackingHeroInstance && owner.attackingHeroInstance->tempOwner == owner.curInt->cb->getPlayerID())
+		ownHero = owner.attackingHeroInstance;
+	if(owner.defendingHeroInstance && owner.defendingHeroInstance->tempOwner == owner.curInt->cb->getPlayerID())
+		ownHero = owner.defendingHeroInstance;
+
+	if(ownHero && ownHero->isMissionCritical())
+		return true;
+
+	return owner.curInt->cb->howManyTowns() == 0 && owner.curInt->cb->howManyHeroes() == 1;
+}
+
 void BattleWindow::bFleef()
 {
 	if (owner.actionsController->heroSpellcastingModeActive())
 		return;
+
+	if(ownHeroLossEndsScenario())
+	{
+		owner.curInt->showInfoDialog(LIBRARY->generaltexth->translate("vcmi.battle.escapeImpossibleCritical"));
+		return;
+	}
 
 	if ( owner.getBattle()->battleCanFlee() )
 	{
@@ -615,11 +669,66 @@ void BattleWindow::reallyFlee()
 	ENGINE->cursor().set(Cursor::Map::POINTER);
 }
 
-void BattleWindow::reallySurrender()
+const CGTownInstance * BattleWindow::findTownWithMarketplace() const
+{
+	for(const CGTownInstance * town : owner.curInt->cb->getTownsInfo())
+	{
+		if(town->hasBuilt(BuildingID::MARKETPLACE))
+			return town;
+	}
+
+	return nullptr;
+}
+
+bool BattleWindow::canOfferMarketplaceForSurrender() const
+{
+	// The feature can be granted either to the hero (e.g. artifact) or to the player
+	// (e.g. global/player-wide config bonus). Accept either source.
+	const CGHeroInstance * hero = owner.getBattle()->battleGetMyHero();
+	return hero && hero->hasBonusOfType(BonusType::SURRENDER_MARKETPLACE_ACCESS);
+}
+
+void BattleWindow::offerMarketplaceForSurrender()
+{
+	const CGTownInstance * townWithMarket = findTownWithMarketplace();
+	if(!townWithMarket)
+	{
+		owner.curInt->showInfoDialog(LIBRARY->generaltexth->allTexts[29]); //You don't have enough gold!
+		return;
+	}
+
+	const CGHeroInstance * hero = owner.getBattle()->battleGetMyHero();
+	const int goldBeforeMarketplace = owner.curInt->cb->getResourceAmount(EGameResID::GOLD);
+
+	owner.curInt->showYesNoDialog(
+		LIBRARY->generaltexth->translate("vcmi.battle.surrender.tryMarketplace"),
+		[this, townWithMarket, hero, goldBeforeMarketplace]()
+		{
+			ENGINE->windows().createAndPushWindow<CMarketWindow>(
+				townWithMarket,
+				hero,
+				[this, goldBeforeMarketplace]()
+				{
+					const bool soldResourcesForGold = owner.curInt->cb->getResourceAmount(EGameResID::GOLD) > goldBeforeMarketplace;
+					reallySurrender(false, soldResourcesForGold);
+				},
+				EMarketMode::RESOURCE_RESOURCE,
+				true,
+				owner.curInt.get());
+		},
+		nullptr);
+}
+
+void BattleWindow::reallySurrender(bool allowMarketplaceOffer, bool marketplaceSaleFailed)
 {
 	if (owner.curInt->cb->getResourceAmount(EGameResID::GOLD) < owner.getBattle()->battleGetSurrenderCost())
 	{
-		owner.curInt->showInfoDialog(LIBRARY->generaltexth->allTexts[29]); //You don't have enough gold!
+		if(allowMarketplaceOffer && canOfferMarketplaceForSurrender())
+			offerMarketplaceForSurrender();
+		else if(marketplaceSaleFailed)
+			owner.curInt->showInfoDialog(LIBRARY->generaltexth->translate("vcmi.battle.surrender.marketplaceFailed"));
+		else
+			owner.curInt->showInfoDialog(LIBRARY->generaltexth->allTexts[29]); //You don't have enough gold!
 	}
 	else
 	{

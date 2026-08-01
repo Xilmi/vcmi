@@ -29,15 +29,13 @@
 #include "../gameState/CGameState.h"
 #include "../mapObjects/CGHeroInstance.h"
 #include "../mapObjects/CGTownInstance.h"
-#include "../mapObjects/CQuest.h"
+#include "../mapObjects/Quest.h"
 #include "../mapObjects/ObjectTemplate.h"
 #include "../serializer/JsonSerializeFormat.h"
 #include "../spells/CSpellHandler.h"
 #include "../texts/CGeneralTextHandler.h"
 
 #include <vstd/RNG.h>
-
-VCMI_LIB_NAMESPACE_BEGIN
 
 const CGHeroPlaceholder * CMap::findHeroPlaceholder(const int3 & position) const
 {
@@ -1073,18 +1071,6 @@ const CGObjectInstance * CMap::getObject(ObjectInstanceID obj) const
 	return nullptr;
 }
 
-void CMap::saveCompatibilityStoreAllocatedArtifactID()
-{
-	if (!artInstances.empty())
-		cb->gameState().saveCompatibilityLastAllocatedArtifactID = artInstances.back()->getId();
-}
-
-void CMap::saveCompatibilityAddMissingArtifact(std::shared_ptr<CArtifactInstance> artifact)
-{
-	assert(artifact->getId().getNum() == artInstances.size());
-	artInstances.push_back(artifact);
-}
-
 ObjectInstanceID CMap::allocateUniqueInstanceID()
 {
 	objects.push_back(nullptr);
@@ -1202,5 +1188,3 @@ void CMap::deserializeHeroPool(const std::vector<std::shared_ptr<CGHeroInstance>
 			heroesPool.at(hero->getHeroTypeID().getNum()) = hero;
 }
 
-
-VCMI_LIB_NAMESPACE_END

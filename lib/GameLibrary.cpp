@@ -35,6 +35,8 @@
 #include "CStopWatch.h"
 #include "VCMIDirs.h"
 #include "filesystem/Filesystem.h"
+#include "filesystem/CFilesystemLoader.h"
+#include "filesystem/AdapterLoaders.h"
 #include "rmg/CRmgTemplateStorage.h"
 #include "mapObjectConstructors/CObjectClassesHandler.h"
 #include "mapObjects/ObstacleSetHandler.h"
@@ -46,8 +48,6 @@
 #include "GameSettings.h"
 
 #include <vcmi/scripting/Service.h>
-
-VCMI_LIB_NAMESPACE_BEGIN
 
 GameLibrary * LIBRARY = nullptr;
 
@@ -144,10 +144,17 @@ void GameLibrary::loadFilesystem(bool extractArchives)
 	logGlobal->info("\tData loading: %d ms", loadTime.getDiff());
 }
 
-void GameLibrary::loadModFilesystem()
+void GameLibrary::loadModFilesystem(bool useTestPreset)
 {
 	CStopWatch loadTime;
-	modh = std::make_unique<CModHandler>();
+	// Test preset discovers the vcmi-test fixtures mod from test/testdata/ instead of the
+	// shipped Mods/ directory, so it is never scanned or shipped by the game itself.
+	if(useTestPreset)
+	{
+		auto loader = std::make_unique<CFilesystemLoader>("MODS/", "test/testdata/", 64);
+		dynamic_cast<CFilesystemList*>(CResourceHandler::get("initial"))->addLoader(std::move(loader), false);
+	}
+	modh = std::make_unique<CModHandler>(useTestPreset);
 	identifiersHandler = std::make_unique<CIdentifierStorage>();
 	logGlobal->info("\tMod handler: %d ms", loadTime.getDiff());
 
@@ -161,13 +168,13 @@ void createHandler(std::unique_ptr<Handler> & handler)
 	handler = std::make_unique<Handler>();
 }
 
-void GameLibrary::initializeFilesystem(bool extractArchives)
+void GameLibrary::initializeFilesystem(bool extractArchives, bool useTestPreset)
 {
 	loadFilesystem(extractArchives);
 	settings.init("config/settings.json", "vcmi:settings");
 	persistentStorage.init("config/persistentStorage.json", "");
 	keyBindingsConfig.init("config/keyBindingsConfig.json", "");
-	loadModFilesystem();
+	loadModFilesystem(useTestPreset);
 
 	// Detect game data mode after filesystem is loaded
 	gameDataMode = GameDataMode::SOD;
@@ -241,5 +248,3 @@ void GameLibrary::initializeLibrary()
 
 GameLibrary::GameLibrary() = default;
 GameLibrary::~GameLibrary() = default;
-
-VCMI_LIB_NAMESPACE_END

@@ -39,8 +39,6 @@
 
 #include <tbb/task_group.h>
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 CMapGenerator::CMapGenerator(CMapGenOptions& mapGenOptions, IGameInfoCallback * cb, int RandomSeed) :
 	mapGenOptions(mapGenOptions), randomSeed(RandomSeed),
 	monolithIndex(0),
@@ -465,16 +463,7 @@ void CMapGenerator::addHeaderInfo()
 	m.version = EMapFormat::VCMI;
 	m.width = mapGenOptions.getWidth();
 	m.height = mapGenOptions.getHeight();
-	m.mapLayers.clear();
-	for(int i = 0; i < mapGenOptions.getLevels(); i++)
-	{
-		if(i == 0)
-			m.mapLayers.push_back(MapLayerId::SURFACE);
-		else if(i == 1)
-			m.mapLayers.push_back(MapLayerId::UNDERGROUND);
-		else
-			m.mapLayers.push_back(MapLayerId::UNKNOWN); //TODO: multilevel support
-	}
+	m.mapLayers = mapGenOptions.getLevelMapLayers();
 	m.name.appendLocalString(EMetaText::GENERAL_TXT, 740);
 	m.description = getMapDescription();
 	m.difficulty = EMapDifficulty::NORMAL;
@@ -590,5 +579,3 @@ Zone * CMapGenerator::getZoneWater() const
 			return z.second.get();
 	return nullptr;
 }
-
-VCMI_LIB_NAMESPACE_END

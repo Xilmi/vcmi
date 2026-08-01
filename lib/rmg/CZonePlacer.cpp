@@ -29,8 +29,6 @@
 
 #include <limits>
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 CZonePlacer::CZonePlacer(RmgMap & map)
 	: width(0), height(0), mapSize(0),
 	gravityConstant(1e-3f),
@@ -133,6 +131,32 @@ void CZonePlacer::placeZones(vstd::RNG * rand)
 	height = map.getMapGenOptions().getHeight();
 
 	auto zones = map.getZones();
+
+	// Water zones do not go through the land-zone tessellation below - their area gets carved
+	// out of land zones later, via WaterAdopter/WaterProxy. They still need a valid level though,
+	// otherwise they keep the Zone default of level 0, which is wrong whenever level 0 isn't the
+	// surface layer. Put them on the surface layer (falling back to level 0 if there is none).
+	{
+		const auto & mapLayers = map.getMapGenOptions().getLevelMapLayers();
+		int waterLevel = 0;
+		for(size_t i = 0; i < mapLayers.size(); i++)
+		{
+			if(mapLayers[i] == MapLayerId::SURFACE)
+			{
+				waterLevel = static_cast<int>(i);
+				break;
+			}
+		}
+		for(const auto & zonePair : zones)
+		{
+			if(zonePair.second->getType() == ETemplateZoneType::WATER)
+			{
+				zonePair.second->setPos(int3(0, 0, waterLevel));
+				zonePair.second->setCenter(float3(0.f, 0.f, static_cast<float>(waterLevel)));
+			}
+		}
+	}
+
 	vstd::erase_if(zones, [](const std::pair<TRmgTemplateZoneId, std::shared_ptr<Zone>> & pr)
 	{
 		return pr.second->getType() == ETemplateZoneType::WATER;
@@ -258,22 +282,37 @@ void CZonePlacer::prepareZones(TZoneMap &zones, TZoneVector &zonesVector, const 
 	for (int i = 0; i < mapLevels; i++)
 		zonesOnLevel[i] = 0;
 
+	// map.getMapGenOptions().getLevelMapLayers() is always sized to match getLevels() == mapLevels
+	const auto & mapLayers = map.getMapGenOptions().getLevelMapLayers();
+
+	auto findLevelByLayer = [&](MapLayerId layer) -> int {
+		for (int i = 0; i < mapLevels; i++)
+			if (mapLayers[i] == layer) return i;
+		return -1;
+	};
+
 	//even distribution for surface / underground zones. Surface zones always have priority.
+	//NOTE: only SURFACE and UNDERGROUND layers get special treatment here, any other (custom) layer
+	//is treated the same as underground for the purposes of this distribution
 
 	TZoneVector zonesToPlace;
 	std::map<TRmgTemplateZoneId, int> levels;
 
 	auto addZoneEqually = [&](auto & zone, bool ignoreUnderground = false) {
-		int chosenLevel = -1;
+		// Only restrict to surface levels if a surface layer actually exists on this map,
+		// otherwise fall back to distributing across all levels
+		bool restrictToSurface = ignoreUnderground && findLevelByLayer(MapLayerId::SURFACE) >= 0;
+
+		int chosenLevel = 0;
 		int minCount = std::numeric_limits<int>::max();
 
 		for (const auto& [level, count] : zonesOnLevel) {
-			if (ignoreUnderground && level == 1)
+			if (restrictToSurface && mapLayers[level] != MapLayerId::SURFACE)
 				continue;
 
 			if (count < minCount ||
-				(count == minCount && level == 0) ||
-				(count == minCount && chosenLevel != 0 && level < chosenLevel))
+				(count == minCount && mapLayers[level] == MapLayerId::SURFACE && mapLayers[chosenLevel] != MapLayerId::SURFACE) ||
+				(count == minCount && mapLayers[chosenLevel] != MapLayerId::SURFACE && level < chosenLevel))
 			{
 				chosenLevel = level;
 				minCount = count;
@@ -297,17 +336,20 @@ void CZonePlacer::prepareZones(TZoneMap &zones, TZoneVector &zonesVector, const 
 		auto forcedLevel = zone.second->getForcedLevel();
 		if (forcedLevel == EZoneLevel::SURFACE)
 		{
-			// Force to surface (level 0)
-			levels[zone.first] = 0;
-			zonesOnLevel[0]++;
+			// Force to surface
+			int targetLevel = findLevelByLayer(MapLayerId::SURFACE);
+			if (targetLevel < 0) targetLevel = 0;
+			levels[zone.first] = targetLevel;
+			zonesOnLevel[targetLevel]++;
 			continue;
 		}
 		else if (forcedLevel == EZoneLevel::UNDERGROUND)
 		{
-			// Force to underground (level 1)
-			// mapLevels > 1 is guaranteed here since mapLevels == 1 was handled above
-			levels[zone.first] = 1;
-			zonesOnLevel[1]++;
+			// Force to underground
+			int targetLevel = findLevelByLayer(MapLayerId::UNDERGROUND);
+			if (targetLevel < 0) targetLevel = 0;
+			levels[zone.first] = targetLevel;
+			zonesOnLevel[targetLevel]++;
 			continue;
 		}
 		// forcedLevel == AUTOMATIC - continue with normal logic
@@ -354,15 +396,11 @@ void CZonePlacer::prepareZones(TZoneMap &zones, TZoneVector &zonesVector, const 
 					if(hasUndergroundTerrain && !hasSurfaceTerrain)
 					{
 						// underground only
-						if (mapLevels > 1)
-						{
-							zonesOnLevel[1]++;
-							levels[zone.first] = 1;
-						}
-						else
-						{
-							levels[zone.first] = 0;
-						}
+						int targetLevel = findLevelByLayer(MapLayerId::UNDERGROUND);
+						if (targetLevel < 0)
+							targetLevel = 0;
+						zonesOnLevel[targetLevel]++;
+						levels[zone.first] = targetLevel;
 					}
 					else
 					{
@@ -571,7 +609,7 @@ void CZonePlacer::moveOneZone(TZoneMap& zones, TForceVector& totalForces, TDista
 	if (misplacedZones.empty())
 		return;
 
-	boost::sort(misplacedZones, [](const Misplacement& lhs, Misplacement& rhs)
+	std::ranges::sort(misplacedZones, [](const Misplacement& lhs, Misplacement& rhs)
 	{
 		return lhs.first > rhs.first; //Largest displacement first
 	});
@@ -765,7 +803,7 @@ void CZonePlacer::assignZones(vstd::RNG * rand)
 				{
 					distances.emplace_back(zone.second, static_cast<float>(pos.dist2dSQ(zone.second->getPos())));
 				}
-				boost::min_element(distances, compareByDistance)->first->area()->add(pos); //closest tile belongs to zone
+				std::ranges::min_element(distances, compareByDistance)->first->area()->add(pos); //closest tile belongs to zone
 			}
 		}
 	}
@@ -798,7 +836,7 @@ void CZonePlacer::assignZones(vstd::RNG * rand)
 			{
 				distances.emplace_back(zone.second, zone.second->getCenter().dist2dSQ(float3(vertex.x(), vertex.y(), level)));
 			}
-			auto closestZone = boost::min_element(distances, compareByDistance)->first;
+			auto closestZone = std::ranges::min_element(distances, compareByDistance)->first;
 
 			vertexMapping[closestZone].insert(int3(vertex.x() * width, vertex.y() * height, level)); //Closest vertex belongs to zone
 		}
@@ -820,7 +858,7 @@ void CZonePlacer::assignZones(vstd::RNG * rand)
 				}
 
 				//Tile closest to vertex belongs to zone
-				auto closestZone = boost::min_element(distances, simpleCompareByDistance)->first;
+				auto closestZone = std::ranges::min_element(distances, simpleCompareByDistance)->first;
 				closestZone->area()->add(pos);
 				map.setZoneID(pos, closestZone->getId());
 			}
@@ -888,5 +926,3 @@ const TDistanceMap& CZonePlacer::getDistanceMap()
 {
 	return distancesBetweenZones;
 }
-
-VCMI_LIB_NAMESPACE_END

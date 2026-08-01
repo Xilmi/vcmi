@@ -16,13 +16,13 @@
 #include "../filesystem/ResourcePath.h"
 #include "../int3.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 struct Component;
 class JsonSerializeFormat;
 class ObjectTemplate;
 class CMap;
 class CGameState;
+class Quest;
+class IQuestSource;
 class AObjectTypeHandler;
 using TObjectTypeHandler = std::shared_ptr<AObjectTypeHandler>;
 
@@ -80,6 +80,9 @@ public:
 	bool blockingAt (const int3 & pos) const; //returns true if object is blocking location
 	bool coveringAt (const int3 & pos) const; //returns true if object covers with picture location
 
+	/// Visibility of this object to `player`, used as the fog-of-war gate.
+	virtual bool isVisibleFor(PlayerColor player) const;
+
 	std::set<int3> getBlockedPos() const; //returns set of positions blocked by this object
 	const std::set<int3> & getBlockedOffsets() const; //returns set of relative positions blocked by this object
 
@@ -97,6 +100,9 @@ public:
 
 	virtual BattleField getBattlefield() const;
 
+	/// terrain the battle at this object takes place on, or NONE to use the map tile's terrain
+	virtual TerrainId getBattleTerrain() const;
+
 	virtual bool isTile2Terrain() const { return false; }
 
 	std::optional<AudioPath> getAmbientSound(vstd::RNG & rng) const;
@@ -107,8 +113,17 @@ public:
 
 	/** VIRTUAL METHODS **/
 
-	/// Returns true if player can pass through visitable tiles of this object
+	/// Coarse, player-level passability. Required (cannot be dropped for the hero
+	/// overload): the AI pathfinder builds one accessibility graph per player for a
+	/// whole hero-chain (AINodeStorage / PathfinderUtil::evaluateAccessibility),
+	/// so no single hero is available there.
 	virtual bool passableFor(PlayerColor color) const;
+	/// Hero-aware passability, used where a concrete hero exists (e.g. a toll Quest
+	/// Gate that needs the hero's inventory). Default forwards to the colour overload.
+	virtual bool passableFor(const CGHeroInstance * hero) const;
+	/// Quest-source view of this object (active quest, passage blocking, quest-log
+	/// grouping) for the AI, pathfinder and quest log; nullptr if it carries no quest.
+	virtual const IQuestSource * asQuestSource() const { return nullptr; }
 	/// Range of revealed map around this object, counting from getSightCenter()
 	virtual int getSightRadius() const;
 	/// returns (x,y,0) offset to a visitable tile of object
@@ -178,5 +193,3 @@ protected:
 
 	void serializeJsonOwner(JsonSerializeFormat & handler);
 };
-
-VCMI_LIB_NAMESPACE_END

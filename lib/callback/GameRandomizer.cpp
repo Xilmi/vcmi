@@ -22,8 +22,6 @@
 #include "../entities/hero/CHeroClass.h"
 #include "../mapObjects/CGHeroInstance.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 bool RandomizationBias::roll(vstd::RNG & generator, int successChance, int totalWeight, int biasValue)
 {
 	assert(successChance > 0);
@@ -274,13 +272,13 @@ SecondarySkill GameRandomizer::rollSecondarySkillForLevelup(const CGHeroInstance
 		return obligatory;
 	};
 
-	std::set<SecondarySkill> wisdomList = getObligatorySkills(true);
-	std::set<SecondarySkill> schoolList = getObligatorySkills(false);
+	std::set<SecondarySkill> wisdomList = getObligatorySkills(false);
+	std::set<SecondarySkill> schoolList = getObligatorySkills(true);
 
 	bool wantsWisdom = heroRng.wisdomCounter >= hero->maxlevelsToWisdom();
 	bool wantsSchool = heroRng.magicSchoolCounter >= hero->maxlevelsToMagicSchool();
 	bool selectWisdom = wantsWisdom && !wisdomList.empty();
-	bool selectSchool = wantsSchool && !schoolList.empty();
+	bool selectSchool = !selectWisdom && wantsSchool && !schoolList.empty();
 
 	std::set<SecondarySkill> actualCandidates;
 
@@ -363,5 +361,3 @@ std::vector<SecondarySkill> GameRandomizer::rollSecondarySkills(const CGHeroInst
 	}
 	return skills;
 }
-
-VCMI_LIB_NAMESPACE_END

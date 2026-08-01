@@ -31,7 +31,6 @@
 #include "../../lib/networkPacks/PacksForClientBattle.h"
 
 #include <vcmi/spells/Spell.h>
-#include <boost/lexical_cast.hpp>
 
 BattleResultProcessor::BattleResultProcessor(CGameHandler * gameHandler)
 	: gameHandler(gameHandler)
@@ -268,7 +267,7 @@ void BattleResultProcessor::endBattle(const CBattleInfoCallback & battle)
 	if (!battleQuery)
 	{
 		logGlobal->error("Cannot find battle query!");
-		gameHandler->complain("Player " + boost::lexical_cast<std::string>(battle.sideToPlayer(BattleSide::ATTACKER)) + " has no battle query at the top!");
+		gameHandler->complain("Player " + std::to_string(battle.sideToPlayer(BattleSide::ATTACKER).getNum()) + " has no battle query at the top!");
 		return;
 	}
 
@@ -491,6 +490,7 @@ void BattleResultProcessor::battleFinalize(const BattleID & battleID, const Batt
 		// Eagle Eye handling
 		if(auto eagleEyeLevel = winnerHero->valOfBonuses(BonusType::LEARN_BATTLE_SPELL_LEVEL_LIMIT))
 		{
+			resultsApplied.learnedSpells.eagleEyeBonus = true;
 			resultsApplied.learnedSpells.learn = 1;
 			resultsApplied.learnedSpells.hid = finishingBattle->winnerId;
 			for(const auto & spellId : (*battle)->getUsedSpells(CBattleInfoEssentials::otherSide(result.winner)))

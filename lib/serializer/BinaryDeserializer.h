@@ -14,8 +14,6 @@
 #include "SerializerReflection.h"
 #include "../bonuses/BonusEnum.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 /// Main class for deserialization of classes from binary form
 /// Effectively revesed version of BinarySerializer
 class BinaryDeserializer
@@ -161,10 +159,6 @@ private:
 	{
 		int32_t read;
 		load(read);
-
-		if (!hasFeature(Version::RANDOMIZATION_REWORK))
-			read += 1;
-
 		data = static_cast<BonusType>(read);
 	}
 
@@ -478,5 +472,3 @@ private:
 		}
 	}
 };
-
-VCMI_LIB_NAMESPACE_END

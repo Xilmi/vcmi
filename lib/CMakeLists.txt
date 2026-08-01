@@ -160,7 +160,7 @@ set(lib_MAIN_SRCS
 	mapObjects/CGResource.cpp
 	mapObjects/TownBuildingInstance.cpp
 	mapObjects/CGTownInstance.cpp
-	mapObjects/CQuest.cpp
+	mapObjects/Quest.cpp
 	mapObjects/CRewardableObject.cpp
 	mapObjects/FlaggableMapObject.cpp
 	mapObjects/IMarket.cpp
@@ -332,12 +332,10 @@ if (NOT ENABLE_MINIMAL_LIB)
 endif()
 
 # Version.cpp is a generated file
-if(ENABLE_GITVERSION)
-	list(APPEND lib_SRCS ${CMAKE_BINARY_DIR}/Version.cpp)
-	set_source_files_properties(${CMAKE_BINARY_DIR}/Version.cpp
-		PROPERTIES GENERATED TRUE
-	)
-endif()
+list(APPEND lib_SRCS ${CMAKE_BINARY_DIR}/Version.cpp)
+set_source_files_properties(${CMAKE_BINARY_DIR}/Version.cpp
+	PROPERTIES GENERATED TRUE
+)
 
 set(lib_HEADERS
 	../include/vstd/CLoggerBase.h
@@ -575,6 +573,7 @@ set(lib_MAIN_HEADERS
 	mapObjectConstructors/HillFortInstanceConstructor.h
 	mapObjectConstructors/FlaggableInstanceConstructor.h
 	mapObjectConstructors/IObjectInfo.h
+	mapObjectConstructors/KeyGuardInstanceConstructor.h
 	mapObjectConstructors/MarketInstanceConstructor.h
 	mapObjectConstructors/RandomMapInfo.h
 	mapObjectConstructors/ShipyardInstanceConstructor.h
@@ -589,7 +588,7 @@ set(lib_MAIN_HEADERS
 	mapObjects/TownBuildingInstance.h
 	mapObjects/CGResource.h
 	mapObjects/CGTownInstance.h
-	mapObjects/CQuest.h
+	mapObjects/Quest.h
 	mapObjects/CRewardableObject.h
 	mapObjects/FlaggableMapObject.h
 	mapObjects/IMarket.h
@@ -825,7 +824,7 @@ add_library(vcmiMain OBJECT ${lib_SRCS} ${lib_HEADERS})
 target_compile_definitions(vcmiMain PRIVATE "VCMI_DLL=1")
 target_link_libraries(vcmiMain PUBLIC
 	minizip::minizip ZLIB::ZLIB Iconv::Iconv
-	${SYSTEM_LIBS} Boost::boost Boost::filesystem Boost::program_options Boost::date_time
+	${SYSTEM_LIBS} Boost::boost Boost::filesystem Boost::program_options
 )
 
 if (NOT ENABLE_MINIMAL_LIB)

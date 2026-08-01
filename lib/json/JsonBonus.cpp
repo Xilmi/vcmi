@@ -23,7 +23,6 @@
 #include "../constants/StringConstants.h"
 #include "../modding/IdentifierStorage.h"
 
-VCMI_LIB_USING_NAMESPACE
 
 template <typename T>
 const T parseByMap(const std::map<std::string, T> & map, const JsonNode * val, const std::string & err)
@@ -139,6 +138,7 @@ static void loadBonusSubtype(BonusSubtypeID & subtype, BonusType type, const Jso
 		case BonusType::SPECIAL_FIXED_VALUE_ENCHANT:
 		case BonusType::SPECIAL_PECULIAR_ENCHANT:
 		case BonusType::SPECIAL_SPELL_LEV:
+		case BonusType::SPECIAL_SPELL_SCALING:
 		case BonusType::SPECIFIC_SPELL_DAMAGE:
 		case BonusType::SPECIFIC_SPELL_RANGE:
 		case BonusType::SPELL:
@@ -235,7 +235,7 @@ static TBonusParametersPtr loadBonusAddInfo(BonusType type, const JsonNode & val
 		case BonusType::FEROCITY:
 		case BonusType::PRIMARY_SKILL:
 		case BonusType::ENCHANTER:
-		case BonusType::SPECIAL_PECULIAR_ENCHANT:
+		case BonusType::SLAYER:
 		case BonusType::SPELL_IMMUNITY:
 		case BonusType::DARKNESS:
 		case BonusType::FULL_MAP_SCOUTING:
@@ -286,7 +286,7 @@ static TBonusParametersPtr loadBonusAddInfo(BonusType type, const JsonNode & val
 					{ 'f', 1 }, { 'l', 6}, {'r', 2}, {'b', 4}
 				};
 				int converted = 0;
-				for (const auto & ch : boost::adaptors::reverse(sequence.String()))
+				for (const auto & ch : std::views::reverse(sequence.String()))
 				{
 					char chLower = std::tolower(ch);
 					if (charToDirection.count(chLower))
@@ -297,6 +297,7 @@ static TBonusParametersPtr loadBonusAddInfo(BonusType type, const JsonNode & val
 			var = loadedData;
 			break;
 		}
+		case BonusType::SPECIAL_PECULIAR_ENCHANT:
 		case BonusType::FORCE_NEUTRAL_ENCOUNTER_STACK_COUNT:
 		{
 			std::vector<int32_t> loadedData;
@@ -324,7 +325,6 @@ static TBonusParametersPtr loadBonusAddInfo(BonusType type, const JsonNode & val
 				if (effect["action"].String() == "spell")
 				{
 					int mastery = effect["mastery"].Integer();
-					const auto bonus = JsonUtils::parseBonus(effect["bonus"]);
 					loadedData.effects.push_back(BonusParametersOnCombatEvent::CombatEffectSpell{
 						SpellID(), mastery, targetEnemy
 					});
@@ -541,8 +541,6 @@ static TUpdaterPtr parseUpdater(const JsonNode & updaterJson)
 	}
 	return nullptr;
 }
-
-VCMI_LIB_NAMESPACE_BEGIN
 
 std::shared_ptr<Bonus> JsonUtils::parseBonus(const JsonVector & ability_vec)
 {
@@ -1039,5 +1037,3 @@ CSelector JsonUtils::parseSelector(const JsonNode & ability)
 
 	return ret;
 }
-
-VCMI_LIB_NAMESPACE_END

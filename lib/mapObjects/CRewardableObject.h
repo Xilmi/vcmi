@@ -13,8 +13,6 @@
 
 #include "../rewardable/Interface.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 /// Base class that can handle granting rewards to visiting heroes.
 /// Inherits from CArmedInstance for proper transfer of armies
 class DLL_LINKAGE CRewardableObject : public CArmedInstance, public Rewardable::Interface
@@ -100,11 +98,7 @@ public:
 };
 
 //TODO:
-// class DLL_LINKAGE CGKeys : public CGObjectInstance //Base class for Keymaster and guards
-// class DLL_LINKAGE CGKeymasterTent : public CGKeys
-// class DLL_LINKAGE CGBorderGuard : public CGKeys, public IQuestObject
+// class DLL_LINKAGE KeymasterTent : public CGObjectInstance
 
 // POSSIBLE
 // class DLL_LINKAGE CGSignBottle : public CGObjectInstance //signs and ocean bottles
-
-VCMI_LIB_NAMESPACE_END

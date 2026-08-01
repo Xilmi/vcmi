@@ -17,8 +17,6 @@
 #include "../../GameConstants.h"
 #include "../../IHandlerBase.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class DLL_LINKAGE CHeroHandler : public CHandlerBase<HeroTypeID, HeroType, CHero, HeroTypeService>
 {
 	/// expPerLEvel[i] is amount of exp needed to reach level i;
@@ -44,6 +42,8 @@ class DLL_LINKAGE CHeroHandler : public CHandlerBase<HeroTypeID, HeroType, CHero
 
 	std::vector<std::shared_ptr<Bonus>> createCreatureSpecialty(CreatureID cid, int fixedLevel, int growthPerStep) const;
 	std::vector<std::shared_ptr<Bonus>> createSecondarySkillSpecialty(SecondarySkill skillID, int growthPerStep) const;
+	std::vector<std::shared_ptr<Bonus>> createSpellScalingSpecialty(SpellID spellID, int growthPerStep) const;
+	std::vector<std::shared_ptr<Bonus>> createSpellFixedSpecialty(SpellID spellID, const std::vector<int32_t> & values) const;
 
 public:
 	ui32 level(TExpType experience) const; //calculates level corresponding to given experience amount
@@ -66,5 +66,3 @@ protected:
 	const std::vector<std::string> & getTypeNames() const override;
 	std::shared_ptr<CHero> loadFromJson(const std::string & scope, const JsonNode & node, const std::string & identifier, size_t index) override;
 };
-
-VCMI_LIB_NAMESPACE_END

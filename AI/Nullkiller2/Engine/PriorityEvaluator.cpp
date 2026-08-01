@@ -23,10 +23,13 @@
 #include "../../../lib/GameSettings.h"
 #include "../../../lib/filesystem/Filesystem.h"
 #include "../Goals/ExecuteHeroChain.h"
+#include "../Goals/AdventureSpellCast.h"
 #include "../Goals/BuildThis.h"
 #include "../Goals/StayAtTown.h"
 #include "../Goals/ExchangeSwapTownHeroes.h"
 #include "../Goals/DismissHero.h"
+#include "../../../lib/spells/CSpell.h"
+#include "../../../lib/spells/adventure/DimensionDoorEffect.h"
 #include "../Markers/UnlockCluster.h"
 #include "../Markers/HeroExchange.h"
 #include "../Markers/ArmyUpgrade.h"
@@ -39,6 +42,29 @@ namespace NK2AI
 {
 
 constexpr float MAX_CRITICAL_VALUE = 2.0f;
+
+float evaluateEnemyTownConquestValue(float baseValue, int visibleEnemyTownCount)
+{
+	if(visibleEnemyTownCount <= 0)
+		return baseValue;
+
+	if(visibleEnemyTownCount == 1)
+		return std::max(baseValue * 4.0f, 6.0f);
+
+	if(visibleEnemyTownCount == 2)
+		return std::max(baseValue * 3.5f, 5.0f);
+
+	return std::max(baseValue * 3.0f, 4.0f);
+}
+
+float evaluateMaxArmyLossForConquest(float baseMaxArmyLoss, float conquestValue, bool isEnemyTownConquest)
+{
+	if(!isEnemyTownConquest || conquestValue <= MAX_CRITICAL_VALUE)
+		return baseMaxArmyLoss;
+
+	const float conquestPressure = (conquestValue - MAX_CRITICAL_VALUE) * 0.05f;
+	return std::min(baseMaxArmyLoss + conquestPressure, 0.75f);
+}
 
 EvaluationContext::EvaluationContext(const Nullkiller* aiNk)
 	: movementCost(0.0),
@@ -85,6 +111,22 @@ bool isAnotherAi(const CGObjectInstance * obj, const CPlayerSpecificInfoCallback
 {
 	return obj->getOwner().isValidPlayer()
 		&& cb.getStartInfo()->getIthPlayersSettings(obj->getOwner()).isControlledByAI();
+}
+
+int getVisibleEnemyTownCount(const CGTownInstance * town, const Nullkiller * aiNk)
+{
+	const auto owner = town->getOwner();
+	if(!owner.isValidPlayer() || aiNk->cc->getPlayerRelations(aiNk->playerID, owner) != PlayerRelations::ENEMIES)
+		return 0;
+
+	int result = 0;
+	for(const auto * visibleTown : aiNk->cc->getTownsInfo(false))
+	{
+		if(visibleTown->getOwner() == owner)
+			result++;
+	}
+
+	return result;
 }
 
 int32_t estimateTownIncome(CCallback * cb, const CGObjectInstance * target, const CGHeroInstance * hero)
@@ -532,14 +574,19 @@ float RewardEvaluator::getConquestValue(const CGObjectInstance* target) const
 
 		auto fortLevel = town->fortLevel();
 		auto booster = 1.0f;
+		float baseValue = 0.0f;
 
 		if (town->hasCapitol())
-			return booster * 1.5;
-
-		if (fortLevel < CGTownInstance::CITADEL)
-			return booster * (town->hasFort() ? 1.0 : 0.8);
+			baseValue = booster * 1.5;
+		else if (fortLevel < CGTownInstance::CITADEL)
+			baseValue = booster * (town->hasFort() ? 1.0 : 0.8);
 		else
-			return booster * (fortLevel == CGTownInstance::CASTLE ? 1.4 : 1.2);
+			baseValue = booster * (fortLevel == CGTownInstance::CASTLE ? 1.4 : 1.2);
+
+		const auto visibleEnemyTownCount = getVisibleEnemyTownCount(town, aiNk);
+		return visibleEnemyTownCount > 0
+			? evaluateEnemyTownConquestValue(baseValue, visibleEnemyTownCount)
+			: baseValue;
 	}
 
 	case Obj::HERO:
@@ -801,26 +848,31 @@ public:
 		int tilesDiscovered = task->value;
 		evaluationContext.addNonCriticalStrategicalValue(0.03f * tilesDiscovered);
 
-		for(const auto obj : evaluationContext.evaluator.aiNk->cc->getVisitableObjs(task->tile))
+		// Hidden exploration targets may have no visible object data yet.
+		if(evaluationContext.evaluator.aiNk->cc->isVisible(task->tile))
 		{
-			switch(obj->ID.num)
+			for(const auto obj : evaluationContext.evaluator.aiNk->cc->getVisitableObjs(task->tile))
 			{
-				case Obj::MONOLITH_ONE_WAY_ENTRANCE:
-				case Obj::MONOLITH_TWO_WAY:
-				case Obj::SUBTERRANEAN_GATE:
-					evaluationContext.explorePriority = 1;
-					break;
-				case Obj::REDWOOD_OBSERVATORY:
-				case Obj::PILLAR_OF_FIRE:
-					evaluationContext.explorePriority = 2;
-					break;
-				default:
-					logAi->warn("ExplorePointEvaluator buildEvaluationContext unknown exploration point %d", obj->ID.num);
+				switch(obj->ID.num)
+				{
+					case Obj::MONOLITH_ONE_WAY_ENTRANCE:
+					case Obj::MONOLITH_TWO_WAY:
+					case Obj::SUBTERRANEAN_GATE:
+						evaluationContext.explorePriority = 1;
+						break;
+					case Obj::REDWOOD_OBSERVATORY:
+					case Obj::PILLAR_OF_FIRE:
+						evaluationContext.explorePriority = 2;
+						break;
+					default:
+						logAi->warn("ExplorePointEvaluator buildEvaluationContext unknown exploration point %d", obj->ID.num);
+				}
 			}
-		}
 
-		if(evaluationContext.evaluator.aiNk->cc->getTile(task->tile)->roadType != RoadId::NO_ROAD)
-			evaluationContext.explorePriority = 1;
+			const TerrainTile * tile = evaluationContext.evaluator.aiNk->cc->getTile(task->tile, false);
+			if(tile && tile->roadType != RoadId::NO_ROAD)
+				evaluationContext.explorePriority = 1;
+		}
 		if(evaluationContext.explorePriority == 0)
 		{
 			if(tilesDiscovered >= 20)
@@ -829,6 +881,37 @@ public:
 				evaluationContext.explorePriority = 2;
 			else
 				evaluationContext.explorePriority = 3;
+		}
+	}
+};
+
+class AdventureSpellCastEvaluator : public IEvaluationContextBuilder
+{
+public:
+	void buildEvaluationContext(EvaluationContext & evaluationContext, Goals::TSubgoal task) const override
+	{
+		if(task->goalType != Goals::ADVENTURE_SPELL_CAST || !task->hero)
+			return;
+
+		const auto & adventureSpellCast = dynamic_cast<Goals::AdventureSpellCast &>(*task);
+		const CSpell * spell = adventureSpellCast.getSpell();
+
+		if(!spell)
+			return;
+
+		auto role = evaluationContext.evaluator.aiNk->heroManager->getHeroRoleOrDefaultInefficient(task->hero);
+		evaluationContext.heroRole = role;
+
+		if(auto dimensionDoorEffect = spell->getAdventureMechanics().getEffectAs<DimensionDoorEffect>(task->hero))
+		{
+			const float movementLimit = std::max(1, task->hero->movementPointsLimit());
+			const float movementSpent = std::min(
+				task->hero->movementPointsRemaining(),
+				dimensionDoorEffect->getMovementPointsTaken());
+			const float movementCost = movementSpent / movementLimit;
+
+			evaluationContext.movementCost += movementCost;
+			evaluationContext.movementCostByRole[role] += movementCost;
 		}
 	}
 };
@@ -918,6 +1001,7 @@ public:
 		evaluationContext.threatTurns = threat.turn;
 
 		vstd::amax(evaluationContext.danger, defendTown.getThreat().danger);
+		vstd::amax(evaluationContext.threat, defendTown.getThreat().danger);
 		addTileDanger(evaluationContext, town->visitablePos(), defendTown.getTurn(), defendTown.getDefenceStrength());
 	}
 };
@@ -1278,6 +1362,7 @@ PriorityEvaluator::PriorityEvaluator(const Nullkiller * aiNk) : aiNk(aiNk)
 	evaluationContextBuilders.push_back(std::make_shared<ExchangeSwapTownHeroesContextBuilder>());
 	evaluationContextBuilders.push_back(std::make_shared<DismissHeroContextBuilder>(aiNk));
 	evaluationContextBuilders.push_back(std::make_shared<StayAtTownManaRecoveryEvaluator>());
+	evaluationContextBuilders.push_back(std::make_shared<AdventureSpellCastEvaluator>());
 	evaluationContextBuilders.push_back(std::make_shared<ExplorePointEvaluator>());
 }
 
@@ -1367,6 +1452,10 @@ float PriorityEvaluator::evaluate(Goals::TSubgoal task, int priorityTier)
 		const float maxEnemyDangerRatio = evaluationContext.powerRatio > 0 ? evaluationContext.powerRatio : 1.0;
 		auto calendar = aiNk->cc->getCalendar();
 		const bool arriveNextWeek = calendar.getDayOfWeek() + evaluationContext.turn > calendar.getDaysInWeek();
+		const bool isEnemyTownConquest = evaluationContext.isEnemy
+			&& !evaluationContext.isHero
+			&& evaluationContext.conquestValue > MAX_CRITICAL_VALUE;
+		const float maxWillingToLoseForTask = evaluateMaxArmyLossForConquest(maxWillingToLose, evaluationContext.conquestValue, isEnemyTownConquest);
 
 #if NK2AI_TRACE_LEVEL >= 2
 		logAi->trace(
@@ -1415,7 +1504,7 @@ float PriorityEvaluator::evaluate(Goals::TSubgoal task, int priorityTier)
 
 				// TODO: Mircea: Ensure defenseValue is taken into account. See AINodeStorage::evaluateArmyLoss and CCreatureSet::getArmyStrength
 				// TODO: Mircea: make it dynamic, allow higher risk for killing a higher risk hero if it leads to killing an entire player. See conquestValue
-				if(maxWillingToLose - evaluationContext.armyLossRatio < 0)
+				if(maxWillingToLoseForTask - evaluationContext.armyLossRatio < 0)
 					return 0;
 
 				score = evaluateConquestValue(score, evaluationContext.conquestValue, evaluationContext.armyInvolvement);
@@ -1432,11 +1521,12 @@ float PriorityEvaluator::evaluate(Goals::TSubgoal task, int priorityTier)
 				if(!evaluationContext.isDefend)
 					return 0;
 				// TODO: Mircea: Often is better to die as long as you're almost destroying the opponent. To revisit
-				if(maxWillingToLose - evaluationContext.armyLossRatio < 0)
+				if(maxWillingToLoseForTask - evaluationContext.armyLossRatio < 0)
 					return 0;
 				if(evaluationContext.isEnemy && evaluationContext.turn > 0)
 					return 0;
-				if(evaluationContext.threatTurns <= evaluationContext.turn)
+				const bool canPrepareForNextTurnThreat = evaluationContext.turn == 0 && evaluationContext.threatTurns == 1;
+				if(evaluationContext.threatTurns <= evaluationContext.turn || canPrepareForNextTurnThreat)
 				{
 					// TODO: Mircea: Too many heroes are rushing for INSTADEFEND.
 					// We need some kind of smart selection of who to go, not everyone qualified
@@ -1473,7 +1563,7 @@ float PriorityEvaluator::evaluate(Goals::TSubgoal task, int priorityTier)
 				   || (evaluationContext.enemyHeroDangerRatio > maxEnemyDangerRatio && (evaluationContext.turn > 0 || evaluationContext.isExchange)
 					   && !amIWithoutCastle))
 					return 0;
-				if (maxWillingToLose - evaluationContext.armyLossRatio < 0)
+				if (maxWillingToLoseForTask - evaluationContext.armyLossRatio < 0)
 					return 0;
 
 				score = evaluateArmyLossRatio(score, evaluationContext.armyLossRatio, evaluationContext.heroRole);
@@ -1496,7 +1586,7 @@ float PriorityEvaluator::evaluate(Goals::TSubgoal task, int priorityTier)
 					return 0;
 				if(evaluationContext.buildingCost.marketValue() > 0)
 					return 0;
-				if(maxWillingToLose - evaluationContext.armyLossRatio < 0)
+				if(maxWillingToLoseForTask - evaluationContext.armyLossRatio < 0)
 					return 0;
 
 				if(priorityTier == EXPLORE_AND_GATHER && evaluationContext.enemyHeroDangerRatio > maxEnemyDangerRatio)
@@ -1607,7 +1697,7 @@ float PriorityEvaluator::evaluate(Goals::TSubgoal task, int priorityTier)
 			case BUILDINGS: //For buildings and buying army
 			{
 				// TODO: Mircea: What's the point of this check for ::BUILDINGS? Isn't the priority itself just for buildings? To test
-				if(maxWillingToLose - evaluationContext.armyLossRatio < 0)
+				if(maxWillingToLoseForTask - evaluationContext.armyLossRatio < 0)
 					return 0;
 				//If we already have locked resources, we don't look at other buildings
 				if(aiNk->getLockedResources().marketValue() > 0)

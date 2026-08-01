@@ -24,6 +24,7 @@
 #include "../gui/CursorHandler.h"
 #include "../gui/Shortcut.h"
 #include "../gui/WindowHandler.h"
+#include "../media/ISoundPlayer.h"
 
 #include "../widgets/CComponent.h"
 #include "../widgets/CGarrisonInt.h"
@@ -69,7 +70,6 @@
 #include "../../lib/CSoundBase.h"
 #include "../../lib/constants/EntityIdentifiers.h"
 
-#include <boost/lexical_cast.hpp>
 
 ImagePath CRecruitmentWindow::getRecruitmentBackground(const CGDwelling * dwelling, int level)
 {
@@ -336,7 +336,7 @@ void CRecruitmentWindow::availableCreaturesChanged()
 		int amount = dwelling->creatures[i].first;
 
 		//create new cards
-		for(auto & creature : boost::adaptors::reverse(dwelling->creatures[i].second))
+		for(auto & creature : std::views::reverse(dwelling->creatures[i].second))
 			cards.push_back(std::make_shared<CCreatureCard>(this, creature.toCreature(), amount));
 	}
 
@@ -440,9 +440,9 @@ void CSplitWindow::setAmountText(std::string text, bool left)
 	{
 		try
 		{
-			amount = boost::lexical_cast<int>(text);
+			amount = std::stoi(text);
 		}
-		catch(boost::bad_lexical_cast &)
+		catch(const std::exception &)
 		{
 			amount = left ? leftAmount : rightAmount;
 		}
@@ -479,34 +479,56 @@ void CSplitWindow::sliderMoved(int to)
 
 CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std::vector<SecondarySkill> & skills, std::function<void(ui32)> callback)
 	: CWindowObject(PLAYER_COLORED, ImagePath::builtin("LVLUPBKG")),
-	cb(callback),
-	skills(skills),
-	hero(hero),
 	skillViewOffset(0)
 {
 	OBJECT_CONSTRUCTION;
 
-	GAME->interface()->showingDialog->setBusy();
+	initLevelUpData(hero, skills, callback);
+	createLevelUpControls(pskill);
+	setRedrawParent(true);
+	redraw();
+}
 
-	sortedSkills = skills;
-	std::sort(sortedSkills.begin(), sortedSkills.end(), [hero](auto a, auto b) {
-		if(hero->getSecSkillLevel(a) == hero->getSecSkillLevel(b))
+void CLevelWindow::initLevelUpData(const CGHeroInstance * heroInstance, const std::vector<SecondarySkill> & availableSkills, const std::function<void(ui32)> & callback)
+{
+	GAME->interface()->showingDialog->setBusy();
+	selectionSubmitted = false;
+	hero = heroInstance;
+	cb = callback;
+	skills = availableSkills;
+	skillViewOffset = 0;
+	sortedSkills = availableSkills;
+	std::sort(sortedSkills.begin(), sortedSkills.end(), [heroInstance](auto a, auto b) {
+		if(heroInstance->getSecSkillLevel(a) == heroInstance->getSecSkillLevel(b))
 			return LIBRARY->skillh->getById(a)->getNameTranslated() < LIBRARY->skillh->getById(b)->getNameTranslated();
-		return hero->getSecSkillLevel(a) > hero->getSecSkillLevel(b);
+		return heroInstance->getSecSkillLevel(a) > heroInstance->getSecSkillLevel(b);
 	});
+}
+
+void CLevelWindow::createLevelUpControls(PrimarySkill pskill)
+{
+	buttonLeft.reset();
+	buttonRight.reset();
+	portrait.reset();
+	ok.reset();
+	mainTitle.reset();
+	levelTitle.reset();
+	skillIcon.reset();
+	skillValue.reset();
 
 	createSkillBox();
+
 	if(skills.size() > 3)
 	{
-		buttonLeft = std::make_shared<CButton>(Point(23, 309), AnimationPath::builtin("HSBTNS3"), CButton::tooltip(), [this, skills](){
+		buttonLeft = std::make_shared<CButton>(Point(23, 309), AnimationPath::builtin("HSBTNS3"), CButton::tooltip(), [this](){
 			if(skillViewOffset > 0)
 				skillViewOffset--;
 			else
-				skillViewOffset = skills.size() - 1;
+				skillViewOffset = this->skills.size() - 1;
 			createSkillBox();
 		}, EShortcut::MOVE_LEFT);
-		buttonRight = std::make_shared<CButton>(Point(pos.w - 45, 309), AnimationPath::builtin("HSBTNS5"), CButton::tooltip(), [this, skills](){
-			if(skillViewOffset < skills.size() - 1)
+		buttonRight = std::make_shared<CButton>(Point(pos.w - 45, 309), AnimationPath::builtin("HSBTNS5"), CButton::tooltip(), [this](){
+			if(skillViewOffset < this->skills.size() - 1)
 				skillViewOffset++;
 			else
 				skillViewOffset = 0;
@@ -516,8 +538,8 @@ CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std
 
 	portrait = std::make_shared<CHeroArea>(170, 66, hero);
 	portrait->addClickCallback(nullptr);
-	portrait->addRClickCallback([hero](){ ENGINE->windows().createAndPushWindow<CRClickPopupInt>(std::make_shared<CHeroWindow>(hero)); });
-	ok = std::make_shared<CButton>(Point(297, 413), AnimationPath::builtin("IOKAY"), CButton::tooltip(), std::bind(&CLevelWindow::submitSelection, this), EShortcut::GLOBAL_ACCEPT);
+	portrait->addRClickCallback([hero = hero](){ ENGINE->windows().createAndPushWindow<CRClickPopupInt>(std::make_shared<CHeroWindow>(hero)); });
+	ok = std::make_shared<CButton>(Point(296, 413), AnimationPath::builtin("IOKAY"), CButton::tooltip(), std::bind(&CLevelWindow::submitSelection, this), EShortcut::GLOBAL_ACCEPT);
 
 	//%s has gained a level.
 	mainTitle = std::make_shared<CLabel>(192, 33, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, boost::str(boost::format(LIBRARY->generaltexth->allTexts[444]) % hero->getNameTranslated()));
@@ -529,10 +551,18 @@ CLevelWindow::CLevelWindow(const CGHeroInstance * hero, PrimarySkill pskill, std
 	boost::replace_first(levelTitleText, "%s", hero->getClassNameTranslated());
 
 	levelTitle = std::make_shared<CLabel>(192, 162, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, levelTitleText);
-
 	skillIcon = std::make_shared<CAnimImage>(AnimationPath::builtin("PSKIL42"), pskill.getNum(), 0, 174, 190);
-
 	skillValue = std::make_shared<CLabel>(192, 253, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->primarySkillNames[pskill.getNum()] + " +1");
+}
+
+void CLevelWindow::updateLevelUpData(const CGHeroInstance * heroInstance, PrimarySkill pskill, const std::vector<SecondarySkill> & availableSkills, const std::function<void(ui32)> & callback)
+{
+	OBJECT_CONSTRUCTION;
+
+	initLevelUpData(heroInstance, availableSkills, callback);
+	createLevelUpControls(pskill);
+	setRedrawParent(true);
+	redraw();
 }
 
 std::vector<SecondarySkill> getSkillsToShow(const std::vector<SecondarySkill>& skills, int offset, int count)
@@ -555,6 +585,8 @@ std::vector<SecondarySkill> getSkillsToShow(const std::vector<SecondarySkill>& s
 void CLevelWindow::createSkillBox()
 {
 	OBJECT_CONSTRUCTION;
+
+	box.reset();
 
 	std::vector<SecondarySkill> skillsToShow = skills.size() > 3 ? getSkillsToShow(sortedSkills, skillViewOffset, 3) : sortedSkills;
 	if(!skillsToShow.empty())
@@ -612,15 +644,10 @@ void CLevelWindow::submitSelection()
 
 		selectionSubmitted = true;
 		GAME->interface()->showingDialog->setFree();
-
-		if(!closeOnSelection)
-		{
-			deactivate();
-			return;
-		}
 	}
 
-	close();
+	if(closeOnSelection)
+		close();
 }
 
 void CLevelWindow::close()
@@ -855,7 +882,7 @@ void CTavernWindow::HeroPortrait::clickPressed(const Point & cursorPosition)
 void CTavernWindow::HeroPortrait::clickDouble(const Point & cursorPosition)
 {
 	clickPressed(cursorPosition);
-	
+
 	if(onChoose)
 		onChoose();
 }
@@ -1003,7 +1030,12 @@ void CTransformerWindow::makeDeal()
 	for(auto & elem : items)
 	{
 		if(!elem->left)
+		{
 			GAME->interface()->cb->trade(market->getObjInstanceID(), EMarketMode::CREATURE_UNDEAD, SlotID(elem->id), {}, {}, hero);
+			const auto & sound = army->getCreature(SlotID(elem->id))->sounds.killed;
+			if(!sound.empty())
+				ENGINE->sound().playSound(sound);
+		}
 	}
 }
 
@@ -1039,7 +1071,7 @@ CTransformerWindow::CTransformerWindow(const IMarket * _market, const CGHeroInst
 		army = hero;
 	else
 		army = dynamic_cast<const CArmedInstance *>(market); //for town only
-	
+
 	if(army)
 	{
 		for(int i = 0; i < GameConstants::ARMY_SIZE; i++)
@@ -1251,11 +1283,12 @@ CGarrisonWindow::CGarrisonWindow(const CArmedInstance * up, const CGHeroInstance
 	OBJECT_CONSTRUCTION;
 
 	garr = std::make_shared<CGarrisonInt>(Point(92, 127), 4, Point(0,96), up, down, removableUnits);
+	garr->showMoveUnitsOnHover = true;
 	{
 		auto split = std::make_shared<CButton>(Point(88, 314), AnimationPath::builtin("IDV6432.DEF"), CButton::tooltip(LIBRARY->generaltexth->tcommands[3], ""), [this](){ garr->splitClick(); }, EShortcut::HERO_ARMY_SPLIT );
 		garr->addSplitBtn(split);
 	}
-	quit = std::make_shared<CButton>(Point(399, 314), AnimationPath::builtin("IOK6432.DEF"), CButton::tooltip(LIBRARY->generaltexth->tcommands[8], ""), [this](){ close(); }, EShortcut::GLOBAL_ACCEPT);
+	quit = std::make_shared<CButton>(Point(399, 314), AnimationPath::builtin("IOK6432.DEF"), CButton::tooltip(LIBRARY->generaltexth->translate("vcmi.garrison.leave"), ""), [this](){ close(); }, EShortcut::GLOBAL_ACCEPT);
 
 	const CGHeroInstance * sourceHero = dynamic_cast<const CGHeroInstance *>(up);
 	const auto * sourceTown = dynamic_cast<const CGTownInstance *>(up);
@@ -1289,6 +1322,7 @@ CGarrisonWindow::CGarrisonWindow(const CArmedInstance * up, const CGHeroInstance
 		banner = std::make_shared<CAnimImage>(AnimationPath::builtin("CREST58"), up->getOwner().getNum(), 0, 27, 127);
 
 	portrait = std::make_shared<CAnimImage>(AnimationPath::builtin("PortraitsLarge"), down->getIconIndex(), 0, 27, 223);
+	statusbar = CGStatusBar::create(std::make_shared<CPicture>(background->getSurface(), Rect(8, pos.h - 26, pos.w - 16, 19), 8, pos.h - 26));
 }
 
 void CGarrisonWindow::updateGarrisons()
@@ -1883,7 +1917,7 @@ void CObjectListWindow::itemsSearchCallback(const std::string & text)
 		std::string name = parts.back();
 		boost::erase_all(name, "{");
     	boost::erase_all(name, "}");
-		
+
 		if(auto score = TextOperations::textSearchSimilarityScore(text, name)) // Keep only relevant items
 			rankedItems.emplace_back(score.value(), item);
 	}

@@ -11,8 +11,6 @@
 
 #include <vcmi/Services.h>
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class CConsoleHandler;
 class CArtHandler;
 class CHeroHandler;
@@ -112,7 +110,7 @@ public:
 	~GameLibrary();
 
 	/// initializes settings and filesystem
-	void initializeFilesystem(bool extractArchives);
+	void initializeFilesystem(bool extractArchives, bool useTestPreset = false);
 
 	/// Loads all game entities
 	void initializeLibrary();
@@ -131,9 +129,7 @@ public:
 	void loadFilesystem(bool extractArchives);
 
 	// loads filesystems of all mods
-	void loadModFilesystem();
+	void loadModFilesystem(bool useTestPreset = false);
 };
 
 extern DLL_LINKAGE GameLibrary * LIBRARY;
-
-VCMI_LIB_NAMESPACE_END

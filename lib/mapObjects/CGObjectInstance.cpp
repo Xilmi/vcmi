@@ -30,8 +30,6 @@
 
 #include <vstd/RNG.h>
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 //TODO: remove constructor
 CGObjectInstance::CGObjectInstance(IGameInfoCallback *cb):
 	IObjectInterface(cb),
@@ -100,6 +98,21 @@ bool CGObjectInstance::blockingAt(const int3 & testPos) const
 bool CGObjectInstance::coveringAt(const int3 & testPos) const
 {
 	return anchorPos().z == testPos.z && appearance->isVisibleAt(anchorPos().x - testPos.x, anchorPos().y - testPos.y);
+}
+
+bool CGObjectInstance::isVisibleFor(PlayerColor player) const
+{
+	// otherwise visible when at least one covered tile is revealed
+	for(int fy = 0; fy < getHeight(); ++fy)
+	{
+		for(int fx = 0; fx < getWidth(); ++fx)
+		{
+			int3 tile = anchorPos() + int3(-fx, -fy, 0);
+			if(coveringAt(tile) && cb->isVisibleFor(tile, player))
+				return true;
+		}
+	}
+	return false;
 }
 
 std::set<int3> CGObjectInstance::getBlockedPos() const
@@ -379,6 +392,11 @@ bool CGObjectInstance::passableFor(PlayerColor color) const
 	return false;
 }
 
+bool CGObjectInstance::passableFor(const CGHeroInstance * hero) const
+{
+	return passableFor(hero->getOwner());
+}
+
 void CGObjectInstance::updateFrom(const JsonNode & data)
 {
 
@@ -423,7 +441,7 @@ void CGObjectInstance::serializeJsonOwner(JsonSerializeFormat & handler)
 BattleField CGObjectInstance::getBattlefield() const
 {
 	auto currentLayer = cb->gameState().getMap().mapLayers.at(pos.z);
-	const auto & objectBattlefields = LIBRARY->objtypeh->getHandlerFor(ID, subID)->getBattlefields();
+	const auto & objectBattlefields = getObjectHandler()->getBattlefields();
 
 	if (objectBattlefields.empty())
 		return BattleField::NONE;
@@ -431,9 +449,12 @@ BattleField CGObjectInstance::getBattlefield() const
 	return BattleFieldHandler::selectRandomBattlefield(objectBattlefields, currentLayer, CRandomGenerator::getDefault());
 }
 
+TerrainId CGObjectInstance::getBattleTerrain() const
+{
+	return getObjectHandler()->getBattleTerrain();
+}
+
 const IOwnableObject * CGObjectInstance::asOwnable() const
 {
 	return nullptr;
 }
-
-VCMI_LIB_NAMESPACE_END

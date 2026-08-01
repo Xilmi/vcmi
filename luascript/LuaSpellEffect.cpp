@@ -30,8 +30,6 @@ static const std::string GET_HEALTH_CHANGE = "getHealthChange";
 static const std::string ADJUST_AFFECTED_HEXES = "adjustAffectedHexes";
 static const std::string ADJUST_TARGET_TYPES = "adjustTargetTypes";
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 namespace spells
 {
 namespace effects
@@ -81,7 +79,7 @@ void LuaSpellEffect::adjustTargetTypes(std::vector<TargetType> & types, const Me
 void LuaSpellEffect::adjustAffectedHexes(BattleHexArray & hexes, const Mechanics * m, const Target & spellTarget) const
 {
 	std::shared_ptr<LuaContext> context = resolveScript(m);
-	context->callMethod<void>(ADJUST_AFFECTED_HEXES, parameters, m, hexes, spellTarget);
+	hexes = context->callMethod<BattleHexArray>(ADJUST_AFFECTED_HEXES, parameters, m, hexes, spellTarget);
 }
 
 SpellEffectValue LuaSpellEffect::getHealthChange(const Mechanics * m, const Target & spellTarget) const
@@ -142,5 +140,3 @@ std::shared_ptr<scripting::LuaContext> LuaSpellEffect::resolveScript(const Mecha
 
 }
 }
-
-VCMI_LIB_NAMESPACE_END

@@ -11,8 +11,6 @@
 
 #include "BattleHex.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 namespace battle
 {
 	class Unit;
@@ -33,9 +31,8 @@ struct DLL_LINKAGE BattleAttackInfo
 	bool unluckyStrike = false;
 	bool deathBlow     = false;
 	bool doubleDamage  = false;
+	bool ignoreDefenseFactors = false; // skip the defender's damage-reduction factors, yielding pre-mitigation damage (needed for Fire Shield reflection)
 
 	BattleAttackInfo(const battle::Unit * Attacker, const battle::Unit * Defender, int chargeDistance, bool Shooting);
 	BattleAttackInfo reverse() const;
 };
-
-VCMI_LIB_NAMESPACE_END

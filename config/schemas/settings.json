@@ -79,12 +79,12 @@
 				},
 				"language" : {
 					"type" : "string",
-					"enum" : [ "english", "belarusian", "bulgarian", "czech", "chinese", "tchinese", "dutch", "filipino", "finnish", "french", "german", "greek", "hungarian", "italian", "japanese", "korean", "latvian", "norwegian", "polish", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
+					"enum" : [ "english", "belarusian", "bulgarian", "czech", "chinese", "tchinese", "dutch", "filipino", "finnish", "french", "german", "greek", "hungarian", "italian", "japanese", "korean", "latvian", "lithuanian", "norwegian", "polish", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
 					"default" : "english"
 				},
 				"gameDataLanguage" : {
 					"type" : "string",
-					"enum" : [ "auto", "english", "belarusian", "bulgarian", "czech", "chinese", "tchinese", "dutch", "filipino", "finnish", "french", "german", "greek", "hungarian", "italian", "japanese", "korean", "latvian", "norwegian", "polish", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
+					"enum" : [ "auto", "english", "belarusian", "bulgarian", "czech", "chinese", "tchinese", "dutch", "filipino", "finnish", "french", "german", "greek", "hungarian", "italian", "japanese", "korean", "latvian", "lithuanian", "norwegian", "polish", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
 					"default" : "auto"
 				},
 				"lastSave" : {
@@ -501,7 +501,7 @@
 			"type" : "object",
 			"additionalProperties" : false,
 			"default" : {},
-			"required" : [ "speedFactor", "mouseShadow", "cellBorders", "stackRange", "movementHighlightOnHover", "rangeLimitHighlightOnHover", "showQueue", "swipeAttackDistance", "queueSize", "stickyHeroInfoWindows", "enableAutocombatSpells", "endWithAutocombat", "queueSmallSlots", "queueSmallOutside", "enableQuickSpellPanel", "showHealthBar" ],
+			"required" : [ "speedFactor", "mouseShadow", "cellBorders", "stackRange", "movementHighlightOnHover", "rangeLimitHighlightOnHover", "showQueue", "swipeAttackDistance", "queueSize", "stickyHeroInfoWindows", "stackInfoBasicPanel", "enableAutocombatSpells", "endWithAutocombat", "queueSmallSlots", "queueSmallOutside", "enableQuickSpellPanel", "showHealthBar" ],
 			"properties" : {
 				"speedFactor" : {
 					"type" : "number",
@@ -541,6 +541,10 @@
 					"enum" : [ "auto", "small", "big" ]
 				},
 				"stickyHeroInfoWindows" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"stackInfoBasicPanel" : {
 					"type" : "boolean",
 					"default" : true
 				},
@@ -710,6 +714,7 @@
 			"default" : {},
 			"additionalProperties" : false,
 			"required" : [ 
+				"mainWindow",
 				"setupCompleted", 
 				"defaultRepositoryEnabled",
 				"defaultRepositoryURL",
@@ -770,6 +775,26 @@
 					"defaultAndroid": false,
 					"defaultDesktop" : true
 
+				},
+				"mainWindow" : {
+					"type" : "object",
+					"default" : {},
+					"additionalProperties" : false,
+					"required" : [ "geometry" ],
+					"properties" : {
+						"geometry" : {
+							"type" : "object",
+							"default" : {},
+							"additionalProperties" : false,
+							"required" : [ "x", "y", "width", "height" ],
+							"properties" : {
+								"x" : { "type" : "integer", "default" : 0 },
+								"y" : { "type" : "integer", "default" : 0 },
+								"width" : { "type" : "integer", "default" : 0 },
+								"height" : { "type" : "integer", "default" : 0 }
+							}
+						}
+					}
 				}
 			}
 		},

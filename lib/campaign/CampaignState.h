@@ -24,8 +24,6 @@ class CampaignProperties;
 class ScenarioProperties;
 #endif
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 struct StartInfo;
 class CGHeroInstance;
 class CBinaryReader;
@@ -111,8 +109,7 @@ public:
 		h & campaignVersion;
 		h & creationDateTime;
 		h & difficultyChosenByPlayer;
-		if (h.hasFeature(Handler::Version::CAMPAIGN_BONUSES))
-			h & restrictGarrisonsAI;
+		h & restrictGarrisonsAI;
 		h & filename;
 		h & modName;
 		h & music;
@@ -122,11 +119,8 @@ public:
 		h & videoRim;
 		h & introVideo;
 		h & outroVideo;
-		if (h.hasFeature(Handler::Version::CAMPAIGN_BONUSES))
-		{
-			h & yogWizardID;
-			h & gemSorceressID;
-		}
+		h & yogWizardID;
+		h & gemSorceressID;
 	}
 };
 
@@ -165,30 +159,7 @@ struct DLL_LINKAGE CampaignTravel
 		h & artifactsKeptByHero;
 		h & startOptions;
 		h & playerColor;
-		if (h.hasFeature(Handler::Version::CAMPAIGN_BONUSES))
-		{
-			h & bonusesToChoose;
-		}
-		else
-		{
-			struct OldBonus{
-				CampaignBonusType type = {};
-				int32_t info1 = 0;
-				int32_t info2 = 0;
-				int32_t info3 = 0;
-
-				void serialize(Handler &h)
-				{
-					h & type;
-					h & info1;
-					h & info2;
-					h & info3;
-				}
-			};
-
-			std::vector<OldBonus> oldBonuses;
-			h & oldBonuses;
-		}
+		h & bonusesToChoose;
 	}
 };
 
@@ -349,5 +320,3 @@ public:
 		h & highscoreParameters;
 	}
 };
-
-VCMI_LIB_NAMESPACE_END

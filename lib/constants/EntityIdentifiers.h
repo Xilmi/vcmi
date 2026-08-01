@@ -13,8 +13,6 @@
 #include "NumericConstants.h"
 #include "IdentifierBase.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class Services;
 class Artifact;
 class ArtifactService;
@@ -81,16 +79,6 @@ class DLL_LINKAGE ObjectInstanceID : public StaticIdentifier<ObjectInstanceID>
 public:
 	using StaticIdentifier<ObjectInstanceID>::StaticIdentifier;
 	static const ObjectInstanceID NONE;
-
-	static si32 decode(const std::string & identifier);
-	static std::string encode(const si32 index);
-};
-
-class DLL_LINKAGE QuestInstanceID : public StaticIdentifier<QuestInstanceID>
-{
-public:
-	using StaticIdentifier<QuestInstanceID>::StaticIdentifier;
-	static const QuestInstanceID NONE;
 
 	static si32 decode(const std::string & identifier);
 	static std::string encode(const si32 index);
@@ -1169,5 +1157,3 @@ using EGameResID = GameResID;
 using River = RiverId;
 using Road = RoadId;
 using ETerrainId = TerrainId;
-
-VCMI_LIB_NAMESPACE_END

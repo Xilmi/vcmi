@@ -13,8 +13,6 @@
 #include "../campaign/CampaignConstants.h"
 #include "../serializer/Serializeable.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class CampaignBonus;
 struct CampaignTravel;
 class CampaignState;
@@ -74,19 +72,6 @@ public:
 
 	template <typename Handler> void serialize(Handler &h)
 	{
-		if (h.saving || h.hasFeature(Handler::Version::NO_RAW_POINTERS_IN_SERIALIZER))
-		{
-			// no-op, but needed to auto-create this class if gamestate had it during serialization
-		}
-		else
-		{
-			bool dummyA = false;
-			uint32_t dummyB = 0;
-
-			h & dummyA;
-			h & dummyB;
-		}
+		// no-op, but needed to auto-create this class if gamestate had it during serialization
 	}
 };
-
-VCMI_LIB_NAMESPACE_END

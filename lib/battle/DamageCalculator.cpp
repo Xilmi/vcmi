@@ -15,14 +15,13 @@
 #include "Unit.h"
 
 #include "../bonuses/Bonus.h"
+#include "../bonuses/BonusParameters.h"
 #include "../CCreatureHandler.h"
 #include "../mapObjects/CGTownInstance.h"
 #include "../IGameSettings.h"
 #include "../GameLibrary.h"
 
 #include <vcmi/spells/Spell.h>
-
-VCMI_LIB_NAMESPACE_BEGIN
 
 DamageRange DamageCalculator::getBaseDamageSingle() const
 {
@@ -166,21 +165,11 @@ int DamageCalculator::getActorAttackSlayer() const
 
 	if(std::shared_ptr<const Bonus> slayerEffect = slayerEffects->getFirst(Selector::all))
 	{
-		const auto spLevel = slayerEffect->val;
-		bool isAffected = spLevel >= slayerAffected;
-
-		if(isAffected)
-		{
-			SpellID spell(SpellID::SLAYER);
-			int attackBonus = spell.toEntity(LIBRARY)->getLevelPower(spLevel);
-			if(info.attacker->hasBonusOfType(BonusType::SPECIAL_PECULIAR_ENCHANT, BonusSubtypeID(spell)))
-			{
-				ui8 attackerTier = info.attacker->unitType()->getLevel();
-				ui8 specialtyBonus = std::max(5 - attackerTier, 0);
-				attackBonus += specialtyBonus;
-			}
-			return attackBonus;
-		}
+		// addInfo - spell mastery level
+		// val - attack bonus
+		int spLevel = slayerEffect->parameters ? slayerEffect->parameters->toNumber() : 0;
+		if(spLevel >= slayerAffected)
+			return slayerEffect->val;
 	}
 	return 0;
 }
@@ -422,19 +411,17 @@ double DamageCalculator::getDefenseForgetfulnessFactor() const
 {
 	if(info.shooting)
 	{
-		//todo: set actual percentage in spell bonus configuration instead of just level; requires non trivial backward compatibility handling
-		//get list first, total value of 0 also counts
+		//value is a shooting-damage reduction percentage; 100 fully disables shooting (handled in canShoot)
 		TConstBonusListPtr forgetfulList = info.attacker->getBonusesOfType(BonusType::FORGETFULL);
 
 		if(!forgetfulList->empty())
 		{
 			int forgetful = forgetfulList->valOfBonuses(Selector::all);
 
-			//none of basic level
-			if(forgetful == 0 || forgetful == 1)
-				return 0.5;
-			else
-				logGlobal->warn("Attempt to calculate shooting damage with adv+ FORGETFULL effect");
+			if(forgetful >= 100)
+				logGlobal->warn("Attempt to calculate shooting damage with fully disabling FORGETFULL effect");
+
+			return std::min(forgetful, 100) / 100.0;
 		}
 	}
 	return 0.0;
@@ -558,22 +545,16 @@ DamageEstimation DamageCalculator::calculateDmgRange() const
 	DamageRange damageBase = getBaseDamageStack();
 
 	auto attackFactors = getAttackFactors();
-	auto defenseFactors = getDefenseFactors();
 
 	double attackFactorTotal = 1.0;
 	double defenseFactorTotal = 1.0;
 
 	for (auto & factor : attackFactors)
-	{
-		assert(factor >= 0.0);
 		attackFactorTotal += factor;
-	}
 
-	for (auto & factor : defenseFactors)
-	{
-		assert(factor >= 0.0);
-		defenseFactorTotal *= (1 - std::min(1.0, factor));
-	}
+	if(!info.ignoreDefenseFactors)
+		for (auto & factor : getDefenseFactors())
+			defenseFactorTotal *= (1 - std::min(1.0, factor));
 
 	double resultingFactor = attackFactorTotal * defenseFactorTotal;
 
@@ -591,5 +572,3 @@ DamageEstimation DamageCalculator::calculateDmgRange() const
 
 	return DamageEstimation{damageDealt, killsDealt};
 }
-
-VCMI_LIB_NAMESPACE_END

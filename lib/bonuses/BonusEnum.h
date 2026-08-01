@@ -10,8 +10,6 @@
 
 #pragma once
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class JsonNode;
 
 #define BONUS_LIST										\
@@ -106,7 +104,7 @@ class JsonNode;
 	BONUS_NAME(ATTACKS_NEAREST_CREATURE) /*while in berserk*/ \
 	BONUS_NAME(IN_FRENZY) /*value - level*/				\
 	BONUS_NAME(SLAYER) /*value - level*/				\
-	BONUS_NAME(FORGETFULL) /*forgetfulness spell effect, value - level*/ \
+	BONUS_NAME(FORGETFULL) /*forgetfulness spell effect, value - shooting damage reduction percentage (100 disables shooting)*/ \
 	BONUS_NAME(NOT_ACTIVE) /* subtype - spell ID (paralyze, blind, stone gaze) for graphical effect*/ 								\
 	BONUS_NAME(NO_LUCK) /*eg. when fighting on cursed ground*/	\
 	BONUS_NAME(NO_MORALE) /*eg. when fighting on cursed ground*/ \
@@ -207,6 +205,8 @@ class JsonNode;
 	BONUS_NAME(SPELL_CAST_COUNTER)  /*used to keep count how many times a particular spells has been cast*/ \
 	BONUS_NAME(LEARN_BATTLE_SPELL_CHANCE_PRE_BATTLE) /*skill-agnostic eagle eye chance to learn enemy hero spells at battle start*/\
 	BONUS_NAME(LEARN_BATTLE_SPELL_LEVEL_LIMIT_PRE_BATTLE) /*skill-agnostic eagle eye spell level limit to learn enemy hero spells at battle start*/\
+	BONUS_NAME(SURRENDER_MARKETPLACE_ACCESS) /*Allows hero to open marketplace when unable to pay surrender cost*/ \
+	BONUS_NAME(SPECIAL_SPELL_SCALING) /*like SPECIAL_SPELL_LEV but with H3-correct per-target-level rounding; subtype = spell, val = percent per step*/\
 
 	/* end of list */
 
@@ -324,5 +324,3 @@ extern DLL_LINKAGE const std::map<std::string, BonusValueType> bonusValueMap;
 extern DLL_LINKAGE const std::map<std::string, BonusSource> bonusSourceMap;
 extern DLL_LINKAGE const std::map<std::string, BonusDuration::Type> bonusDurationMap;
 extern DLL_LINKAGE const std::map<std::string, BonusLimitEffect> bonusLimitEffect;
-
-VCMI_LIB_NAMESPACE_END

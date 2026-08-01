@@ -20,8 +20,6 @@
 #include "mapObjects/CGObjectInstance.h"
 #include "mapping/MapTilesStorage.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class CGObjectInstance;
 class CGHeroInstance;
 class CGTownInstance;
@@ -107,6 +105,9 @@ public:
 	void markObjectControlled(ObjectInstanceID objectID);
 	bool hasEverControlled(ObjectInstanceID objectID) const;
 
+	/// True once a hero of this player has visited a keymaster tent of the given colour.
+	bool wasKeymasterVisited(MapObjectSubID keymasterColor) const;
+
 	bool checkVanquished() const
 	{
 		return getHeroes().empty() && getTowns().empty();
@@ -121,15 +122,7 @@ public:
 		h & status;
 		h & turnTimer;
 		h & *playerLocalSettings;
-		if (h.hasFeature(Handler::Version::NO_RAW_POINTERS_IN_SERIALIZER))
-			h & ownedObjects;
-		else
-		{
-			std::vector<std::shared_ptr<CGObjectInstance>> objectPtrs;
-			h & objectPtrs;
-			for (const auto & ptr : objectPtrs)
-				ownedObjects.push_back(ptr->id);
-		}
+		h & ownedObjects;
 
 		h & quests;
 		h & visitedObjects;
@@ -173,5 +166,3 @@ public:
 	}
 
 };
-
-VCMI_LIB_NAMESPACE_END

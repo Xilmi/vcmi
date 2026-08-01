@@ -9,8 +9,6 @@
  */
 #pragma once
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class JsonNode;
 
 enum class EGameSettings
@@ -67,6 +65,7 @@ enum class EGameSettings
 	HEROES_SKILL_PER_HERO,
 	HEROES_SPECIALTY_CREATURE_GROWTH,
 	HEROES_SPECIALTY_SECONDARY_SKILL_GROWTH,
+	HEROES_SPECIALTY_SPELL_SCALING,
 	LEVEL_UP_TOTAL_SKILLS_AMOUNT,
 	LEVEL_UP_UPGRADED_SKILLS_AMOUNT,
 	INTERFACE_PLAYER_COLORED_BACKGROUND,
@@ -129,5 +128,3 @@ public:
 	std::vector<int> getVector(EGameSettings option) const;
 	int getVectorValue(EGameSettings option, size_t index) const;
 };
-
-VCMI_LIB_NAMESPACE_END

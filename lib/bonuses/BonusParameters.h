@@ -13,8 +13,6 @@
 
 #include "Bonus.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 struct BonusParametersOnCombatEvent
 {
 	struct CombatEffectBonus
@@ -91,6 +89,11 @@ public:
 		return toCustom<std::vector<int32_t>>();
 	}
 
+	bool isVector() const
+	{
+		return std::holds_alternative<std::vector<int32_t>>(data_);
+	}
+
 	template<typename CustomType>
 	const CustomType & toCustom() const
 	{
@@ -118,5 +121,3 @@ public:
 private:
 	storage_type data_;
 };
-
-VCMI_LIB_NAMESPACE_END

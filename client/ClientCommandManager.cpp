@@ -103,7 +103,7 @@ void ClientCommandManager::handleGoSoloCommand()
 	{
 		PlayerColor currentColor = GAME->interface()->playerID;
 		GAME->server().client->removeGUI();
-		
+
 		for(auto & color : GAME->server().getAllClientPlayers(GAME->server().logicConnection->connectionID))
 		{
 			if(color.isValidPlayer() && GAME->server().client->gameInfo().getStartInfo()->playerInfos.at(color).isControlledByHuman())
@@ -215,7 +215,7 @@ void ClientCommandManager::handleTranslateGameCommand(bool onlyMissing)
 		if (!output.isNull())
 		{
 			std::string filename = modEntry.first;
-			boost::range::replace(filename, '.', '_');
+			std::ranges::replace(filename, '.', '_');
 			const boost::filesystem::path filePath = outPath / (filename + ".json");
 			std::ofstream file(filePath.c_str());
 			file << output.toString();
@@ -574,6 +574,22 @@ void ClientCommandManager::handleVsLog(std::istringstream & singleWordBuffer)
 	logVisual->setKey(key);
 }
 
+void ClientCommandManager::handleWhoIsTheBossCommand(std::istringstream & singleWordBuffer)
+{
+	std::string value;
+	singleWordBuffer >> value;
+
+	Settings session = settings.write["session"];
+	if(value == "on")
+		session["showAiHeroOverlay"].Bool() = true;
+	else if(value == "off")
+		session["showAiHeroOverlay"].Bool() = false;
+	else
+		printCommandMessage("Unexpected syntax. Supported forms (case insensitive):\n/whoIsTheBoss on\n/whoIsTheBoss off\n");
+
+	ENGINE->windows().totalRedraw();
+}
+
 void ClientCommandManager::handleGenerateAssets()
 {
 	ENGINE->renderHandler().exportGeneratedAssets();
@@ -707,6 +723,9 @@ void ClientCommandManager::processCommand(const std::string & message, bool call
 
 	else if(commandName == "vslog")
 		handleVsLog(singleWordBuffer);
+
+	else if(boost::iequals(commandName, "whoistheboss"))
+		handleWhoIsTheBossCommand(singleWordBuffer);
 
 	else if(message=="generate assets")
 		handleGenerateAssets();

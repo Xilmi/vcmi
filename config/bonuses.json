@@ -574,6 +574,11 @@
 	{
 		"blockDescriptionPropagation": true
 	},
+
+	"SURRENDER_MARKETPLACE_ACCESS":
+	{
+		"blockDescriptionPropagation": true
+	},
 	
 	"DEITYOFFIRE":
 	{
@@ -682,6 +687,7 @@
 	"SLAYER" : {},
 	"SPECIAL_CRYSTAL_GENERATION" : {},
 	"SPECIAL_SPELL_LEV" : {},
+	"SPECIAL_SPELL_SCALING" : {},
 	"SPECIAL_UPGRADE" : {},
 	"SPECIFIC_SPELL_DAMAGE" : {},
 	"SPECIFIC_SPELL_POWER" : {},

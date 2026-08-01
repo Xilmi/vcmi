@@ -12,8 +12,6 @@
 #include "TextLocalizationContainer.h"
 #include "../json/JsonNode.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class CGeneralTextHandler;
 
 /// Small wrapper that provides text access API compatible with old code
@@ -70,9 +68,6 @@ public:
 	//objects
 	LegacyTextContainer advobtxt;
 	LegacyTextContainer restypes; //names of resources
-	LegacyTextContainer seerEmpty;
-	LegacyTextContainer seerNames;
-	LegacyTextContainer tentColors;
 
 	//sec skills
 	LegacyTextContainer levels;
@@ -97,5 +92,3 @@ public:
 	/// Returns name of encoding of Heroes III text files
 	static std::string getInstalledEncoding();
 };
-
-VCMI_LIB_NAMESPACE_END

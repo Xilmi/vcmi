@@ -17,8 +17,6 @@
 
 #include "../../../lib/mapObjects/CGHeroInstance.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 namespace scripting::api
 {
 
@@ -26,6 +24,7 @@ class HeroInstanceProxy : public RawPointerWrapper<const CGHeroInstance, HeroIns
 {
 	static bool isMale(const CGHeroInstance & hero);
 	static bool isFemale(const CGHeroInstance & hero);
+	static int getLevel(const CGHeroInstance & hero);
 
 public:
 	static constexpr std::string_view luaName = "HeroInstance";
@@ -38,5 +37,3 @@ public:
 };
 
 }
-
-VCMI_LIB_NAMESPACE_END

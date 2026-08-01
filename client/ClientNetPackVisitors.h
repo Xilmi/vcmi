@@ -13,13 +13,9 @@
 
 class CClient;
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class CGameState;
 
-VCMI_LIB_NAMESPACE_END
-
-class ApplyClientNetPackVisitor : public VCMI_LIB_WRAP_NAMESPACE(ICPackVisitor)
+class ApplyClientNetPackVisitor : public ::ICPackVisitor
 {
 private:
 	CClient & cl;
@@ -85,7 +81,6 @@ public:
 	void visitBattleAttack(BattleAttack & pack) override;
 	void visitBattleSpellCast(BattleSpellCast & pack) override;
 	void visitSetStackEffect(SetStackEffect & pack) override;
-	void visitStacksInjured(StacksInjured & pack) override;
 	void visitBattleResultsApplied(BattleResultsApplied & pack) override;
 	void visitBattleEnded(BattleEnded & pack) override;
 	void visitBattleUnitsChanged(BattleUnitsChanged & pack) override;
@@ -93,6 +88,7 @@ public:
 	void visitCatapultAttack(CatapultAttack & pack) override;
 	void visitEndAction(EndAction & pack) override;
 	void visitPackageApplied(PackageApplied & pack) override;
+	void visitQueryResolved(QueryResolved & pack) override;
 	void visitSystemMessage(SystemMessage & pack) override;
 	void visitPlayerBlocked(PlayerBlocked & pack) override;
 	void visitPlayerStartsTurn(PlayerStartsTurn & pack) override;
@@ -110,7 +106,7 @@ public:
 	void visitResponseStatistic(ResponseStatistic & pack) override;
 };
 
-class ApplyFirstClientNetPackVisitor : public VCMI_LIB_WRAP_NAMESPACE(ICPackVisitor)
+class ApplyFirstClientNetPackVisitor : public ::ICPackVisitor
 {
 private:
 	CClient & cl;
@@ -134,4 +130,5 @@ public:
 	void visitBattleAttack(BattleAttack & pack) override;
 	void visitStartAction(StartAction & pack) override;
 	void visitSetObjectProperty(SetObjectProperty & pack) override;
+	void visitStacksInjured(StacksInjured & pack) override;
 };

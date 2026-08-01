@@ -9,8 +9,6 @@
  */
 #pragma once
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 class CModHandler;
 class ModDescription;
 class CContentHandler;
@@ -64,8 +62,6 @@ public:
 	void load();
 	void afterLoad();
 
-	CModHandler();
+	explicit CModHandler(bool useTestPreset = false);
 	~CModHandler();
 };
-
-VCMI_LIB_NAMESPACE_END

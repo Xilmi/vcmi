@@ -14,9 +14,7 @@
 #include "../../lib/FunctionList.h"
 #include "../../lib/filesystem/ResourcePath.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
 class Rect;
-VCMI_LIB_NAMESPACE_END
 
 class CAnimImage;
 class InterfaceObjectConfigurable;
@@ -76,7 +74,6 @@ class CButton : public ButtonBase
 	std::optional<ColorRGBA> highlightedBorderColor; // mapping of button state to border color
 	std::string helpBox; //for right-click help
 
-	bool actOnDown; //runs when mouse is pressed down over it, not when up
 	bool hoverable; //if true, button will be highlighted when hovered (e.g. main menu)
 	bool soundDisabled;
 
@@ -101,7 +98,6 @@ public:
 
 	void setHoverable(bool on);
 	void setSoundDisabled(bool on);
-	void setActOnDown(bool on);
 	void setHelp(const std::pair<std::string, std::string> & help);
 
 	/// State modifiers
@@ -119,6 +115,7 @@ public:
 	void clickReleased(const Point & cursorPosition) override;
 	void clickCancel(const Point & cursorPosition) override;
 	void hover (bool on) override;
+	void onTouchPress(bool on) override;
 	void showAll(Canvas & to) override;
 
 	/// generates tooltip that can be passed into constructor

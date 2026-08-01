@@ -20,8 +20,6 @@
 #include "../../../lib/CBonusTypeHandler.h"
 #include "../../../lib/bonuses/BonusParameters.h"
 
-VCMI_LIB_NAMESPACE_BEGIN
-
 namespace scripting::api
 {
 
@@ -51,6 +49,8 @@ void BonusProxy::registerMethods(MethodRegistrar & R)
 		"True if the bonus is hidden from the player's interface display.");
 	R.function<&BonusProxy::getParametersAsNumber>("getParametersAsNumber", {},
 		"Returns the bonus's extra parameters encoded as a single integer (0 if none).");
+	R.function<&BonusProxy::getParametersAsVector>("getParametersAsVector", {},
+		"Returns the bonus's extra parameters as a list of integers (empty if not stored as an array).");
 }
 
 std::string BonusProxy::getType(const Bonus & b)
@@ -68,9 +68,16 @@ si16        BonusProxy::getTurnsRemain(const Bonus & b) { return b.turnsRemain; 
 bool        BonusProxy::isHidden(const Bonus & b)      { return b.hidden; }
 si32        BonusProxy::getParametersAsNumber(const Bonus & b) { return b.parameters ? b.parameters->toNumber() : 0; }
 
+std::vector<int32_t> BonusProxy::getParametersAsVector(const Bonus & b)
+{
+	if (b.parameters && b.parameters->isVector())
+		return b.parameters->toVector();
+	return {};
+}
+
 std::vector<BonusDuration::BonusDuration> BonusProxy::getDuration(const Bonus & b)
 {
-	static constexpr BonusDuration::BonusDuration all[] = {
+	static constexpr std::array all = {
 		BonusDuration::PERMANENT,
 		BonusDuration::ONE_BATTLE,
 		BonusDuration::ONE_DAY,
@@ -117,5 +124,3 @@ Bonus BonusListProxy::getBonus(const BonusList & list, int32_t index)
 }
 
 }
-
-VCMI_LIB_NAMESPACE_END
